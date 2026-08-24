@@ -61,7 +61,10 @@ class Env:
 
 
 def load_env() -> Env:
-    owner = os.getenv("TELEGRAM_OWNER_ID", "").strip()
+    owner = (
+        os.getenv("TELEGRAM_OWNER_ID", "").strip()
+        or os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    )
     return Env(
         telegram_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         telegram_owner_id=int(owner) if owner.isdigit() else None,
