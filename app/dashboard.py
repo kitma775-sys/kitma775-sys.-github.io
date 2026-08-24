@@ -53,6 +53,10 @@ def create_app(rt: Runtime) -> FastAPI:
             rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
         elif name == "paper":
             rt.store.patch_settings(live_trading=False)
+        elif name == "reset_paper":
+            book = rt.store.reset_paper(rt.env.paper_starting_cash)
+            rt.store.add_event("warn", f"paper reset starting=${book['starting']:.2f}")
+            return {"ok": True, "settings": rt.settings(), "paper": book}
         else:
             raise HTTPException(400, "unknown action")
         rt.store.add_event("info", f"dashboard {name}")

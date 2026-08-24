@@ -53,6 +53,7 @@ class Runtime:
     def snapshot(self) -> dict[str, Any]:
         s = self.settings()
         st = self.store.stats()
+        paper = self.store.paper_state()
         return {
             "mode": self.mode(),
             "keys_ready": live_keys_ready(self.env),
@@ -61,6 +62,7 @@ class Runtime:
             "geo": self.geo,
             "settings": s,
             "stats": st,
+            "paper": paper,
             "last_loop": self.last_loop,
             "inventory": self.store.inventory()[:20],
             "trades": self.store.recent_trades(15),
@@ -99,6 +101,8 @@ async def _tick(rt: Runtime) -> None:
     events = await rt.data.live_events(s.get("tag") or "15M", list(s.get("assets") or ["btc", "eth"]))
     rt.last_loop = {"ts": time.time(), "status": "scan", "markets": len(events), "signals": 0, "fills": 0}
     broker = rt.broker()
+    paper_mode = rt.mode() == "paper"
+    paper = rt.store.paper_state() if paper_mode else None
     signals = 0
     fills = 0
     for ev in events:
@@ -117,7 +121,7 @@ async def _tick(rt: Runtime) -> None:
             down_asks=dn_book["asks"],
             up_bids=up_book["bids"],
             down_bids=dn_book["bids"],
-            max_usd=float(s["max_usd_per_trade"]),
+            max_usd=_trade_budget(s, paper),
             min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
             min_edge=float(s["min_edge"]),
             fee_rate=fee_rate,
@@ -133,6 +137,8 @@ async def _tick(rt: Runtime) -> None:
         if time.time() - last < cool:
             continue
         signals += 1
+        if paper_mode:
+            paper = rt.store.paper_state()
         inv = rt.store.inventory_one(setup.condition_id)
         decision = approve(
             setup,
@@ -141,13 +147,15 @@ async def _tick(rt: Runtime) -> None:
             max_imbalance=float(s["max_imbalance_shares"]),
             inventory_up=float(inv["up"]),
             inventory_down=float(inv["down"]),
-            daily_pnl=rt.store.today_pnl(),
+            daily_pnl=paper["today_pnl"] if paper else rt.store.today_pnl(),
             daily_loss_limit=float(s["daily_loss_limit_usd"]),
             open_markets=rt.store.stats()["open_markets"],
             max_open_markets=int(s["max_open_markets"]),
             killed=bool(s["killed"]),
             engine_running=bool(s["engine_running"]),
             auto_execute=bool(s["auto_execute"]),
+            cash=paper["cash"] if paper else None,
+            cost=setup.cost if paper else None,
         )
         payload = {
             "title": setup.title,
@@ -156,6 +164,7 @@ async def _tick(rt: Runtime) -> None:
             "down": setup.down_price,
             "shares": setup.shares,
             "net": setup.net,
+            "cost": setup.cost,
             "gross": setup.gross,
             "tail": setup.tail,
             "reason": decision.reason,
@@ -181,16 +190,34 @@ async def _tick(rt: Runtime) -> None:
         )
         if result.ok and result.status in {"filled", "paper_filled"}:
             fills += 1
+            if paper_mode:
+                try:
+                    rt.store.paper_apply_buy(setup.cost)
+                except ValueError:
+                    rt.store.add_event("warn", f"paper cash race {setup.slug}")
+                    continue
             rt.store.add_inventory(setup.condition_id, setup.slug, setup.shares, setup.shares)
             if s.get("auto_merge"):
                 merged = rt.store.merge_inventory(setup.condition_id, setup.shares)
-                await broker.merge(setup.condition_id, merged["merged"])
+                take = float(merged["merged"] or 0)
+                if take > 0 and paper_mode:
+                    net_part = setup.net * (take / setup.shares) if setup.shares else 0.0
+                    rt.store.paper_apply_merge(take, net_part)
+                await broker.merge(setup.condition_id, take)
+            paper = rt.store.paper_state() if paper_mode else None
             if s.get("notify_signals"):
                 flag = "🧪紙盤" if result.mode == "paper" else "🔴實盤"
+                book = ""
+                if paper:
+                    sign = "+" if paper["total_pnl"] >= 0 else ""
+                    book = (
+                        f"\n成本 ${setup.cost:.2f} · 現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
+                        f"\n累計 PnL {sign}${paper['total_pnl']:.2f} · 今日 ${paper['today_pnl']:.2f}"
+                    )
                 await rt.notify(
                     f"{flag} 成交 {setup.kind}\n{setup.title}\n"
                     f"Up {setup.up_price} + Down {setup.down_price} × {setup.shares:.1f}\n"
-                    f"淨利約 ${setup.net:.2f}",
+                    f"淨利 ${setup.net:.2f}{book}",
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
@@ -198,4 +225,12 @@ async def _tick(rt: Runtime) -> None:
                 await rt.notify(f"📌 掛單 {setup.title}\n{setup.up_price}+{setup.down_price} × {setup.shares:.1f}")
         else:
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
-    rt.last_loop.update({"signals": signals, "fills": fills, "status": "ok"})
+    rt.last_loop.update({"signals": signals, "fills": fills, "status": "ok", "paper": paper})
+
+
+def _trade_budget(s: dict, paper: dict | None) -> float:
+    cap = float(s["max_usd_per_trade"])
+    if not paper:
+        return cap
+    # leave a small buffer so taker fees don't overshoot remaining cash
+    return max(0.0, min(cap, float(paper["cash"]) - 0.25))

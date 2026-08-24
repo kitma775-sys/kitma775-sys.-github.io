@@ -30,6 +30,14 @@ class Setup:
     end: str | None = None
     extra: dict = field(default_factory=dict)
 
+    @property
+    def cost(self) -> float:
+        """Cash out to buy both legs (fees included). Merge of `shares` returns that many dollars.
+
+        Identically `shares - net`, so a fill+merge changes cash by `net`.
+        """
+        return round(self.shares - self.net, 6)
+
 
 def _sorted_asks(levels: list[Level]) -> list[Level]:
     return sorted((lv for lv in levels if lv.size > 0 and lv.price > 0), key=lambda x: x.price)

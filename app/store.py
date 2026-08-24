@@ -10,6 +10,10 @@ from typing import Any
 from app.config import DEFAULT_SETTINGS
 
 
+def _utc_day() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (
   k TEXT PRIMARY KEY,
@@ -180,6 +184,7 @@ class Store:
             return {"condition_id": condition_id, "merged": take, "up": nu, "down": nd}
 
     def today_pnl(self) -> float:
+        """UTC-day sum of recorded trade nets. Prefer paper_state()['today_pnl'] for the cash book."""
         start = time.time() - (time.time() % 86400)
         row = self._conn.execute(
             "SELECT COALESCE(SUM(net),0) AS s FROM trades WHERE ts>=? AND status IN ('filled','paper_filled','merged')",
@@ -187,12 +192,117 @@ class Store:
         ).fetchone()
         return float(row["s"] if row else 0.0)
 
+    def _paper_default(self, starting: float) -> dict:
+        start = round(float(starting), 6)
+        return {
+            "starting": start,
+            "cash": start,
+            "realized_pnl": 0.0,
+            "day": _utc_day(),
+            "day_start_equity": start,
+        }
+
+    def _inventory_matched_usd(self) -> float:
+        row = self._conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN up < down THEN up ELSE down END), 0) AS v FROM inventory"
+        ).fetchone()
+        return float(row["v"] or 0.0)
+
+    def _paper_view(self, data: dict) -> dict:
+        inv = round(self._inventory_matched_usd(), 6)
+        cash = round(float(data.get("cash") or 0), 6)
+        starting = round(float(data.get("starting") or 0), 6)
+        equity = round(cash + inv, 6)
+        day = _utc_day()
+        if data.get("day") != day:
+            data["day"] = day
+            data["day_start_equity"] = equity
+            self._set("paper", json.dumps(data))
+        today_pnl = round(equity - float(data.get("day_start_equity") or equity), 6)
+        return {
+            "starting": starting,
+            "cash": cash,
+            "realized_pnl": round(float(data.get("realized_pnl") or 0), 6),
+            "inventory_value": inv,
+            "equity": equity,
+            "total_pnl": round(equity - starting, 6),
+            "today_pnl": today_pnl,
+            "day": data["day"],
+        }
+
+    def ensure_paper(self, starting: float) -> dict:
+        with self._lock:
+            raw = self._get("paper")
+            if raw is None:
+                data = self._paper_default(starting)
+                self._set("paper", json.dumps(data))
+            else:
+                data = json.loads(raw)
+                data.setdefault("starting", float(starting))
+                data.setdefault("cash", float(data["starting"]))
+                data.setdefault("realized_pnl", 0.0)
+                data.setdefault("day", _utc_day())
+                data.setdefault("day_start_equity", float(data.get("cash") or starting))
+                self._set("paper", json.dumps(data))
+            return self._paper_view(data)
+
+    def paper_state(self) -> dict:
+        with self._lock:
+            raw = self._get("paper")
+            if raw is None:
+                data = self._paper_default(500.0)
+                self._set("paper", json.dumps(data))
+            else:
+                data = json.loads(raw)
+            return self._paper_view(data)
+
+    def reset_paper(self, starting: float) -> dict:
+        with self._lock:
+            self._conn.execute("DELETE FROM inventory")
+            self._conn.commit()
+            data = self._paper_default(starting)
+            self._set("paper", json.dumps(data))
+            return self._paper_view(data)
+
+    def paper_apply_buy(self, cost: float) -> dict:
+        with self._lock:
+            raw = self._get("paper")
+            data = json.loads(raw) if raw else self._paper_default(500.0)
+            self._paper_view(data)
+            data = json.loads(self._get("paper") or json.dumps(data))
+            cost = round(float(cost), 6)
+            if float(data["cash"]) + 1e-9 < cost:
+                raise ValueError("insufficient_cash")
+            data["cash"] = round(float(data["cash"]) - cost, 6)
+            self._set("paper", json.dumps(data))
+            return self._paper_view(data)
+
+    def paper_apply_merge(self, shares: float, net: float) -> dict:
+        with self._lock:
+            raw = self._get("paper")
+            data = json.loads(raw) if raw else self._paper_default(500.0)
+            self._paper_view(data)
+            data = json.loads(self._get("paper") or json.dumps(data))
+            data["cash"] = round(float(data["cash"]) + float(shares), 6)
+            data["realized_pnl"] = round(float(data.get("realized_pnl") or 0) + float(net), 6)
+            self._set("paper", json.dumps(data))
+            return self._paper_view(data)
+
     def stats(self) -> dict:
         scans = self._conn.execute("SELECT COUNT(*) c FROM scans WHERE ts>=?", (time.time() - 86400,)).fetchone()["c"]
         trades = self._conn.execute("SELECT COUNT(*) c FROM trades WHERE ts>=?", (time.time() - 86400,)).fetchone()["c"]
+        paper = self.paper_state()
         return {
             "scans_24h": scans,
             "trades_24h": trades,
-            "today_pnl": self.today_pnl(),
-            "open_markets": self._conn.execute("SELECT COUNT(*) c FROM inventory WHERE up>0.01 OR down>0.01").fetchone()["c"],
+            "today_pnl": paper["today_pnl"],
+            "open_markets": self._conn.execute(
+                "SELECT COUNT(*) c FROM inventory WHERE up>0.01 OR down>0.01"
+            ).fetchone()["c"],
+            "starting": paper["starting"],
+            "cash": paper["cash"],
+            "equity": paper["equity"],
+            "total_pnl": paper["total_pnl"],
+            "inventory_value": paper["inventory_value"],
+            "realized_pnl": paper["realized_pnl"],
         }

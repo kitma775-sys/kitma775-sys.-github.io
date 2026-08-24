@@ -26,6 +26,8 @@ def approve(
     killed: bool,
     engine_running: bool,
     auto_execute: bool,
+    cash: float | None = None,
+    cost: float | None = None,
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")
@@ -39,6 +41,8 @@ def approve(
         return RiskDecision(False, "no_size")
     if setup.net <= 0:
         return RiskDecision(False, "non_positive_net")
+    if cash is not None and cost is not None and cost > cash + 1e-9:
+        return RiskDecision(False, "insufficient_cash")
 
     cheap = min(setup.up_price, setup.down_price)
     rich = max(setup.up_price, setup.down_price)

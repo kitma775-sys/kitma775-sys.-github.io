@@ -34,6 +34,7 @@
       <button onclick="act('resume')">繼續跑</button>
       <button class="ghost" onclick="act('pause')">暫停</button>
       <button class="ghost" onclick="act('paper')">強制紙盤</button>
+      <button class="ghost" onclick="act('reset_paper')">重置紙盤 $500</button>
       <button class="ghost" onclick="act('kill')">緊急停機</button>
     </div>
     <div class="row" id="tiles"></div>
@@ -58,9 +59,22 @@
       document.getElementById("stateLine").textContent =
         (killed ? "已停機" : run ? "全自動運行中" : "暫停") + " · " + (d.mode === "live" ? "實盤" : "紙盤");
       document.getElementById("sub").textContent =
-        "keys " + (d.keys_ready ? "ready" : "missing") + " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0);
+        "keys " + (d.keys_ready ? "ready" : "missing") +
+        " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
+        " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2);
+      const p = d.paper || st;
+      const pnlCls = (n) => Number(n) > 0.005 ? "ok" : Number(n) < -0.005 ? "bad" : "";
+      const money = (n, label) => {
+        const x = Number(n || 0);
+        const sign = x > 0 ? "+" : "";
+        return tile(sign + "$" + x.toFixed(2), label, pnlCls(x));
+      };
       document.getElementById("tiles").innerHTML = [
-        tile("$" + Number(st.today_pnl||0).toFixed(2), "今日 PnL"),
+        tile("$" + Number(p.starting || 0).toFixed(2), "紙盤本金"),
+        tile("$" + Number(p.cash || 0).toFixed(2), "現金"),
+        tile("$" + Number(p.equity || 0).toFixed(2), "權益"),
+        money(p.total_pnl, "累計 PnL"),
+        money(p.today_pnl, "今日 PnL"),
         tile(String(st.open_markets||0), "開倉市場"),
         tile(String((d.last_loop||{}).signals ?? "—"), "上一圈信號"),
         tile(String((d.last_loop||{}).fills ?? "—"), "上一圈成交"),
@@ -79,10 +93,13 @@
       ).join("") || "<tr><td colspan=3>暫無</td></tr>";
       document.getElementById("events").textContent = (d.events||[]).map(e => e.level + " " + e.message).join("\n") || "—";
     }
-    function tile(v, l) { return "<div class=tile><b>"+v+"</b><span>"+l+"</span></div>"; }
+    function tile(v, l, cls) {
+      return "<div class=tile><b class='"+(cls||"")+"'>"+v+"</b><span>"+l+"</span></div>";
+    }
     function esc(s) { return String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
     async function act(name) {
       if (name === "kill" && !confirm("確認緊急停機？")) return;
+      if (name === "reset_paper" && !confirm("重置紙盤本金 $500 並清倉？")) return;
       await fetch("/api/action/"+name, { method:"POST", credentials:"same-origin" });
       load();
     }

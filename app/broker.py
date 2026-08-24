@@ -19,20 +19,23 @@ class PaperBroker:
     mode = "paper"
 
     async def execute_pair(self, setup: Setup) -> FillResult:
-        if setup.kind == "maker":
-            return FillResult(
-                ok=True,
-                status="paper_resting",
-                mode="paper",
-                detail="紙盤記錄 maker 掛單，唔當即時成交",
-                payload={"kind": setup.kind, "shares": setup.shares},
-            )
+        # Paper assumes both legs fill at the quoted VWAP so the $500 book can show PnL.
+        # Live maker orders still rest; paper is a ledger, not a queue simulator.
         return FillResult(
             ok=True,
             status="paper_filled",
             mode="paper",
-            detail=f"紙盤成交 {setup.shares:.1f} 對 @ {setup.up_price}+{setup.down_price}",
-            payload={"kind": setup.kind, "shares": setup.shares, "net": setup.net},
+            detail=(
+                f"紙盤成交 {setup.kind} {setup.shares:.1f} 對 @ "
+                f"{setup.up_price}+{setup.down_price} 成本 ${setup.cost:.2f} 淨利 ${setup.net:.2f}"
+            ),
+            payload={
+                "kind": setup.kind,
+                "shares": setup.shares,
+                "net": setup.net,
+                "cost": setup.cost,
+                "assumed_fill": setup.kind == "maker",
+            },
         )
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:

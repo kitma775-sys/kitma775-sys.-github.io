@@ -8,7 +8,7 @@ Polymarket YES/NO 互補套利 bot：全自動紙盤預設、Telegram 全按掣�
 
 - 引擎開機即跑（`ENGINE_AUTOSTART=true`）
 - **全自動**：合規缺口唔會逐單問你
-- **紙盤**：用真盤口計數，唔簽名、唔落單
+- **紙盤 $500 本金**：現金帳本，成交扣成本，merge 計權益同 PnL
 - 實盤要 `POLYMARKET_PRIVATE_KEY` + Telegram 撳兩次確認
 - 緊急停機、日虧熔斷、單邊裸倉閘門、官方費用曲線
 
@@ -44,6 +44,8 @@ DATA_DIR=/data
 TRADING_MODE=paper
 ENGINE_AUTOSTART=true
 PORT=8080
+PAPER_STARTING_CASH=500
+FORCE_PAPER=true
 ```
 
 3. 加一個 volume 掛 `/data`，唔係每次 deploy 會清 SQLite
@@ -59,6 +61,8 @@ PORT=8080
 - 中間價 taker 多數死亡；尾盤 0.97+0.01 類先有淨利
 - 便宜腳 + 對手唔貴 = 當過期單，唔做
 - 兩邊齊就 merge，加快資金
+- 紙盤 maker 當即按報價成交（樂觀，方便睇 PnL）；實盤 maker 仍然掛單
+- 權益 = 現金 + 可 merge 對數 × $1；累計 PnL = 權益 − 本金
 
 呢個唔係投資建議。遵守當地法律同 Polymarket geoblock。
 

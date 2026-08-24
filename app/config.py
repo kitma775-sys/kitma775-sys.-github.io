@@ -58,6 +58,7 @@ class Env:
     clob_secret: str = ""
     clob_passphrase: str = ""
     force_paper: bool = False
+    paper_starting_cash: float = 500.0
 
 
 def load_env() -> Env:
@@ -78,6 +79,7 @@ def load_env() -> Env:
         clob_secret=os.getenv("CLOB_SECRET", "").strip(),
         clob_passphrase=os.getenv("CLOB_PASSPHRASE", "").strip(),
         force_paper=os.getenv("FORCE_PAPER", "false").lower() in {"1", "true", "yes"},
+        paper_starting_cash=float(os.getenv("PAPER_STARTING_CASH", "500") or 500),
     )
 
 

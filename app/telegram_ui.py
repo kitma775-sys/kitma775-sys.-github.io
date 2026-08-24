@@ -53,8 +53,21 @@ def mode_kb(rt: Runtime) -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("✅ 紙盤（而家）" if mode == "paper" else "轉返紙盤", callback_data="paper")],
             [InlineKeyboardButton("🔴 轉實盤（要確認）", callback_data="live1")],
+            [InlineKeyboardButton("♻️ 重置紙盤本金 $500", callback_data="reset1")],
             [InlineKeyboardButton("↩️ 返主頁", callback_data="home")],
         ]
+    )
+
+
+def _signed(n: float) -> str:
+    return f"{'+' if n >= 0 else ''}${n:.2f}"
+
+
+def _paper_block(rt: Runtime) -> str:
+    p = rt.store.paper_state()
+    return (
+        f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 權益 ${p['equity']:.2f}\n"
+        f"累計 PnL {_signed(p['total_pnl'])} · 今日 {_signed(p['today_pnl'])}"
     )
 
 
@@ -131,7 +144,8 @@ def home_text(rt: Runtime) -> str:
     return (
         f"🏄 衝浪套利 Bot\n"
         f"{state} · {mode}\n"
-        f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']} · PnL ${st['today_pnl']:.2f}\n"
+        f"{_paper_block(rt)}\n"
+        f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']}\n"
         f"開倉市場 {st['open_markets']} · {keys}\n"
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')}"
         f"{geo_line}\n\n"
@@ -155,9 +169,10 @@ def _status_text(rt: Runtime) -> str:
 
 def _pos_text(rt: Runtime) -> str:
     inv = rt.store.inventory()
+    lines = [_paper_block(rt), "", "📦 倉位"]
     if not inv:
-        return "而家無倉。紙盤成交之後先會喺呢度見到。"
-    lines = ["📦 倉位"]
+        lines.append("而家無倉。紙盤成交之後先會喺呢度見到。")
+        return "\n".join(lines)
     for row in inv[:15]:
         lines.append(f"{row['slug'] or row['condition_id'][:8]}\n  Up {row['up']:.1f} · Down {row['down']:.1f}")
     return "\n".join(lines)
@@ -242,7 +257,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer()
         await q.edit_message_text(
             f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
-            "紙盤會用真盤口計數，但唔簽名、唔落單。\n"
+            "紙盤會用真盤口計數，但唔簽名、唔落單。本金 $500，成交會扣現金、merge 會計 PnL。\n"
             "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，再撳兩次確認。",
             reply_markup=mode_kb(rt),
         )
@@ -250,6 +265,25 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "paper":
         rt.store.patch_settings(live_trading=False)
         await q.answer("返紙盤")
+        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        return
+    if data == "reset1":
+        kb = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("確認重置為 $500，清倉", callback_data="reset2")],
+                [InlineKeyboardButton("算吧", callback_data="mode")],
+            ]
+        )
+        await q.answer()
+        await q.edit_message_text(
+            "會清紙盤倉位，現金同權益打返 $500。成交紀錄會留低。確定？",
+            reply_markup=kb,
+        )
+        return
+    if data == "reset2":
+        book = rt.store.reset_paper(rt.env.paper_starting_cash)
+        rt.store.add_event("warn", f"paper reset starting=${book['starting']:.2f}")
+        await q.answer("紙盤已重置")
         await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "live1":
@@ -341,6 +375,16 @@ async def run_telegram(rt: Runtime) -> None:
     await application.start()
     await application.updater.start_polling(drop_pending_updates=True)
     rt.store.add_event("info", "telegram polling")
+    owner = rt.env.telegram_owner_id or rt.store.owner_id()
+    if owner is not None:
+        try:
+            await application.bot.send_message(
+                chat_id=owner,
+                text=home_text(rt) + "\n\n紙盤本金已設 $500。現金／權益／PnL 睇上面同 dashboard。",
+                reply_markup=home_kb(rt),
+            )
+        except Exception:
+            pass
     try:
         while True:
             note = await rt.notices.get()

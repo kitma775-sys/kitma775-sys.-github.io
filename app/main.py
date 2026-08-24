@@ -31,8 +31,12 @@ def run() -> None:
         store.patch_settings(live_trading=False)
     if not env.engine_autostart:
         store.patch_settings(engine_running=False)
+    paper = store.ensure_paper(env.paper_starting_cash)
     rt = Runtime(store, env)
-    store.add_event("info", f"boot mode={rt.mode()} port={env.port}")
+    store.add_event(
+        "info",
+        f"boot mode={rt.mode()} port={env.port} paper_start=${paper['starting']:.2f} cash=${paper['cash']:.2f}",
+    )
     asyncio.run(_serve(rt))
 
 

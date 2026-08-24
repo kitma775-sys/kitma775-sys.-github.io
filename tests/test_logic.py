@@ -166,6 +166,103 @@ def test_store_merge(tmp_path):
     assert st.inventory_one("c1")["down"] == 0
 
 
+def test_setup_cost_is_shares_minus_net():
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.97,
+        down_price=0.01,
+        shares=10,
+        fillable=10,
+        gross=0.02,
+        fees=0.02,
+        net=0.18,
+        tail=True,
+    )
+    assert setup.cost == 9.82
+
+
+def test_risk_blocks_insufficient_cash():
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.97,
+        down_price=0.01,
+        shares=10,
+        fillable=10,
+        gross=0.02,
+        fees=0.02,
+        net=0.18,
+        tail=True,
+    )
+    kwargs = dict(
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=0,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=0,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+    )
+    blocked = approve(setup, cash=5.0, cost=setup.cost, **kwargs)
+    assert blocked.ok is False
+    assert blocked.reason == "insufficient_cash"
+    ok = approve(setup, cash=500.0, cost=setup.cost, **kwargs)
+    assert ok.ok is True
+
+
+def test_paper_ledger_buy_merge_pnl(tmp_path):
+    st = Store(tmp_path / "t.sqlite")
+    book = st.ensure_paper(500)
+    assert book["cash"] == 500
+    assert book["equity"] == 500
+    assert book["total_pnl"] == 0
+
+    st.paper_apply_buy(9.82)
+    st.add_inventory("c1", "btc", 10, 10)
+    mid = st.paper_state()
+    assert round(mid["cash"], 2) == 490.18
+    assert mid["inventory_value"] == 10
+    assert round(mid["equity"], 2) == 500.18
+    assert round(mid["total_pnl"], 2) == 0.18
+
+    merged = st.merge_inventory("c1", 10)
+    assert merged["merged"] == 10
+    end = st.paper_apply_merge(10, 0.18)
+    assert round(end["cash"], 2) == 500.18
+    assert end["inventory_value"] == 0
+    assert round(end["equity"], 2) == 500.18
+    assert round(end["total_pnl"], 2) == 0.18
+    assert round(end["realized_pnl"], 2) == 0.18
+
+
+def test_paper_apply_buy_rejects_overdraft(tmp_path):
+    st = Store(tmp_path / "t.sqlite")
+    st.ensure_paper(5)
+    try:
+        st.paper_apply_buy(9.82)
+        raise AssertionError("expected insufficient_cash")
+    except ValueError as exc:
+        assert "insufficient_cash" in str(exc)
+
+
 def test_geo_japan_website_block_api_open():
     from app.geo import interpret, telegram_line
 
