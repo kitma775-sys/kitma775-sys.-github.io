@@ -509,3 +509,190 @@ def test_dashboard_paper_bankroll_actions(tmp_path):
     assert book["equity"] == 1500
     assert st.inventory() == []
     assert st.recent_trades()[0]["slug"] == "keep"
+
+
+def test_rescue_prefers_hedge_over_dump():
+    from app.rescue import plan_rescue
+
+    plan = plan_rescue(
+        filled_px=0.71,
+        shares=10,
+        other_asks=_L((0.32, 80)),
+        filled_bids=_L((0.65, 80)),
+        fee_rate=0.07,
+    )
+    assert plan.action == "hedge"
+    assert plan.pnl > -2
+    assert plan.pnl > -10 * 0.71 + 1  # better than dump/hold of the full leg
+
+
+def test_rescue_dumps_when_other_ask_is_one():
+    from app.rescue import plan_rescue
+
+    plan = plan_rescue(
+        filled_px=0.71,
+        shares=10,
+        other_asks=_L((0.99, 80)),
+        filled_bids=_L((0.60, 80)),
+        fee_rate=0.07,
+    )
+    assert plan.action == "dump"
+    assert plan.cash_out > 5
+
+
+def test_rescue_hold_when_no_book():
+    from app.rescue import plan_rescue
+
+    plan = plan_rescue(filled_px=0.71, shares=10, other_asks=[], filled_bids=[], fee_rate=0.07)
+    assert plan.action == "hold"
+
+
+def test_parse_outcome_prices_json():
+    from app.rescue import parse_outcome_prices
+
+    assert parse_outcome_prices('["1","0"]') == (1.0, 0.0)
+    assert parse_outcome_prices([0, 1]) == (0.0, 1.0)
+
+
+def test_hunt_skips_maker_when_window_far():
+    from datetime import datetime, timedelta, timezone
+
+    end = (datetime.now(timezone.utc) + timedelta(seconds=600)).isoformat()
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.70, 100)),
+        down_asks=_L((0.40, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.48, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=True,
+        end=end,
+    )
+    assert setup is None
+
+
+def test_hunt_allows_late_balanced_maker():
+    from datetime import datetime, timedelta, timezone
+
+    end = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.70, 100)),
+        down_asks=_L((0.40, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.48, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=True,
+        end=end,
+    )
+    assert setup is not None
+    assert setup.kind == "maker"
+
+
+def test_hunt_rejects_skewed_maker():
+    from datetime import datetime, timedelta, timezone
+
+    end = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.80, 100)),
+        down_asks=_L((0.30, 100)),
+        up_bids=_L((0.71, 80)),
+        down_bids=_L((0.27, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=True,
+        end=end,
+    )
+    assert setup is None
+
+
+def test_risk_maker_too_early():
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="maker",
+        up_price=0.50,
+        down_price=0.48,
+        shares=10,
+        fillable=10,
+        gross=0.02,
+        fees=0,
+        net=0.2,
+        tail=False,
+    )
+    d = approve(
+        setup,
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=0,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=0,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+        seconds_left=600,
+    )
+    assert d.ok is False
+    assert d.reason == "maker_too_early"
+
+
+def test_circuit_tripped_uses_equity_pnl(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "c.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(80)
+    st.patch_settings(daily_loss_limit_usd=50)
+    rt = Runtime(st, Env())
+    assert rt.store.paper_state()["today_pnl"] <= -50
+    assert rt.circuit_tripped() is True
+
+
+def test_paper_settle_credits_winner(tmp_path):
+    st = Store(tmp_path / "s.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(18.0)
+    st.add_inventory("c1", "btc-updown", 25.5, 0)
+    before = st.paper_state()
+    st.take_inventory("c1", up=25.5, down=0)
+    st.paper_apply_credit(25.5)
+    after = st.paper_state()
+    assert after["cash"] - before["cash"] == 25.5
+    assert st.inventory_one("c1")["up"] == 0

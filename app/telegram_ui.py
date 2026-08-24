@@ -12,7 +12,7 @@ from app.runtime import Runtime
 TOGGLES = {
     "auto_execute": ("全自動落單", "開咗就唔會逐單問你"),
     "prefer_tail": ("尾盤優先", "近完場、一邊好貴一邊好平先掃"),
-    "maker_first": ("掛單優先", "中間價缺口用 maker，唔好做 taker"),
+    "maker_first": ("掛單（尾盤先，易中毒）", "15m 兩邊掛單會買死邊；預設關"),
     "auto_merge": ("自動 merge", "兩邊齊就換返現金"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
@@ -177,11 +177,15 @@ def _label(key: str) -> str:
 
 def home_text(rt: Runtime) -> str:
     s = rt.settings()
+    p = rt.store.paper_state()
     st = rt.store.stats()
+    limit = float(s.get("daily_loss_limit_usd") or 0)
     if s.get("killed"):
         state = "🆘 已緊急停機"
     elif not s.get("engine_running"):
         state = "⏸ 暫停緊"
+    elif limit > 0 and p["today_pnl"] <= -abs(limit):
+        state = "🧊 日虧熔斷（停新倉）"
     else:
         state = "🟢 全自動運行中" if s.get("auto_execute") else "🟡 只掃描，唔落單"
     mode = "🧪 紙盤" if rt.mode() == "paper" else "🔴 實盤"

@@ -210,6 +210,32 @@ class Store:
         self._conn.commit()
         return {"condition_id": condition_id, "merged": take, "up": nu, "down": nd}
 
+    def take_inventory(self, condition_id: str, up: float = 0.0, down: float = 0.0) -> dict:
+        with self._lock:
+            cur = self.inventory_one(condition_id)
+            take_up = min(max(float(up), 0.0), float(cur["up"]))
+            take_dn = min(max(float(down), 0.0), float(cur["down"]))
+            nu, nd = float(cur["up"]) - take_up, float(cur["down"]) - take_dn
+            self._conn.execute(
+                "UPDATE inventory SET up=?, down=?, updated=? WHERE condition_id=?",
+                (nu, nd, time.time(), condition_id),
+            )
+            self._conn.commit()
+            return {"condition_id": condition_id, "up": nu, "down": nd, "took_up": take_up, "took_down": take_dn}
+
+    def unmatched_shares(self) -> float:
+        total = 0.0
+        for row in self.inventory():
+            total += abs(float(row["up"] or 0) - float(row["down"] or 0))
+        return round(total, 6)
+
+    def latest_resting(self, condition_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM resting WHERE condition_id=? ORDER BY id DESC LIMIT 1",
+            (condition_id,),
+        ).fetchone()
+        return None if row is None else self._decode_resting(row)
+
     def today_pnl(self) -> float:
         """UTC-day sum of recorded trade nets. Prefer paper_state()['today_pnl'] for the cash book."""
         start = time.time() - (time.time() % 86400)
@@ -311,6 +337,13 @@ class Store:
     def paper_apply_buy(self, cost: float) -> dict:
         with self._lock:
             return self._paper_apply_buy_unlocked(cost)
+
+    def paper_apply_credit(self, amount: float) -> dict:
+        with self._lock:
+            data = self._load_paper_unlocked()
+            data["cash"] = round(float(data["cash"]) + max(0.0, float(amount)), 6)
+            self._set("paper", json.dumps(data))
+            return self._paper_view(data)
 
     def paper_reserve(self, amount: float) -> dict:
         with self._lock:
@@ -555,4 +588,5 @@ class Store:
             "inventory_value": paper["inventory_value"],
             "realized_pnl": paper["realized_pnl"],
             "resting": paper["resting"],
+            "unmatched_shares": self.unmatched_shares(),
         }

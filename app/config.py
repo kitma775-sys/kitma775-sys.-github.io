@@ -19,7 +19,7 @@ DEFAULT_SETTINGS = {
     "prefer_tail": True,
     "tail_confirm": 0.90,
     "stale_leg": 0.02,
-    "maker_first": True,
+    "maker_first": False,
     "auto_merge": True,
     "fee_rate": 0.07,
     "tag": "15M",
@@ -27,10 +27,12 @@ DEFAULT_SETTINGS = {
     "notify_signals": True,
     "notify_rejects": False,
     "quote_cooldown_seconds": 30.0,
-    # Extra ticks added to each taker VWAP in paper. 0 = fill at the scanned book.
     "paper_slip_ticks": 0,
-    # Paper bankroll used on reset. Changing this does not wipe the live book until reset.
     "paper_starting_cash": 500.0,
+    "strategy_rev": 2,
+    "maker_min_leg": 0.22,
+    "maker_max_skew": 0.28,
+    "maker_window_seconds": 75.0,
 }
 
 

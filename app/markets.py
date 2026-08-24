@@ -98,6 +98,16 @@ class MarketData:
             "bids": _parse_levels(data.get("bids"), reverse=True),
         }
 
+    async def event_by_slug(self, slug: str) -> dict[str, Any] | None:
+        if not slug:
+            return None
+        r = await self.client.get(f"{GAMMA}/events", params={"slug": slug}, timeout=10)
+        r.raise_for_status()
+        rows = r.json() or []
+        if not rows:
+            return None
+        return rows[0]
+
     async def books_pair(self, up_token: str, down_token: str) -> tuple[dict, dict]:
         up, down = await self.book(up_token), await self.book(down_token)
         # fetch sequentially is safer on rate limits; caller can gather if needed

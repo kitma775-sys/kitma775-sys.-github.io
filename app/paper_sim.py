@@ -77,10 +77,17 @@ def parse_end(end: str | None) -> datetime | None:
 
 
 def market_expired(end: str | None, now: datetime | None = None) -> bool:
+    left = seconds_left(end, now)
+    return left is not None and left <= 0
+
+
+def seconds_left(end: str | None, now: datetime | None = None) -> float | None:
     dt = parse_end(end)
     if dt is None:
-        return False
+        return None
     clock = now or datetime.now(timezone.utc)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt <= clock
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=timezone.utc)
+    return (dt - clock).total_seconds()

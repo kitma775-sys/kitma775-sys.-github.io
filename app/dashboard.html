@@ -67,8 +67,9 @@
       const st = d.stats || {};
       const killed = s.killed;
       const run = s.engine_running;
+      const circuit = d.circuit;
       document.getElementById("stateLine").textContent =
-        (killed ? "已停機" : run ? "全自動運行中" : "暫停") + " · " + (d.mode === "live" ? "實盤" : "紙盤");
+        (killed ? "已停機" : circuit ? "日虧熔斷（停新倉）" : run ? "全自動運行中" : "暫停") + " · " + (d.mode === "live" ? "實盤" : "紙盤");
       document.getElementById("sub").textContent =
         "keys " + (d.keys_ready ? "ready" : "missing") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +

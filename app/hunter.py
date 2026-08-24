@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from app.fees import gross_edge, pair_taker_fee, taker_net
+
+MAKER_MIN_LEG = 0.22
+MAKER_MAX_SKEW = 0.28
+MAKER_WINDOW_SECONDS = 75.0
 
 
 @dataclass(frozen=True)
@@ -68,6 +73,18 @@ def total_size(levels: list[Level]) -> float:
     return sum(lv.size for lv in levels if lv.size > 0)
 
 
+def _seconds_left(end: str | None) -> float | None:
+    if not end:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (dt - datetime.now(timezone.utc)).total_seconds()
+
+
 def is_tail(up: float, down: float, confirm: float) -> bool:
     hi = max(up, down)
     lo = min(up, down)
@@ -93,6 +110,9 @@ def hunt(
     tail_confirm: float,
     maker_first: bool,
     end: str | None = None,
+    maker_min_leg: float = MAKER_MIN_LEG,
+    maker_max_skew: float = MAKER_MAX_SKEW,
+    maker_window_seconds: float = MAKER_WINDOW_SECONDS,
 ) -> Setup | None:
     taker = _taker_setup(
         slug=slug,
@@ -122,7 +142,12 @@ def hunt(
         min_edge=min_edge,
         tail_confirm=tail_confirm,
         end=end,
+        seconds_left=_seconds_left(end),
+        maker_min_leg=maker_min_leg,
+        maker_max_skew=maker_max_skew,
+        maker_window_seconds=maker_window_seconds,
     )
+    # Certain two-ask arb always beats hoping both bids get hit.
     if prefer_tail and taker and taker.tail:
         return taker
     if taker and taker.net > 0:
@@ -187,11 +212,21 @@ def _taker_setup(**kw) -> Setup | None:
 
 
 def _maker_setup(**kw) -> Setup | None:
+    left = kw.get("seconds_left")
+    window = float(kw.get("maker_window_seconds") or MAKER_WINDOW_SECONDS)
+    if left is None or left > window or left < 3:
+        return None
     up_bids: list[Level] = _sorted_bids(kw["up_bids"])
     down_bids: list[Level] = _sorted_bids(kw["down_bids"])
     if not up_bids or not down_bids:
         return None
     up_bid, dn_bid = up_bids[0].price, down_bids[0].price
+    min_leg = float(kw.get("maker_min_leg") or MAKER_MIN_LEG)
+    max_skew = float(kw.get("maker_max_skew") or MAKER_MAX_SKEW)
+    if min(up_bid, dn_bid) < min_leg:
+        return None
+    if abs(up_bid - dn_bid) > max_skew:
+        return None
     gross = gross_edge(up_bid, dn_bid)
     if gross < kw["min_edge"]:
         return None
@@ -205,6 +240,8 @@ def _maker_setup(**kw) -> Setup | None:
         return None
     gross = gross_edge(up_vwap, dn_vwap)
     if gross < kw["min_edge"]:
+        return None
+    if min(up_vwap, dn_vwap) < min_leg or abs(up_vwap - dn_vwap) > max_skew:
         return None
     tail = is_tail(up_vwap, dn_vwap, kw["tail_confirm"])
     net = round(gross * filled, 5)  # maker pays 0

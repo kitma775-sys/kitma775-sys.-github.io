@@ -28,6 +28,11 @@ def approve(
     auto_execute: bool,
     cash: float | None = None,
     cost: float | None = None,
+    unmatched_shares: float = 0.0,
+    seconds_left: float | None = None,
+    maker_window: float = 75.0,
+    maker_min_leg: float = 0.22,
+    maker_max_skew: float = 0.28,
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")
@@ -48,8 +53,15 @@ def approve(
     rich = max(setup.up_price, setup.down_price)
     if cheap < stale_leg and rich < tail_confirm:
         return RiskDecision(False, "stale_quote")
-    if setup.kind == "maker" and cheap < max(stale_leg, 0.10):
-        return RiskDecision(False, "maker_unbalanced")
+    if setup.kind == "maker":
+        if cheap < max(stale_leg, maker_min_leg):
+            return RiskDecision(False, "maker_unbalanced")
+        if abs(setup.up_price - setup.down_price) > maker_max_skew:
+            return RiskDecision(False, "maker_skew")
+        if seconds_left is None or seconds_left > maker_window or seconds_left < 3:
+            return RiskDecision(False, "maker_too_early")
+        if unmatched_shares > 0.5:
+            return RiskDecision(False, "unmatched_book")
 
     if abs(inventory_up - inventory_down) > max_imbalance:
         return RiskDecision(False, "already_naked")
