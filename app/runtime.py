@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
-from app.config import Env, live_keys_ready
+from app.config import Env, clamp_paper_cash, live_keys_ready
 from app.hunter import hunt
 from app.markets import MarketData
 from app.paper_sim import asks_cross_bid, market_expired
@@ -31,6 +31,12 @@ class Runtime:
 
     def settings(self) -> dict:
         return self.store.settings()
+
+    def paper_bankroll(self) -> float:
+        raw = self.settings().get("paper_starting_cash")
+        if raw is None or raw == "":
+            raw = self.env.paper_starting_cash
+        return clamp_paper_cash(raw)
 
     def mode(self) -> str:
         s = self.settings()

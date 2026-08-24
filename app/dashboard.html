@@ -17,6 +17,9 @@
     .tile span { font-size:12px; color:#6b6256; }
     button { font:inherit; border:1px solid var(--ink); background:var(--ink); color:var(--paper); padding:8px 12px; margin:0 6px 8px 0; cursor:pointer; }
     button.ghost { background:transparent; color:var(--ink); }
+    .bank { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0 14px; }
+    .bank label { font-size:13px; }
+    .bank input { font:inherit; width:120px; padding:7px 8px; border:1px solid var(--rule); background:var(--card); }
     table { width:100%; border-collapse:collapse; background:var(--card); font-size:13px; margin:10px 0 22px; }
     th,td { border:1px solid var(--rule); padding:7px 8px; text-align:left; vertical-align:top; }
     th { background:var(--chip); font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
@@ -34,8 +37,14 @@
       <button onclick="act('resume')">繼續跑</button>
       <button class="ghost" onclick="act('pause')">暫停</button>
       <button class="ghost" onclick="act('paper')">強制紙盤</button>
-      <button class="ghost" onclick="act('reset_paper')">重置紙盤 $500</button>
       <button class="ghost" onclick="act('kill')">緊急停機</button>
+    </div>
+    <div class="bank">
+      <label for="bankroll">紙盤本金 $</label>
+      <input id="bankroll" type="number" min="50" max="100000" step="50" />
+      <button class="ghost" onclick="saveBankroll()">儲存金額</button>
+      <button onclick="resetPaper()">重置紙盤</button>
+      <span id="bankHint" style="font-size:12px;color:#6b6256"></span>
     </div>
     <div class="row" id="tiles"></div>
     <h2>最近掃描</h2>
@@ -65,6 +74,13 @@
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
         " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2);
       const p = d.paper || st;
+      const planned = Number((s.paper_starting_cash != null ? s.paper_starting_cash : p.starting) || 500);
+      const bank = document.getElementById("bankroll");
+      if (document.activeElement !== bank) bank.value = String(planned);
+      document.getElementById("bankHint").textContent =
+        Math.abs(planned - Number(p.starting||0)) > 0.009
+          ? ("下次重置用 $" + planned.toFixed(0) + "；帳本而家由 $" + Number(p.starting||0).toFixed(0) + " 起計")
+          : "撳重置會清倉並用上面金額重開";
       const pnlCls = (n) => Number(n) > 0.005 ? "ok" : Number(n) < -0.005 ? "bad" : "";
       const money = (n, label) => {
         const x = Number(n || 0);
@@ -104,9 +120,25 @@
       return "<div class=tile><b class='"+(cls||"")+"'>"+v+"</b><span>"+l+"</span></div>";
     }
     function esc(s) { return String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+    function bankAmount() {
+      const n = Number(document.getElementById("bankroll").value);
+      return n;
+    }
+    async function saveBankroll() {
+      const n = bankAmount();
+      if (!n || n < 50) { alert("本金最少 $50"); return; }
+      await fetch("/api/action/set_paper_cash?amount=" + encodeURIComponent(n), { method:"POST", credentials:"same-origin" });
+      load();
+    }
+    async function resetPaper() {
+      const n = bankAmount();
+      if (!n || n < 50) { alert("本金最少 $50"); return; }
+      if (!confirm("重置紙盤到 $" + n.toFixed(0) + " 並清倉／撤掛單？成交紀錄會留低。")) return;
+      await fetch("/api/action/reset_paper?amount=" + encodeURIComponent(n), { method:"POST", credentials:"same-origin" });
+      load();
+    }
     async function act(name) {
       if (name === "kill" && !confirm("確認緊急停機？")) return;
-      if (name === "reset_paper" && !confirm("重置紙盤本金 $500 並清倉？")) return;
       await fetch("/api/action/"+name, { method:"POST", credentials:"same-origin" });
       load();
     }

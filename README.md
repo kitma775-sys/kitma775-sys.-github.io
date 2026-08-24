@@ -8,7 +8,7 @@ Polymarket YES/NO 互補套利 bot：全自動紙盤預設、Telegram 全按掣�
 
 - 引擎開機即跑（`ENGINE_AUTOSTART=true`）
 - **全自動**：合規缺口唔會逐單問你
-- **紙盤 $500 本金**：現金帳本，成交扣成本，merge 計權益同 PnL
+- **紙盤本金可改**：Telegram「💵 紙盤本金」或 Dashboard 輸入金額；「♻️ 重置紙盤」會清倉並用新本金重開。預設 $500。
 - 實盤要 `POLYMARKET_PRIVATE_KEY` + Telegram 撳兩次確認
 - 緊急停機、日虧熔斷、單邊裸倉閘門、官方費用曲線
 

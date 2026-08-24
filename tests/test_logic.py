@@ -416,3 +416,96 @@ def test_paper_resting_no_pnl_until_both_legs(tmp_path):
     assert round(end["cash"], 2) == 500.10
     assert round(end["total_pnl"], 2) == 0.10
     assert round(end["realized_pnl"], 2) == 0.10
+
+
+def test_clamp_paper_cash_bounds():
+    from app.config import clamp_paper_cash
+
+    assert clamp_paper_cash(10) == 50
+    assert clamp_paper_cash(200000) == 100000
+    assert clamp_paper_cash(1500) == 1500
+
+
+def test_reset_paper_custom_bankroll(tmp_path):
+    st = Store(tmp_path / "bank.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(20)
+    st.add_inventory("c1", "btc", 5, 0)
+    st.patch_settings(paper_starting_cash=2000)
+    out = st.reset_paper(2000)
+    assert out["starting"] == 2000
+    assert out["cash"] == 2000
+    assert out["equity"] == 2000
+    assert out["total_pnl"] == 0
+    assert out["reserved"] == 0
+    assert st.inventory() == []
+    assert st.resting_open() == []
+
+
+def test_paper_bankroll_reads_settings(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "bank2.sqlite")
+    st.ensure_paper(500)
+    st.patch_settings(paper_starting_cash=750)
+    rt = Runtime(st, Env(paper_starting_cash=500))
+    assert rt.paper_bankroll() == 750
+
+
+def test_set_bankroll_does_not_wipe_book(tmp_path):
+    st = Store(tmp_path / "keep.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(20)
+    st.add_inventory("c1", "btc", 5, 0)
+    st.patch_settings(paper_starting_cash=2000)
+    p = st.paper_state()
+    assert p["starting"] == 500
+    assert p["cash"] == 480
+    assert st.inventory_one("c1")["up"] == 5
+
+
+def test_reset_paper_keeps_trade_history(tmp_path):
+    st = Store(tmp_path / "hist.sqlite")
+    st.ensure_paper(500)
+    st.add_trade(slug="btc", kind="taker", shares=10, up_price=0.97, down_price=0.01, net=0.2, mode="paper", status="paper_filled")
+    st.reset_paper(1000)
+    trades = st.recent_trades()
+    assert len(trades) == 1
+    assert trades[0]["slug"] == "btc"
+    assert st.paper_state()["starting"] == 1000
+
+
+def test_paper_state_uses_settings_if_uninitialized(tmp_path):
+    st = Store(tmp_path / "uninit.sqlite")
+    st.patch_settings(paper_starting_cash=800)
+    p = st.paper_state()
+    assert p["starting"] == 800
+    assert p["cash"] == 800
+
+
+def test_dashboard_paper_bankroll_actions(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Env
+    from app.dashboard import create_app
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "dash.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(20)
+    st.add_trade(slug="keep", kind="taker", shares=5, up_price=0.9, down_price=0.1, net=0.0, mode="paper", status="paper_filled")
+    rt = Runtime(st, Env(dashboard_token="tok", paper_starting_cash=500))
+    client = TestClient(create_app(rt))
+    saved = client.post("/api/action/set_paper_cash?amount=2000&t=tok")
+    assert saved.status_code == 200
+    assert saved.json()["settings"]["paper_starting_cash"] == 2000
+    assert saved.json()["paper"]["cash"] == 480
+    reset = client.post("/api/action/reset_paper?amount=1500&t=tok")
+    assert reset.status_code == 200
+    book = reset.json()["paper"]
+    assert book["starting"] == 1500
+    assert book["cash"] == 1500
+    assert book["equity"] == 1500
+    assert st.inventory() == []
+    assert st.recent_trades()[0]["slug"] == "keep"

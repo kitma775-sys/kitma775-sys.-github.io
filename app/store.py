@@ -219,6 +219,17 @@ class Store:
         ).fetchone()
         return float(row["s"] if row else 0.0)
 
+    def paper_exists(self) -> bool:
+        with self._lock:
+            return self._get("paper") is not None
+
+    def _planned_starting_unlocked(self) -> float:
+        try:
+            s = json.loads(self._get("settings") or "{}")
+            return float(s.get("paper_starting_cash") or 500)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return 500.0
+
     def _paper_default(self, starting: float) -> dict:
         start = round(float(starting), 6)
         return {
@@ -282,7 +293,7 @@ class Store:
         with self._lock:
             raw = self._get("paper")
             if raw is None:
-                data = self._paper_default(500.0)
+                data = self._paper_default(self._planned_starting_unlocked())
                 self._set("paper", json.dumps(data))
             else:
                 data = json.loads(raw)
@@ -315,7 +326,7 @@ class Store:
 
     def _load_paper_unlocked(self) -> dict:
         raw = self._get("paper")
-        data = json.loads(raw) if raw else self._paper_default(500.0)
+        data = json.loads(raw) if raw else self._paper_default(self._planned_starting_unlocked())
         data.setdefault("reserved", 0.0)
         self._paper_view(data)
         return json.loads(self._get("paper") or json.dumps(data))

@@ -41,6 +41,7 @@ def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
             [InlineKeyboardButton(run, callback_data=run_cb), InlineKeyboardButton("📜 最近紀錄", callback_data="log")],
+            [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")],
             [InlineKeyboardButton("⚙️ 高階設定", callback_data="set"), InlineKeyboardButton("🧪／🔴 盤口模式", callback_data="mode")],
             [InlineKeyboardButton("🆘 緊急停機", callback_data="kill")],
         ]
@@ -49,14 +50,41 @@ def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
 
 def mode_kb(rt: Runtime) -> InlineKeyboardMarkup:
     mode = rt.mode()
+    amt = rt.paper_bankroll()
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("✅ 紙盤（而家）" if mode == "paper" else "轉返紙盤", callback_data="paper")],
             [InlineKeyboardButton("🔴 轉實盤（要確認）", callback_data="live1")],
-            [InlineKeyboardButton("♻️ 重置紙盤本金 $500", callback_data="reset1")],
+            [InlineKeyboardButton(f"♻️ 重置紙盤 ${amt:.0f}", callback_data="reset1")],
+            [InlineKeyboardButton("💵 改紙盤本金", callback_data="bank")],
             [InlineKeyboardButton("↩️ 返主頁", callback_data="home")],
         ]
     )
+
+
+def bank_kb(rt: Runtime) -> InlineKeyboardMarkup:
+    amt = rt.paper_bankroll()
+    presets = [100, 250, 500, 1000, 2000, 5000, 10000]
+    rows = []
+    row = []
+    for n in presets:
+        mark = "✅ " if abs(amt - n) < 0.01 else ""
+        row.append(InlineKeyboardButton(f"{mark}${n}", callback_data=f"bank:{n}"))
+        if len(row) == 4:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append(
+        [
+            InlineKeyboardButton("➖ $100", callback_data="bankdec"),
+            InlineKeyboardButton(f"本金 ${amt:.0f}", callback_data="bank"),
+            InlineKeyboardButton("➕ $100", callback_data="bankinc"),
+        ]
+    )
+    rows.append([InlineKeyboardButton(f"♻️ 重置紙盤到 ${amt:.0f}", callback_data="reset1")])
+    rows.append([InlineKeyboardButton("↩️ 返主頁", callback_data="home")])
+    return InlineKeyboardMarkup(rows)
 
 
 def _signed(n: float) -> str:
@@ -65,9 +93,26 @@ def _signed(n: float) -> str:
 
 def _paper_block(rt: Runtime) -> str:
     p = rt.store.paper_state()
+    planned = rt.paper_bankroll()
+    extra = ""
+    if abs(planned - float(p["starting"])) > 0.009:
+        extra = f" · 下次重置 ${planned:.0f}"
     return (
-        f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 凍結 ${p.get('reserved') or 0:.2f} · 權益 ${p['equity']:.2f}\n"
+        f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 凍結 ${p.get('reserved') or 0:.2f} · 權益 ${p['equity']:.2f}{extra}\n"
         f"累計 PnL {_signed(p['total_pnl'])} · 今日 {_signed(p['today_pnl'])} · 掛單 {int(p.get('resting') or 0)}"
+    )
+
+
+def bank_text(rt: Runtime) -> str:
+    p = rt.store.paper_state()
+    amt = rt.paper_bankroll()
+    return (
+        "💵 紙盤本金\n"
+        f"下次重置會用：${amt:.0f}\n"
+        f"帳本而家：本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 權益 ${p['equity']:.2f}\n"
+        f"累計 PnL {_signed(p['total_pnl'])}\n\n"
+        "改金額只係記住下次重置用幾多，唔會即刻清倉。\n"
+        "要套用新本金，撳重置（會清倉同掛單，成交紀錄會留）。"
     )
 
 
@@ -126,6 +171,7 @@ def _label(key: str) -> str:
         "stale_leg": "過期單門檻",
         "fee_rate": "taker費率",
         "paper_slip_ticks": "紙盤滑點tick",
+        "paper_starting_cash": "紙盤本金$",
     }.get(key, key)
 
 
@@ -270,7 +316,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer()
         await q.edit_message_text(
             f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
-            "紙盤跟真錢規則：taker 先按盤口成交；maker 只掛單，要盤口真係碰到先入帳。本金 $500。\n"
+            f"紙盤跟真錢規則：taker 先按盤口成交；maker 只掛單，要盤口真係碰到先入帳。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
             "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，再撳兩次確認。",
             reply_markup=mode_kb(rt),
         )
@@ -280,21 +326,41 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer("返紙盤")
         await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
         return
+    if data == "bank":
+        await q.answer()
+        await q.edit_message_text(bank_text(rt), reply_markup=bank_kb(rt))
+        return
+    if data.startswith("bank:") or data in {"bankinc", "bankdec"}:
+        from app.config import clamp_paper_cash
+        cur = rt.paper_bankroll()
+        if data == "bankinc":
+            nxt = clamp_paper_cash(cur + 100)
+        elif data == "bankdec":
+            nxt = clamp_paper_cash(cur - 100)
+        else:
+            nxt = clamp_paper_cash(float(data.split(":", 1)[1]))
+        rt.store.patch_settings(paper_starting_cash=nxt)
+        await q.answer(f"下次重置 ${nxt:.0f}")
+        await q.edit_message_text(bank_text(rt), reply_markup=bank_kb(rt))
+        return
     if data == "reset1":
+        amt = rt.paper_bankroll()
         kb = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("確認重置為 $500，清倉", callback_data="reset2")],
-                [InlineKeyboardButton("算吧", callback_data="mode")],
+                [InlineKeyboardButton(f"確認重置為 ${amt:.0f}，清倉", callback_data="reset2")],
+                [InlineKeyboardButton("算吧", callback_data="bank")],
             ]
         )
         await q.answer()
         await q.edit_message_text(
-            "會清紙盤倉位，現金同權益打返 $500。成交紀錄會留低。確定？",
+            f"會清紙盤倉位同掛單，現金同權益打返 ${amt:.0f}。成交紀錄會留低。確定？",
             reply_markup=kb,
         )
         return
     if data == "reset2":
-        book = rt.store.reset_paper(rt.env.paper_starting_cash)
+        amt = rt.paper_bankroll()
+        rt.store.patch_settings(paper_starting_cash=amt)
+        book = rt.store.reset_paper(amt)
         rt.store.add_event("warn", f"paper reset starting=${book['starting']:.2f}")
         await q.answer("紙盤已重置")
         await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
@@ -364,7 +430,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         cur = float(s.get(key) or 0)
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
-        if key in {"max_open_markets", "paper_slip_ticks"}:
+        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash"}:
             rt.store.patch_settings(**{key: int(round(nxt))})
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})
@@ -393,7 +459,7 @@ async def run_telegram(rt: Runtime) -> None:
         try:
             await application.bot.send_message(
                 chat_id=owner,
-                text=home_text(rt) + "\n\n紙盤本金已設 $500。現金／權益／PnL 睇上面同 dashboard。",
+                text=home_text(rt) + f"\n\n紙盤下次重置本金 ${rt.paper_bankroll():.0f}。現金／權益／PnL 睇上面同 dashboard。",
                 reply_markup=home_kb(rt),
             )
         except Exception:

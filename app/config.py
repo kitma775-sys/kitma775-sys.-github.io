@@ -29,6 +29,8 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 30.0,
     # Extra ticks added to each taker VWAP in paper. 0 = fill at the scanned book.
     "paper_slip_ticks": 0,
+    # Paper bankroll used on reset. Changing this does not wipe the live book until reset.
+    "paper_starting_cash": 500.0,
 }
 
 
@@ -44,7 +46,12 @@ SETTING_STEPS = {
     "stale_leg": (0.005, 0.005, 0.10),
     "fee_rate": (0.01, 0.0, 0.12),
     "paper_slip_ticks": (1.0, 0.0, 3.0),
+    "paper_starting_cash": (100.0, 50.0, 100000.0),
 }
+
+
+def clamp_paper_cash(amount: float) -> float:
+    return float(min(100000.0, max(50.0, round(float(amount), 2))))
 
 
 @dataclass

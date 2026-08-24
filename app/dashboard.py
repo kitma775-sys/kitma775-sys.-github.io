@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from app.config import clamp_paper_cash
 from app.runtime import Runtime
 
 PAGE = Path(__file__).with_name("dashboard.html")
@@ -42,7 +43,12 @@ def create_app(rt: Runtime) -> FastAPI:
         return JSONResponse(rt.snapshot())
 
     @app.post("/api/action/{name}")
-    async def action(name: str, request: Request, t: str | None = Query(default=None)):
+    async def action(
+        name: str,
+        request: Request,
+        t: str | None = Query(default=None),
+        amount: float | None = Query(default=None),
+    ):
         if not _ok(request, t):
             raise HTTPException(401, "unauthorized")
         if name == "pause":
@@ -53,8 +59,17 @@ def create_app(rt: Runtime) -> FastAPI:
             rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
         elif name == "paper":
             rt.store.patch_settings(live_trading=False)
+        elif name == "set_paper_cash":
+            if amount is None:
+                raise HTTPException(400, "amount required")
+            cash = clamp_paper_cash(amount)
+            rt.store.patch_settings(paper_starting_cash=cash)
+            rt.store.add_event("info", f"paper bankroll set ${cash:.2f} (reset to apply)")
+            return {"ok": True, "settings": rt.settings(), "paper": rt.store.paper_state()}
         elif name == "reset_paper":
-            book = rt.store.reset_paper(rt.env.paper_starting_cash)
+            cash = clamp_paper_cash(amount if amount is not None else rt.paper_bankroll())
+            rt.store.patch_settings(paper_starting_cash=cash)
+            book = rt.store.reset_paper(cash)
             rt.store.add_event("warn", f"paper reset starting=${book['starting']:.2f}")
             return {"ok": True, "settings": rt.settings(), "paper": book}
         else:

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.config import load_env
+from app.config import clamp_paper_cash, load_env
 from app.dashboard import create_app
 from app.runtime import Runtime, engine_loop
 from app.store import Store
@@ -31,7 +31,11 @@ def run() -> None:
         store.patch_settings(live_trading=False)
     if not env.engine_autostart:
         store.patch_settings(engine_running=False)
-    paper = store.ensure_paper(env.paper_starting_cash)
+    seed = clamp_paper_cash(env.paper_starting_cash)
+    if not store.paper_exists():
+        store.patch_settings(paper_starting_cash=seed)
+    planned = float(store.settings().get("paper_starting_cash") or seed)
+    paper = store.ensure_paper(planned)
     rt = Runtime(store, env)
     store.add_event(
         "info",
