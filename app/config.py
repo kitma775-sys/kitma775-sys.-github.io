@@ -29,7 +29,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 30.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 2,
+    "strategy_rev": 3,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.28,
     "maker_window_seconds": 75.0,

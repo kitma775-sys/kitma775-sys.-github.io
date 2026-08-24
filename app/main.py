@@ -36,8 +36,8 @@ def run() -> None:
         store.patch_settings(paper_starting_cash=seed)
     planned = float(store.settings().get("paper_starting_cash") or seed)
     paper = store.ensure_paper(planned)
-    if int(store.settings().get("strategy_rev") or 0) < 2:
-        store.patch_settings(strategy_rev=2, maker_first=False)
+    if int(store.settings().get("strategy_rev") or 0) < 3:
+        store.patch_settings(strategy_rev=3, maker_first=False)
     rt = Runtime(store, env)
     store.add_event(
         "info",
