@@ -66,8 +66,8 @@ def _signed(n: float) -> str:
 def _paper_block(rt: Runtime) -> str:
     p = rt.store.paper_state()
     return (
-        f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 權益 ${p['equity']:.2f}\n"
-        f"累計 PnL {_signed(p['total_pnl'])} · 今日 {_signed(p['today_pnl'])}"
+        f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 凍結 ${p.get('reserved') or 0:.2f} · 權益 ${p['equity']:.2f}\n"
+        f"累計 PnL {_signed(p['total_pnl'])} · 今日 {_signed(p['today_pnl'])} · 掛單 {int(p.get('resting') or 0)}"
     )
 
 
@@ -125,6 +125,7 @@ def _label(key: str) -> str:
         "tail_confirm": "尾盤門檻",
         "stale_leg": "過期單門檻",
         "fee_rate": "taker費率",
+        "paper_slip_ticks": "紙盤滑點tick",
     }.get(key, key)
 
 
@@ -169,12 +170,23 @@ def _status_text(rt: Runtime) -> str:
 
 def _pos_text(rt: Runtime) -> str:
     inv = rt.store.inventory()
+    rest = rt.store.resting_open()
     lines = [_paper_block(rt), "", "📦 倉位"]
-    if not inv:
-        lines.append("而家無倉。紙盤成交之後先會喺呢度見到。")
+    if rest:
+        lines.append("掛單（未碰到盤口唔入 PnL）")
+        for row in rest[:10]:
+            up_f = "✓" if row.get("up_filled") else "…"
+            dn_f = "✓" if row.get("down_filled") else "…"
+            lines.append(
+                f"{row.get('slug') or row['condition_id'][:8]}  {row['up_price']}+{row['down_price']} × {row['shares']:.1f}"
+                f"\n  Up {up_f} · Down {dn_f} · 鎖 ${float(row.get('reserved') or 0):.2f}"
+            )
+    if not inv and not rest:
+        lines.append("而家無倉、無掛單。Maker 只會掛住等盤口碰到先成交。")
         return "\n".join(lines)
-    for row in inv[:15]:
-        lines.append(f"{row['slug'] or row['condition_id'][:8]}\n  Up {row['up']:.1f} · Down {row['down']:.1f}")
+    if inv:
+        for row in inv[:15]:
+            lines.append(f"{row['slug'] or row['condition_id'][:8]}\n  Up {row['up']:.1f} · Down {row['down']:.1f}")
     return "\n".join(lines)
 
 
@@ -249,7 +261,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     if data == "kill2":
         rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
-        rt.store.add_event("warn", "kill switch")
+        n = rt.store.cancel_all_resting("kill")
+        rt.store.add_event("warn", f"kill switch cancelled_resting={n}")
         await q.answer("已停機")
         await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
         return
@@ -257,7 +270,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer()
         await q.edit_message_text(
             f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
-            "紙盤會用真盤口計數，但唔簽名、唔落單。本金 $500，成交會扣現金、merge 會計 PnL。\n"
+            "紙盤跟真錢規則：taker 先按盤口成交；maker 只掛單，要盤口真係碰到先入帳。本金 $500。\n"
             "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，再撳兩次確認。",
             reply_markup=mode_kb(rt),
         )
@@ -351,7 +364,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         cur = float(s.get(key) or 0)
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
-        if key in {"max_open_markets"}:
+        if key in {"max_open_markets", "paper_slip_ticks"}:
             rt.store.patch_settings(**{key: int(round(nxt))})
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})

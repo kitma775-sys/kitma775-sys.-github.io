@@ -10,6 +10,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, live_keys_ready
 from app.hunter import hunt
 from app.markets import MarketData
+from app.paper_sim import asks_cross_bid, market_expired
 from app.risk import approve
 from app.store import Store
 
@@ -65,6 +66,7 @@ class Runtime:
             "paper": paper,
             "last_loop": self.last_loop,
             "inventory": self.store.inventory()[:20],
+            "resting": self.store.resting_open()[:20],
             "trades": self.store.recent_trades(15),
             "scans": self.store.recent_scans(12),
             "events": self.store.recent_events(15),
@@ -94,11 +96,18 @@ async def engine_loop(rt: Runtime) -> None:
 async def _tick(rt: Runtime) -> None:
     s = rt.settings()
     rt.last_loop = {"ts": time.time(), "status": "idle"}
-    if s.get("killed") or not s.get("engine_running"):
-        rt.last_loop["status"] = "paused" if not s.get("killed") else "killed"
+    if s.get("killed"):
+        n = rt.store.cancel_all_resting("kill")
+        if n:
+            await rt.notify(f"🛑 已撤 {n} 張紙盤掛單")
+        rt.last_loop["status"] = "killed"
+        return
+    if not s.get("engine_running"):
+        rt.last_loop["status"] = "paused"
         return
     assert rt.data is not None
     events = await rt.data.live_events(s.get("tag") or "15M", list(s.get("assets") or ["btc", "eth"]))
+    resting_fills = await _process_resting(rt)
     rt.last_loop = {"ts": time.time(), "status": "scan", "markets": len(events), "signals": 0, "fills": 0}
     broker = rt.broker()
     paper_mode = rt.mode() == "paper"
@@ -132,6 +141,10 @@ async def _tick(rt: Runtime) -> None:
         )
         if not setup:
             continue
+        if paper_mode and rt.store.has_open_resting(setup.slug):
+            continue
+        if paper_mode:
+            setup.extra["paper_slip_ticks"] = int(s.get("paper_slip_ticks") or 0)
         cool = float(s.get("quote_cooldown_seconds") or 30)
         last = rt.cooldown.get(setup.slug, 0)
         if time.time() - last < cool:
@@ -183,16 +196,20 @@ async def _tick(rt: Runtime) -> None:
             shares=setup.shares,
             up_price=setup.up_price,
             down_price=setup.down_price,
-            net=setup.net if result.ok and result.status in {"filled", "paper_filled"} else 0.0,
+            net=(result.payload or {}).get("net", setup.net) if result.ok and result.status in {"filled", "paper_filled"} else 0.0,
             mode=result.mode,
             status=result.status,
             payload={"detail": result.detail, **(result.payload or {})},
         )
         if result.ok and result.status in {"filled", "paper_filled"}:
             fills += 1
+            fill_cost = float((result.payload or {}).get("cost", setup.cost))
+            fill_net = float((result.payload or {}).get("net", setup.net))
+            fill_up = float((result.payload or {}).get("up_price", setup.up_price))
+            fill_down = float((result.payload or {}).get("down_price", setup.down_price))
             if paper_mode:
                 try:
-                    rt.store.paper_apply_buy(setup.cost)
+                    rt.store.paper_apply_buy(fill_cost)
                 except ValueError:
                     rt.store.add_event("warn", f"paper cash race {setup.slug}")
                     continue
@@ -201,7 +218,7 @@ async def _tick(rt: Runtime) -> None:
                 merged = rt.store.merge_inventory(setup.condition_id, setup.shares)
                 take = float(merged["merged"] or 0)
                 if take > 0 and paper_mode:
-                    net_part = setup.net * (take / setup.shares) if setup.shares else 0.0
+                    net_part = fill_net * (take / setup.shares) if setup.shares else 0.0
                     rt.store.paper_apply_merge(take, net_part)
                 await broker.merge(setup.condition_id, take)
             paper = rt.store.paper_state() if paper_mode else None
@@ -211,21 +228,126 @@ async def _tick(rt: Runtime) -> None:
                 if paper:
                     sign = "+" if paper["total_pnl"] >= 0 else ""
                     book = (
-                        f"\n成本 ${setup.cost:.2f} · 現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
+                        f"\n成本 ${fill_cost:.2f} · 現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
                         f"\n累計 PnL {sign}${paper['total_pnl']:.2f} · 今日 ${paper['today_pnl']:.2f}"
                     )
                 await rt.notify(
                     f"{flag} 成交 {setup.kind}\n{setup.title}\n"
-                    f"Up {setup.up_price} + Down {setup.down_price} × {setup.shares:.1f}\n"
-                    f"淨利 ${setup.net:.2f}{book}",
+                    f"Up {fill_up} + Down {fill_down} × {setup.shares:.1f}\n"
+                    f"淨利 ${fill_net:.2f}{book}",
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
+            if paper_mode:
+                try:
+                    rt.store.add_resting(
+                        slug=setup.slug,
+                        condition_id=setup.condition_id,
+                        title=setup.title,
+                        up_token=setup.up_token,
+                        down_token=setup.down_token,
+                        shares=setup.shares,
+                        up_price=setup.up_price,
+                        down_price=setup.down_price,
+                        net=setup.net,
+                        end=setup.end,
+                        payload={"detail": result.detail},
+                    )
+                except ValueError as exc:
+                    rt.store.add_event("warn", f"paper rest skip {setup.slug}: {exc}")
+                    continue
             if s.get("notify_signals"):
-                await rt.notify(f"📌 掛單 {setup.title}\n{setup.up_price}+{setup.down_price} × {setup.shares:.1f}")
+                paper = rt.store.paper_state() if paper_mode else None
+                lock = f" · 鎖 ${paper['reserved']:.2f}" if paper else ""
+                await rt.notify(
+                    f"📌 紙盤掛單 {setup.title}\n{setup.up_price}+{setup.down_price} × {setup.shares:.1f}"
+                    f"\n未碰到盤口唔入帳{lock}"
+                )
         else:
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
-    rt.last_loop.update({"signals": signals, "fills": fills, "status": "ok", "paper": paper})
+    rt.last_loop.update({"signals": signals, "fills": fills + resting_fills, "status": "ok", "paper": paper, "resting_fills": resting_fills})
+
+
+async def _process_resting(rt: Runtime) -> int:
+    """Fill paper maker legs only when the live book trades through the resting bid."""
+    if rt.mode() != "paper" or rt.data is None:
+        return 0
+    s = rt.settings()
+    fills = 0
+    for row in list(rt.store.resting_open()):
+        if market_expired(row.get("end")):
+            rt.store.cancel_resting(row["id"], "expired")
+            rt.store.add_event("info", f"paper rest expired {row['slug']}")
+            if s.get("notify_signals"):
+                leftover = "；已成交腳按 $0 計" if (row["up_filled"] or row["down_filled"]) else ""
+                await rt.notify(f"⌛ 紙盤掛單到期撤單 {row['slug']}{leftover}")
+            continue
+        try:
+            up_book, dn_book = await asyncio.gather(
+                rt.data.book(row["up_token"]),
+                rt.data.book(row["down_token"]),
+            )
+        except Exception as exc:
+            rt.store.add_event("warn", f"rest book {row['slug']}: {exc}"[:200])
+            continue
+        filled_now = []
+        if not row["up_filled"] and asks_cross_bid(up_book["asks"], float(row["up_price"]), float(row["shares"])):
+            row = rt.store.fill_resting_leg(row["id"], "up")
+            filled_now.append("Up")
+        if not row["down_filled"] and asks_cross_bid(dn_book["asks"], float(row["down_price"]), float(row["shares"])):
+            row = rt.store.fill_resting_leg(row["id"], "down")
+            filled_now.append("Down")
+        if not filled_now:
+            continue
+        if row["status"] == "filled" and row["up_filled"] and row["down_filled"]:
+            fills += 1
+            take = 0.0
+            if s.get("auto_merge"):
+                merged = rt.store.merge_inventory(row["condition_id"], float(row["shares"]))
+                take = float(merged["merged"] or 0)
+                if take > 0:
+                    net_part = float(row.get("net") or 0) * (take / float(row["shares"]))
+                    rt.store.paper_apply_merge(take, net_part)
+                    await rt.broker().merge(row["condition_id"], take)
+            paper = rt.store.paper_state()
+            rt.store.add_trade(
+                slug=row["slug"],
+                kind="maker",
+                shares=row["shares"],
+                up_price=row["up_price"],
+                down_price=row["down_price"],
+                net=float(row.get("net") or 0),
+                mode="paper",
+                status="paper_filled",
+                payload={"detail": "maker both legs filled after trade-through", "resting_id": row["id"]},
+            )
+            if s.get("notify_signals"):
+                sign = "+" if paper["total_pnl"] >= 0 else ""
+                await rt.notify(
+                    f"🧪紙盤 maker 兩邊碰到先成交\n{row.get('title') or row['slug']}\n"
+                    f"{row['up_price']}+{row['down_price']} × {row['shares']:.1f} 淨利 ${float(row.get('net') or 0):.2f}\n"
+                    f"現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f} · 累計 {sign}${paper['total_pnl']:.2f}",
+                    important=True,
+                )
+        else:
+            rt.store.add_trade(
+                slug=row["slug"],
+                kind="maker",
+                shares=row["shares"],
+                up_price=row["up_price"],
+                down_price=row["down_price"],
+                net=0.0,
+                mode="paper",
+                status="paper_leg_fill",
+                payload={"detail": f"legs {filled_now}", "resting_id": row["id"], "unmatched_mark": 0},
+            )
+            if s.get("notify_signals"):
+                await rt.notify(
+                    f"📌 紙盤只成交 {','.join(filled_now)} {row.get('title') or row['slug']}\n"
+                    "另一邊未碰到，唔 merge，未配對倉按 $0 計"
+                )
+    return fills
+
 
 
 def _trade_budget(s: dict, paper: dict | None) -> float:

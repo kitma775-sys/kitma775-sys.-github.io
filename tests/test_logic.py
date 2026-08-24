@@ -282,3 +282,137 @@ def test_geo_us_api_close_only():
     assert g["api_status"] == "close_only"
     assert g["blocked"] is True
 
+
+
+def test_paper_maker_does_not_instant_fill():
+    from app.broker import paper_execute
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="maker",
+        up_price=0.50,
+        down_price=0.49,
+        shares=10,
+        fillable=10,
+        gross=0.01,
+        fees=0.0,
+        net=0.10,
+        tail=False,
+    )
+    result = paper_execute(setup)
+    assert result.ok is True
+    assert result.status == "paper_resting"
+    assert result.payload["assumed_fill"] is False
+
+
+def test_paper_taker_fills_at_quote():
+    from app.broker import paper_execute
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.97,
+        down_price=0.01,
+        shares=10,
+        fillable=10,
+        gross=0.02,
+        fees=0.02,
+        net=0.18,
+        tail=True,
+        extra={"fee_rate": 0.07},
+    )
+    result = paper_execute(setup)
+    assert result.status == "paper_filled"
+    assert result.payload["assumed_fill"] is False
+    assert result.payload["net"] > 0
+
+
+def test_paper_taker_slip_can_kill_edge():
+    from app.broker import paper_execute
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.50,
+        down_price=0.48,
+        shares=10,
+        fillable=10,
+        gross=0.02,
+        fees=0.0,
+        net=0.2,
+        tail=False,
+        extra={"fee_rate": 0.07, "paper_slip_ticks": 1},
+    )
+    result = paper_execute(setup)
+    assert result.ok is False
+    assert result.status == "paper_missed"
+
+
+def test_asks_cross_bid_requires_size_through():
+    from app.hunter import Level
+    from app.paper_sim import asks_cross_bid
+
+    asks = [Level(0.50, 2.0), Level(0.51, 100.0)]
+    assert asks_cross_bid(asks, 0.50, 5) is False
+    asks = [Level(0.49, 5.0)]
+    assert asks_cross_bid(asks, 0.50, 5) is True
+    asks = [Level(0.51, 100.0)]
+    assert asks_cross_bid(asks, 0.50, 5) is False
+
+
+def test_paper_resting_no_pnl_until_both_legs(tmp_path):
+    st = Store(tmp_path / "rest.sqlite")
+    st.ensure_paper(500)
+    row = st.add_resting(
+        slug="btc",
+        condition_id="c1",
+        title="btc",
+        up_token="u",
+        down_token="d",
+        shares=10,
+        up_price=0.50,
+        down_price=0.49,
+        net=0.10,
+    )
+    mid = st.paper_state()
+    assert round(mid["cash"], 2) == 490.10
+    assert round(mid["reserved"], 2) == 9.90
+    assert round(mid["equity"], 2) == 500.00
+    assert round(mid["total_pnl"], 2) == 0.00
+
+    one = st.fill_resting_leg(row["id"], "up")
+    assert one["up_filled"] is True
+    assert one["down_filled"] is False
+    inv = st.inventory_one("c1")
+    assert inv["up"] == 10
+    assert inv["down"] == 0
+    after_one = st.paper_state()
+    # unmatched inventory marked $0; spent the up leg
+    assert round(after_one["equity"], 2) == 495.00
+    assert after_one["inventory_value"] == 0
+
+    both = st.fill_resting_leg(row["id"], "down")
+    assert both["status"] == "filled"
+    matched = st.paper_state()
+    assert matched["inventory_value"] == 10
+    merged = st.merge_inventory("c1", 10)
+    assert merged["merged"] == 10
+    end = st.paper_apply_merge(10, 0.10)
+    assert round(end["cash"], 2) == 500.10
+    assert round(end["total_pnl"], 2) == 0.10
+    assert round(end["realized_pnl"], 2) == 0.10

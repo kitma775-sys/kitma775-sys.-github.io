@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.hunter import Setup
+from app.paper_sim import simulate_taker
 
 
 @dataclass
@@ -15,28 +16,65 @@ class FillResult:
     payload: dict[str, Any] | None = None
 
 
+def paper_execute(setup: Setup) -> FillResult:
+    """Synchronous paper fill rules. Maker never assumed-fills."""
+    if setup.kind == "taker":
+        slip = int(setup.extra.get("paper_slip_ticks") or 0)
+        sim = simulate_taker(setup, slip_ticks=slip)
+        payload = {
+            "kind": "taker",
+            "shares": setup.shares,
+            "up_price": sim.up_price,
+            "down_price": sim.down_price,
+            "net": sim.net,
+            "cost": sim.cost,
+            "fees": sim.fees,
+            "slipped": sim.slipped,
+            "assumed_fill": False,
+        }
+        if not sim.ok:
+            return FillResult(
+                False,
+                "paper_missed",
+                "paper",
+                f"紙盤 taker 掃唔到正期望：{sim.up_price}+{sim.down_price} 淨利 ${sim.net:.2f}",
+                payload,
+            )
+        return FillResult(
+            True,
+            "paper_filled",
+            "paper",
+            (
+                f"紙盤 taker 成交 {setup.shares:.1f} 對 @ "
+                f"{sim.up_price}+{sim.down_price} 成本 ${sim.cost:.2f} 淨利 ${sim.net:.2f}"
+            ),
+            payload,
+        )
+    reserved = round(float(setup.up_price) * setup.shares + float(setup.down_price) * setup.shares, 6)
+    return FillResult(
+        True,
+        "paper_resting",
+        "paper",
+        (
+            f"紙盤掛單 {setup.shares:.1f} 對 @ {setup.up_price}+{setup.down_price}，"
+            f"鎖 ${reserved:.2f}，等到盤口碰到先成交"
+        ),
+        {
+            "kind": "maker",
+            "shares": setup.shares,
+            "net": setup.net,
+            "cost": setup.cost,
+            "reserved": reserved,
+            "assumed_fill": False,
+        },
+    )
+
+
 class PaperBroker:
     mode = "paper"
 
     async def execute_pair(self, setup: Setup) -> FillResult:
-        # Paper assumes both legs fill at the quoted VWAP so the $500 book can show PnL.
-        # Live maker orders still rest; paper is a ledger, not a queue simulator.
-        return FillResult(
-            ok=True,
-            status="paper_filled",
-            mode="paper",
-            detail=(
-                f"紙盤成交 {setup.kind} {setup.shares:.1f} 對 @ "
-                f"{setup.up_price}+{setup.down_price} 成本 ${setup.cost:.2f} 淨利 ${setup.net:.2f}"
-            ),
-            payload={
-                "kind": setup.kind,
-                "shares": setup.shares,
-                "net": setup.net,
-                "cost": setup.cost,
-                "assumed_fill": setup.kind == "maker",
-            },
-        )
+        return paper_execute(setup)
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:
         return FillResult(True, "merged", "paper", f"紙盤 merge {shares:.1f}", {"shares": shares})

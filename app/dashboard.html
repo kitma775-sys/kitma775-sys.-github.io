@@ -42,6 +42,8 @@
     <div style="overflow:auto"><table><thead><tr><th>市場</th><th>類型</th><th>價</th><th>股</th><th>淨利</th><th>結果</th></tr></thead><tbody id="scans"></tbody></table></div>
     <h2>成交</h2>
     <div style="overflow:auto"><table><thead><tr><th>狀態</th><th>市場</th><th>模式</th><th>淨利</th></tr></thead><tbody id="trades"></tbody></table></div>
+    <h2>掛單</h2>
+    <div style="overflow:auto"><table><thead><tr><th>市場</th><th>價</th><th>股</th><th>Up</th><th>Down</th><th>鎖$</th></tr></thead><tbody id="rest"></tbody></table></div>
     <h2>倉位</h2>
     <div style="overflow:auto"><table><thead><tr><th>市場</th><th>Up</th><th>Down</th></tr></thead><tbody id="inv"></tbody></table></div>
     <h2>事件</h2>
@@ -72,7 +74,9 @@
       document.getElementById("tiles").innerHTML = [
         tile("$" + Number(p.starting || 0).toFixed(2), "紙盤本金"),
         tile("$" + Number(p.cash || 0).toFixed(2), "現金"),
+        tile("$" + Number(p.reserved || 0).toFixed(2), "凍結掛單"),
         tile("$" + Number(p.equity || 0).toFixed(2), "權益"),
+        tile(String(p.resting || st.resting || 0), "掛單"),
         money(p.total_pnl, "累計 PnL"),
         money(p.today_pnl, "今日 PnL"),
         tile(String(st.open_markets||0), "開倉市場"),
@@ -88,6 +92,9 @@
       document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
         "<tr><td>"+esc(x.status)+"</td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+esc(x.kind)+"</td><td>$"+Number(x.net||0).toFixed(2)+"</td></tr>"
       ).join("") || "<tr><td colspan=4>暫無</td></tr>";
+      document.getElementById("rest").innerHTML = (d.resting||[]).map(x =>
+        "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+x.up_price+"+"+x.down_price+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
+      ).join("") || "<tr><td colspan=6>暫無（maker 要盤口碰到先入帳）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
       ).join("") || "<tr><td colspan=3>暫無</td></tr>";

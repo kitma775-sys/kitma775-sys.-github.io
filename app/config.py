@@ -27,6 +27,8 @@ DEFAULT_SETTINGS = {
     "notify_signals": True,
     "notify_rejects": False,
     "quote_cooldown_seconds": 30.0,
+    # Extra ticks added to each taker VWAP in paper. 0 = fill at the scanned book.
+    "paper_slip_ticks": 0,
 }
 
 
@@ -41,6 +43,7 @@ SETTING_STEPS = {
     "tail_confirm": (0.01, 0.80, 0.98),
     "stale_leg": (0.005, 0.005, 0.10),
     "fee_rate": (0.01, 0.0, 0.12),
+    "paper_slip_ticks": (1.0, 0.0, 3.0),
 }
 
 

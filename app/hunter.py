@@ -182,6 +182,7 @@ def _taker_setup(**kw) -> Setup | None:
         net=round(net, 5),
         tail=tail,
         end=kw.get("end"),
+        extra={"fee_rate": float(kw["fee_rate"])},
     )
 
 
@@ -223,4 +224,5 @@ def _maker_setup(**kw) -> Setup | None:
         net=net,
         tail=tail,
         end=kw.get("end"),
+        extra={"fee_rate": 0.0},
     )

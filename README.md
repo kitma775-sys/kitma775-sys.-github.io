@@ -61,8 +61,8 @@ FORCE_PAPER=true
 - 中間價 taker 多數死亡；尾盤 0.97+0.01 類先有淨利
 - 便宜腳 + 對手唔貴 = 當過期單，唔做
 - 兩邊齊就 merge，加快資金
-- 紙盤 maker 當即按報價成交（樂觀，方便睇 PnL）；實盤 maker 仍然掛單
-- 權益 = 現金 + 可 merge 對數 × $1；累計 PnL = 權益 − 本金
+- 紙盤 maker **唔會當即成交**：掛單鎖現金，要後續盤口 ask 碰到（trade-through）先填；只成交一邊就按 $0 計未配對倉。taker 先按掃描 VWAP 成交（可加滑點 tick）
+- 權益 = 現金 + 凍結掛單 + 可 merge 對數 × $1（未配對倉 = $0）；累計 PnL = 權益 − 本金
 
 呢個唔係投資建議。遵守當地法律同 Polymarket geoblock。
 
