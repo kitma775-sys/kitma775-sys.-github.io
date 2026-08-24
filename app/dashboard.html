@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Surf Arb Dashboard</title>
+  <style>
+    :root { --ink:#16120c; --paper:#f3ead7; --rule:#c9b48a; --stamp:#9c2b16; --ok:#1f6b3a; --chip:#efe4cc; --card:#fffaf0; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"Noto Sans TC", "PingFang TC", sans-serif; background:var(--paper); color:var(--ink); }
+    .wrap { max-width:1080px; margin:0 auto; padding:24px 16px 60px; }
+    h1 { font-size:28px; margin:0 0 6px; }
+    .kicker { font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--stamp); font-weight:700; }
+    .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin:16px 0; }
+    .tile { background:var(--chip); border:1px solid var(--rule); padding:12px; }
+    .tile b { display:block; font-size:22px; font-family:ui-monospace,monospace; }
+    .tile span { font-size:12px; color:#6b6256; }
+    button { font:inherit; border:1px solid var(--ink); background:var(--ink); color:var(--paper); padding:8px 12px; margin:0 6px 8px 0; cursor:pointer; }
+    button.ghost { background:transparent; color:var(--ink); }
+    table { width:100%; border-collapse:collapse; background:var(--card); font-size:13px; margin:10px 0 22px; }
+    th,td { border:1px solid var(--rule); padding:7px 8px; text-align:left; vertical-align:top; }
+    th { background:var(--chip); font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
+    .ok { color:var(--ok); font-weight:700; }
+    .bad { color:var(--stamp); font-weight:700; }
+    pre { background:#1b1712; color:#f3ead7; padding:12px; overflow:auto; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">Surf · live control</div>
+    <h1 id="stateLine">載入中…</h1>
+    <p id="sub"></p>
+    <div>
+      <button onclick="act('resume')">繼續跑</button>
+      <button class="ghost" onclick="act('pause')">暫停</button>
+      <button class="ghost" onclick="act('paper')">強制紙盤</button>
+      <button class="ghost" onclick="act('kill')">緊急停機</button>
+    </div>
+    <div class="row" id="tiles"></div>
+    <h2>最近掃描</h2>
+    <div style="overflow:auto"><table><thead><tr><th>市場</th><th>類型</th><th>價</th><th>股</th><th>淨利</th><th>結果</th></tr></thead><tbody id="scans"></tbody></table></div>
+    <h2>成交</h2>
+    <div style="overflow:auto"><table><thead><tr><th>狀態</th><th>市場</th><th>模式</th><th>淨利</th></tr></thead><tbody id="trades"></tbody></table></div>
+    <h2>倉位</h2>
+    <div style="overflow:auto"><table><thead><tr><th>市場</th><th>Up</th><th>Down</th></tr></thead><tbody id="inv"></tbody></table></div>
+    <h2>事件</h2>
+    <pre id="events">—</pre>
+  </div>
+  <script>
+    async function load() {
+      const r = await fetch("/api/state", { credentials: "same-origin" });
+      if (!r.ok) { document.getElementById("stateLine").textContent = "未授權，加 ?t=DASHBOARD_TOKEN"; return; }
+      const d = await r.json();
+      const s = d.settings || {};
+      const st = d.stats || {};
+      const killed = s.killed;
+      const run = s.engine_running;
+      document.getElementById("stateLine").textContent =
+        (killed ? "已停機" : run ? "全自動運行中" : "暫停") + " · " + (d.mode === "live" ? "實盤" : "紙盤");
+      document.getElementById("sub").textContent =
+        "keys " + (d.keys_ready ? "ready" : "missing") + " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0);
+      document.getElementById("tiles").innerHTML = [
+        tile("$" + Number(st.today_pnl||0).toFixed(2), "今日 PnL"),
+        tile(String(st.open_markets||0), "開倉市場"),
+        tile(String((d.last_loop||{}).signals ?? "—"), "上一圈信號"),
+        tile(String((d.last_loop||{}).fills ?? "—"), "上一圈成交"),
+        tile((d.geo||{}).country || "?", "IP 地區"),
+        tile(s.auto_execute ? "ON" : "OFF", "全自動")
+      ].join("");
+      document.getElementById("scans").innerHTML = (d.scans||[]).map(x => {
+        const p = x.payload || {};
+        return "<tr><td>"+esc(p.title||x.slug)+"</td><td>"+esc(x.kind)+"</td><td class=mono>"+p.up+"+"+p.down+"</td><td>"+p.shares+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
+      }).join("") || "<tr><td colspan=6>暫無</td></tr>";
+      document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
+        "<tr><td>"+esc(x.status)+"</td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+esc(x.kind)+"</td><td>$"+Number(x.net||0).toFixed(2)+"</td></tr>"
+      ).join("") || "<tr><td colspan=4>暫無</td></tr>";
+      document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
+        "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
+      ).join("") || "<tr><td colspan=3>暫無</td></tr>";
+      document.getElementById("events").textContent = (d.events||[]).map(e => e.level + " " + e.message).join("\n") || "—";
+    }
+    function tile(v, l) { return "<div class=tile><b>"+v+"</b><span>"+l+"</span></div>"; }
+    function esc(s) { return String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+    async function act(name) {
+      if (name === "kill" && !confirm("確認緊急停機？")) return;
+      await fetch("/api/action/"+name, { method:"POST", credentials:"same-origin" });
+      load();
+    }
+    load();
+    setInterval(load, 2500);
+  </script>
+</body>
+</html>

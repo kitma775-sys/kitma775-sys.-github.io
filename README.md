@@ -1,21 +1,62 @@
-# 同類 Bot 可行性研究
+# Surf Arb Bot
 
-根據 [0xSurferX 2026-08-23 X Article](https://x.com/0xSurferX/status/2091564875294097907) 做嘅頂層對賬。頁面係靜態研究報告，**唔會落單**。
+Polymarket YES/NO 互補套利 bot：全自動紙盤預設、Telegram 全按掣、Dashboard、可上 Zeabur。
 
-## 判決（一句）
+研究對賬仍然喺 [`index.html`](index.html)。呢個目錄係可運行系統。
 
-軟件可以起；文中終身 **$66,670 PnL 屬實**；「每週 $12k」以 2026-08-24 官方數據計 **唔成立**（本週 $347）。熱路徑唔應該用 LLM。
+## 預設行為
 
-完整論證、費用計算器、即時紙盤掃描：[index.html](index.html)
+- 引擎開機即跑（`ENGINE_AUTOSTART=true`）
+- **全自動**：合規缺口唔會逐單問你
+- **紙盤**：用真盤口計數，唔簽名、唔落單
+- 實盤要 `POLYMARKET_PRIVATE_KEY` + Telegram 撳兩次確認
+- 緊急停機、日虧熔斷、單邊裸倉閘門、官方費用曲線
 
-## 本地掃描
+## 本地跑
 
 ```bash
-python3 research/scan_books.py --tag 15M --limit 12
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# 最少填 TELEGRAM_BOT_TOKEN；Dashboard 無 token 會喺 log 印一條
+python main.py
 ```
 
-只讀 Gamma + CLOB 公開 HTTP API。快照數字見 `research/findings.json`。
+- Dashboard：`http://127.0.0.1:8080/?t=DASHBOARD_TOKEN`
+- Telegram：搵 bot 撳 **Start**，第一個進嚟嘅人成為主人（或設 `TELEGRAM_OWNER_ID`）
 
-## 免責
+```bash
+pytest -q
+```
 
-唔係投資、法律或稅務建議。香港 IFEC 曾公開提醒預測市場可能涉及賭博條例。遵守你所在地法律同 Polymarket geoblock。
+## Zeabur
+
+1. 用呢個 Git repo 開一個 service（有 `Dockerfile` 會按 Docker 起）
+2. Variables 貼：
+
+```
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_OWNER_ID=
+DASHBOARD_TOKEN=
+DATA_DIR=/data
+TRADING_MODE=paper
+ENGINE_AUTOSTART=true
+PORT=8080
+```
+
+3. 加一個 volume 掛 `/data`，唔係每次 deploy 會清 SQLite
+4. 綁 domain 之後 Dashboard 用 `https://你的網址/?t=DASHBOARD_TOKEN`
+5. 試運行穩咗先加 `POLYMARKET_PRIVATE_KEY`，再喺 Telegram 確認實盤
+
+你之後交 Zeabur key／Telegram token／Polymarket key 就喺平台 Variables 填，**唔好貼入 chat 或 commit**。
+
+## 邏輯（同研究一致）
+
+- 用 ask/bid 深度，唔用 mid
+- taker 費：`C × feeRate × p × (1-p)`
+- 中間價 taker 多數死亡；尾盤 0.97+0.01 類先有淨利
+- 便宜腳 + 對手唔貴 = 當過期單，唔做
+- 兩邊齊就 merge，加快資金
+
+呢個唔係投資建議。遵守當地法律同 Polymarket geoblock。

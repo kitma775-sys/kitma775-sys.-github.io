@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+from app.runtime import Runtime
+
+PAGE = Path(__file__).with_name("dashboard.html")
+
+
+def create_app(rt: Runtime) -> FastAPI:
+    app = FastAPI(title="Surf Arb Dashboard")
+    token = rt.env.dashboard_token
+
+    def _ok(request: Request, q: str | None) -> bool:
+        if not token:
+            return True
+        if q == token:
+            return True
+        return request.cookies.get("dash") == token
+
+    @app.get("/health")
+    async def health():
+        return {"ok": True, "mode": rt.mode()}
+
+    @app.get("/", response_class=HTMLResponse)
+    async def home(request: Request, t: str | None = Query(default=None)):
+        if not _ok(request, t):
+            return HTMLResponse(_gate(), status_code=401)
+        html = PAGE.read_text(encoding="utf-8")
+        resp = HTMLResponse(html)
+        if t == token:
+            resp.set_cookie("dash", token, httponly=True, samesite="lax")
+        return resp
+
+    @app.get("/api/state")
+    async def state(request: Request, t: str | None = Query(default=None)):
+        if not _ok(request, t):
+            raise HTTPException(401, "unauthorized")
+        return JSONResponse(rt.snapshot())
+
+    @app.post("/api/action/{name}")
+    async def action(name: str, request: Request, t: str | None = Query(default=None)):
+        if not _ok(request, t):
+            raise HTTPException(401, "unauthorized")
+        if name == "pause":
+            rt.store.patch_settings(engine_running=False)
+        elif name == "resume":
+            rt.store.patch_settings(engine_running=True, killed=False)
+        elif name == "kill":
+            rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
+        elif name == "paper":
+            rt.store.patch_settings(live_trading=False)
+        else:
+            raise HTTPException(400, "unknown action")
+        rt.store.add_event("info", f"dashboard {name}")
+        return {"ok": True, "settings": rt.settings()}
+
+    @app.get("/login")
+    async def login(t: str = ""):
+        if token and t == token:
+            resp = RedirectResponse("/")
+            resp.set_cookie("dash", token, httponly=True, samesite="lax")
+            return resp
+        return HTMLResponse(_gate(), status_code=401)
+
+    return app
+
+
+def _gate() -> str:
+    return """<!doctype html><meta charset=utf-8><title>Surf</title>
+    <body style="font-family:sans-serif;background:#f3ead7;padding:40px">
+    <p>Dashboard 要 token。用 /?t=你的DASHBOARD_TOKEN 或者 Zeabur 變數。</p>
+    </body>"""
