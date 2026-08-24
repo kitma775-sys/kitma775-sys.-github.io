@@ -64,7 +64,7 @@
         tile(String(st.open_markets||0), "開倉市場"),
         tile(String((d.last_loop||{}).signals ?? "—"), "上一圈信號"),
         tile(String((d.last_loop||{}).fills ?? "—"), "上一圈成交"),
-        tile((d.geo||{}).country || "?", "IP 地區"),
+        tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_execute ? "ON" : "OFF", "全自動")
       ].join("");
       document.getElementById("scans").innerHTML = (d.scans||[]).map(x => {

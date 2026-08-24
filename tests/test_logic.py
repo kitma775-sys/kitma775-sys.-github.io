@@ -164,3 +164,24 @@ def test_store_merge(tmp_path):
     assert out["merged"] == 10
     assert st.inventory_one("c1")["up"] == 0
     assert st.inventory_one("c1")["down"] == 0
+
+
+def test_geo_japan_website_block_api_open():
+    from app.geo import interpret, telegram_line
+
+    g = interpret({"blocked": True, "ip": "43.153.168.189", "country": "JP", "region": "13"})
+    assert g["website_blocked"] is True
+    assert g["frontend_only"] is True
+    assert g["api_open"] is True
+    assert g["blocked"] is False
+    assert "CLOB API" in telegram_line(g)
+
+
+def test_geo_us_api_close_only():
+    from app.geo import interpret
+
+    g = interpret({"blocked": True, "ip": "1.1.1.1", "country": "US", "region": "NY"})
+    assert g["api_open"] is False
+    assert g["api_status"] == "close_only"
+    assert g["blocked"] is True
+

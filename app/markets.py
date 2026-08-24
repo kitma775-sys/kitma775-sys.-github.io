@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from app.geo import interpret
 from app.hunter import Level
 
 GAMMA = "https://gamma-api.polymarket.com"
@@ -31,9 +32,9 @@ class MarketData:
         try:
             r = await self.client.get(GEO, timeout=10)
             r.raise_for_status()
-            return r.json()
+            return interpret(r.json())
         except Exception as exc:
-            return {"blocked": None, "error": str(exc)}
+            return interpret({"blocked": None, "error": str(exc)})
 
     async def live_events(self, tag: str, assets: list[str], want: int = 12) -> list[dict]:
         r = await self.client.get(

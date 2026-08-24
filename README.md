@@ -61,3 +61,5 @@ PORT=8080
 - 兩邊齊就 merge，加快資金
 
 呢個唔係投資建議。遵守當地法律同 Polymarket geoblock。
+
+日本／愛爾蘭／荷蘭：官方 geoblock 文件係 **網站 close-only，CLOB API 不限制**。`polymarket.com/api/geoblock` 嘅 `blocked:true` 係網站狀態，唔等於 bot 落唔到 API 單。美國／英國／新加坡等先係 API close-only。

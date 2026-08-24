@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from app.config import SETTING_STEPS, live_keys_ready
+from app.geo import telegram_line
 from app.runtime import Runtime
 
 TOGGLES = {
@@ -125,12 +126,7 @@ def home_text(rt: Runtime) -> str:
         state = "🟢 全自動運行中" if s.get("auto_execute") else "🟡 只掃描，唔落單"
     mode = "🧪 紙盤" if rt.mode() == "paper" else "🔴 實盤"
     keys = "匙已備" if live_keys_ready(rt.env) else "未交實盤匙"
-    geo = rt.geo or {}
-    geo_line = ""
-    if geo.get("blocked") is True:
-        geo_line = f"\n⚠️ 呢個 IP 被 geoblock（{geo.get('country')}）。實盤單會被拒。"
-    elif geo.get("blocked") is False:
-        geo_line = f"\n🌐 IP 地區 {geo.get('country') or '?'}，平台未封鎖。"
+    geo_line = telegram_line(rt.geo)
     last = rt.last_loop or {}
     return (
         f"🏄 衝浪套利 Bot\n"
