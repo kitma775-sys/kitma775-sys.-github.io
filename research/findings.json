@@ -1,0 +1,44 @@
+{
+  "researched_at_utc": "2026-08-24T14:00:00Z",
+  "source_tweet": "https://x.com/0xSurferX/status/2091564875294097907",
+  "source_article_title": "I rebuilt my arbitrage bot with Grok Bot and now it makes $12k per week (full guide + code)",
+  "source_article_published_utc": "2026-08-23T16:35:00Z",
+  "claimed_wallet": {
+    "username": "l5Zn1bWoM8eTsK",
+    "proxy_wallet": "0xb945945d5bcaf7b56834d4da8cdf8f8f94b2db68",
+    "profile": "https://polymarket.com/@l5zn1bwom8etsk"
+  },
+  "official_leaderboard_2026_08_24": {
+    "all": { "rank": 2837, "pnl_usd": 66670.06, "volume_usd": 12302463.77 },
+    "month": { "rank": 659, "pnl_usd": 18815.86, "volume_usd": 6166010.85 },
+    "week": { "rank": 1112, "pnl_usd": 346.67, "volume_usd": 109529.50 }
+  },
+  "open_inventory_snapshot_btc_15m_1787579100": {
+    "title": "Bitcoin Up or Down - August 24, 9:45AM-10:00AM ET",
+    "up_shares": 2959.8,
+    "up_avg": 0.609,
+    "up_mark": 1.0,
+    "down_shares": 3390.7,
+    "down_avg": 0.319,
+    "down_mark": 0.001,
+    "note": "Not a matched pair. ~15% share imbalance = leftover directional risk."
+  },
+  "edge_on_volume_bps": {
+    "all": 54.2,
+    "month": 30.5,
+    "week": 31.7
+  },
+  "clob_facts": {
+    "primary_region": "eu-west-2",
+    "closest_unrestricted_region": "eu-west-1",
+    "ws_market": "wss://ws-subscriptions-clob.polymarket.com/ws/market",
+    "ws_update_cadence_ms": [80, 200],
+    "matching_ack_ms_independent_est": [10, 30],
+    "retail_e2e_cycle_ms": [150, 300],
+    "best_team_e2e_cycle_ms": [60, 120],
+    "onchain_settle_ms": [1500, 3000],
+    "crypto_taker_fee_rate": 0.07,
+    "crypto_maker_rebate_share": 0.2,
+    "fee_formula": "C * feeRate * p * (1-p)"
+  }
+}
