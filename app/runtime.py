@@ -16,6 +16,11 @@ from app.risk import approve
 from app.store import Store
 
 
+def fmt_exc(exc: BaseException) -> str:
+    text = str(exc).strip() or repr(exc)
+    return f"{type(exc).__name__}: {text}"[:300]
+
+
 class Runtime:
     def __init__(self, store: Store, env: Env):
         self.store = store
@@ -30,6 +35,7 @@ class Runtime:
         self._broker_mode = ""
         self.cooldown: dict[str, float] = {}
         self._circuit_latch = False
+        self._last_loop_error_ts = 0.0
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -97,15 +103,25 @@ async def engine_loop(rt: Runtime) -> None:
         poll = max(0.5, float(s.get("poll_seconds") or 2))
         try:
             if rt.http is None:
-                rt.http = httpx.AsyncClient(headers={"User-Agent": "surf-arb-bot/0.1"}, timeout=15)
+                rt.http = httpx.AsyncClient(
+                    headers={"User-Agent": "surf-arb-bot/0.1"},
+                    timeout=httpx.Timeout(12.0, connect=6.0),
+                    limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
+                )
                 rt.data = MarketData(rt.http)
                 rt.geo = await rt.data.geoblock()
                 rt.store.add_event("info", f"geoblock={rt.geo}")
             await _tick(rt)
             backoff = 1.0
         except Exception as exc:
-            rt.store.add_event("error", f"loop {exc}"[:300])
-            await rt.notify(f"⚠️ 引擎出錯：{exc}"[:200], important=True)
+            detail = fmt_exc(exc)
+            rt.store.add_event("error", f"loop {detail}")
+            rt.last_loop = {"ts": time.time(), "status": "error", "error": detail}
+            now = time.time()
+            if now - rt._last_loop_error_ts > 120:
+                rt._last_loop_error_ts = now
+                await rt.notify(f"⚠️ 引擎出錯：{detail}"[:220], important=True)
+            await _reset_http(rt)
             backoff = min(30.0, backoff * 2)
         await asyncio.sleep(max(poll, backoff) if rt.settings().get("engine_running") else 1.0)
 
@@ -123,7 +139,12 @@ async def _tick(rt: Runtime) -> None:
         rt.last_loop["status"] = "paused"
         return
     assert rt.data is not None
-    events = await rt.data.live_events(s.get("tag") or "15M", list(s.get("assets") or ["btc", "eth"]))
+    try:
+        events = await rt.data.live_events(s.get("tag") or "15M", list(s.get("assets") or ["btc", "eth"]))
+    except Exception as exc:
+        detail = fmt_exc(exc)
+        rt.last_loop = {"ts": time.time(), "status": "error", "error": detail, "where": "live_events"}
+        raise
     settled = await _settle_inventory(rt)
     resting_fills = await _process_resting(rt)
     rescued = await _rescue_naked(rt, events)
@@ -159,33 +180,41 @@ async def _tick(rt: Runtime) -> None:
     signals = 0
     fills = 0
     for ev in events:
-        up_book, dn_book = await asyncio.gather(
-            rt.data.book(ev["up_token"]),
-            rt.data.book(ev["down_token"]),
-        )
+        try:
+            up_book, dn_book = await asyncio.gather(
+                rt.data.book(ev["up_token"]),
+                rt.data.book(ev["down_token"]),
+            )
+        except Exception as exc:
+            rt.store.add_event("warn", f"book {ev.get('slug')}: {fmt_exc(exc)}")
+            continue
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
-        setup = hunt(
-            slug=ev["slug"],
-            title=ev["title"],
-            condition_id=ev["condition_id"],
-            up_token=ev["up_token"],
-            down_token=ev["down_token"],
-            up_asks=up_book["asks"],
-            down_asks=dn_book["asks"],
-            up_bids=up_book["bids"],
-            down_bids=dn_book["bids"],
-            max_usd=_trade_budget(s, paper),
-            min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
-            min_edge=float(s["min_edge"]),
-            fee_rate=fee_rate,
-            prefer_tail=bool(s["prefer_tail"]),
-            tail_confirm=float(s["tail_confirm"]),
-            maker_first=bool(s["maker_first"]),
-            end=ev.get("end"),
-            maker_min_leg=float(s.get("maker_min_leg") or 0.22),
-            maker_max_skew=float(s.get("maker_max_skew") or 0.28),
-            maker_window_seconds=float(s.get("maker_window_seconds") or 75),
-        )
+        try:
+            setup = hunt(
+                slug=ev["slug"],
+                title=ev["title"],
+                condition_id=ev["condition_id"],
+                up_token=ev["up_token"],
+                down_token=ev["down_token"],
+                up_asks=up_book["asks"],
+                down_asks=dn_book["asks"],
+                up_bids=up_book["bids"],
+                down_bids=dn_book["bids"],
+                max_usd=_trade_budget(s, paper),
+                min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
+                min_edge=float(s["min_edge"]),
+                fee_rate=fee_rate,
+                prefer_tail=bool(s["prefer_tail"]),
+                tail_confirm=float(s["tail_confirm"]),
+                maker_first=bool(s["maker_first"]),
+                end=ev.get("end"),
+                maker_min_leg=float(s.get("maker_min_leg") or 0.22),
+                maker_max_skew=float(s.get("maker_max_skew") or 0.28),
+                maker_window_seconds=float(s.get("maker_window_seconds") or 75),
+            )
+        except Exception as exc:
+            rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
+            continue
         if not setup:
             continue
         if paper_mode and rt.store.has_open_resting(setup.slug):
@@ -317,7 +346,15 @@ async def _tick(rt: Runtime) -> None:
                 )
         else:
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
-    rt.last_loop.update({"signals": signals, "fills": fills + resting_fills, "status": "ok", "paper": paper, "resting_fills": resting_fills})
+    rt.last_loop.update(
+        {
+            "signals": signals,
+            "fills": fills + resting_fills,
+            "status": "ok",
+            "paper": paper,
+            "resting_fills": resting_fills,
+        }
+    )
 
 
 async def _process_resting(rt: Runtime) -> int:
@@ -609,6 +646,18 @@ async def _settle_inventory(rt: Runtime) -> int:
         if rt.settings().get("notify_signals"):
             await rt.notify(f"⚖️ 結算 {slug}\nUp {up:.1f}×{up_p} + Down {down:.1f}×{dn_p} = ${payout:.2f}")
     return n
+
+
+async def _reset_http(rt: Runtime) -> None:
+    client = rt.http
+    rt.http = None
+    rt.data = None
+    if client is None:
+        return
+    try:
+        await client.aclose()
+    except Exception:
+        pass
 
 
 def _trade_budget(s: dict, paper: dict | None) -> float:

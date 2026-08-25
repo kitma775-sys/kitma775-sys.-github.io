@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -15,8 +16,12 @@ GEO = "https://polymarket.com/api/geoblock"
 
 
 def _parse_levels(raw: list | None, reverse: bool) -> list[Level]:
+    if not isinstance(raw, list):
+        return []
     out: list[Level] = []
     for row in raw or []:
+        if not isinstance(row, dict):
+            continue
         try:
             out.append(Level(price=float(row["price"]), size=float(row["size"])))
         except (KeyError, TypeError, ValueError):
@@ -44,6 +49,8 @@ class MarketData:
         )
         r.raise_for_status()
         events = r.json() or []
+        if not isinstance(events, list):
+            return []
         now = datetime.now(timezone.utc)
         picked: list[dict] = []
         assets_l = [a.lower() for a in assets if a]
@@ -90,20 +97,38 @@ class MarketData:
         return picked
 
     async def book(self, token_id: str) -> dict[str, list[Level]]:
-        r = await self.client.get(f"{CLOB}/book", params={"token_id": token_id}, timeout=10)
-        r.raise_for_status()
-        data = r.json() or {}
-        return {
-            "asks": _parse_levels(data.get("asks"), reverse=False),
-            "bids": _parse_levels(data.get("bids"), reverse=True),
-        }
+        empty: dict[str, list[Level]] = {"asks": [], "bids": []}
+        if not token_id:
+            return empty
+        last_exc: Exception | None = None
+        for _ in range(2):
+            try:
+                r = await self.client.get(f"{CLOB}/book", params={"token_id": token_id}, timeout=8)
+                if r.status_code >= 400:
+                    return empty
+                data = r.json() or {}
+                if not isinstance(data, dict):
+                    return empty
+                return {
+                    "asks": _parse_levels(data.get("asks"), reverse=False),
+                    "bids": _parse_levels(data.get("bids"), reverse=True),
+                }
+            except Exception as exc:
+                last_exc = exc
+                await asyncio.sleep(0.15)
+        if last_exc is not None:
+            raise last_exc
+        return empty
 
     async def event_by_slug(self, slug: str) -> dict[str, Any] | None:
         if not slug:
             return None
-        r = await self.client.get(f"{GAMMA}/events", params={"slug": slug}, timeout=10)
-        r.raise_for_status()
-        rows = r.json() or []
+        try:
+            r = await self.client.get(f"{GAMMA}/events", params={"slug": slug}, timeout=10)
+            r.raise_for_status()
+            rows = r.json() or []
+        except Exception:
+            return None
         if not rows:
             return None
         return rows[0]

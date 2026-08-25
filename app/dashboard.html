@@ -73,7 +73,8 @@
       document.getElementById("sub").textContent =
         "keys " + (d.keys_ready ? "ready" : "missing") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
-        " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2);
+        " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
+        ((d.last_loop||{}).status === "error" ? " · 引擎錯誤 " + ((d.last_loop||{}).error||"") : "");
       const p = d.paper || st;
       const planned = Number((s.paper_starting_cash != null ? s.paper_starting_cash : p.starting) || 500);
       const bank = document.getElementById("bankroll");

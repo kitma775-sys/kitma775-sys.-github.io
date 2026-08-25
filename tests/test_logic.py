@@ -511,6 +511,17 @@ def test_dashboard_paper_bankroll_actions(tmp_path):
     assert st.recent_trades()[0]["slug"] == "keep"
 
 
+def test_fmt_exc_names_empty_timeouts():
+    from app.runtime import fmt_exc
+    import httpx
+
+    msg = fmt_exc(httpx.ReadTimeout(""))
+    assert msg.startswith("ReadTimeout")
+    assert "ReadTimeout" in msg
+    empty = fmt_exc(TimeoutError())
+    assert empty.startswith("TimeoutError")
+
+
 def test_rescue_prefers_hedge_over_dump():
     from app.rescue import plan_rescue
 
