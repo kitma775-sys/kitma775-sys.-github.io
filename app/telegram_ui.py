@@ -1,14 +1,29 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from app.config import SETTING_STEPS, live_keys_ready, setting_num
 from app.geo import telegram_line
 from app.runtime import Runtime
 from app.universe import DEFAULT_ASSETS
+
+TG_MAX = 3900
+NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
+STATUS_ZH = {
+    "paper_filled": "紙盤成交",
+    "paper_hedged": "單邊對沖",
+    "paper_dumped": "單邊出貨",
+    "paper_settled": "結算",
+    "paper_missed": "錯過（滑點）",
+    "filled": "成交",
+    "cancelled": "已撤",
+}
+KIND_ZH = {"taker": "taker", "maker": "掛單", "settle": "結算"}
 
 TOGGLES = {
     "auto_execute": ("全自動落單", "開咗就唔會逐單問你"),
@@ -18,6 +33,34 @@ TOGGLES = {
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
 }
+
+
+def _clip(text: str) -> str:
+    if len(text) <= TG_MAX:
+        return text
+    return text[: TG_MAX - 12] + "\n…（過長）"
+
+
+def _fmt_ts(ts: float | None) -> str:
+    try:
+        return time.strftime("%H:%M:%S", time.gmtime(float(ts))) + "Z"
+    except (TypeError, ValueError, OSError):
+        return ""
+
+
+async def _safe_edit(q, text: str, reply_markup=None) -> None:
+    body = _clip(text)
+    try:
+        edit = q.edit_message_text
+        await edit(body, reply_markup=reply_markup)
+    except BadRequest as exc:
+        if "not modified" in str(exc).lower():
+            return
+        try:
+            if q.message is not None:
+                await q.message.reply_text(body, reply_markup=reply_markup)
+        except Exception:
+            pass
 
 
 def _owner(update: Update, rt: Runtime) -> bool:
@@ -212,17 +255,19 @@ def home_text(rt: Runtime) -> str:
         f"🏄 衝浪套利 Bot\n"
         f"{state} · {mode}\n"
         f"{_paper_block(rt)}\n"
-        f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']}\n"
+        f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']}"
+        + (f" · 對沖 {st['hedges_24h']}" if st.get("hedges_24h") else "")
+        + "\n"
         f"開倉市場 {st['open_markets']} · {keys}\n"
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
-        f"{_tape_line(last)}"
+        f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
         "Rev 6：WebSocket 盤口，兩邊都新鮮先做 taker。預設停尾盤掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
 
-def _tape_line(last: dict) -> str:
+def _tape_line(last: dict, *, maker_on: bool = True) -> str:
     tape = last.get("tape") or {}
     if not tape.get("n"):
         bits = []
@@ -250,7 +295,7 @@ def _tape_line(last: dict) -> str:
     if tape.get("max_taker_net") is not None:
         n = float(tape["max_taker_net"])
         bits.append(f"taker淨 {n:+.3f}/股")
-    if tape.get("max_maker_gross") is not None:
+    if maker_on and tape.get("max_maker_gross") is not None:
         bits.append(f"掛單缺口 {float(tape['max_maker_gross']):.2f}")
     if tape.get("nearest_s") is not None:
         slug = str(tape.get("nearest_slug") or "")[:28]
@@ -280,7 +325,7 @@ def _status_text(rt: Runtime) -> str:
 
 
 def _pos_text(rt: Runtime) -> str:
-    inv = rt.store.inventory()
+    inv = rt.store.inventory_open()
     rest = rt.store.resting_open()
     lines = [_paper_block(rt), "", "📦 倉位"]
     if rest:
@@ -293,24 +338,28 @@ def _pos_text(rt: Runtime) -> str:
                 f"\n  Up {up_f} · Down {dn_f} · 鎖 ${float(row.get('reserved') or 0):.2f}"
             )
     if not inv and not rest:
-        lines.append("而家無倉、無掛單。Rev 6 預設只做 taker，唔會掛單等碰到。")
+        lines.append("而家無倉、無掛單。0/0 空列已清。Rev 6 預設只做 taker。")
         return "\n".join(lines)
-    if inv:
-        for row in inv[:15]:
-            lines.append(f"{row['slug'] or row['condition_id'][:8]}\n  Up {row['up']:.1f} · Down {row['down']:.1f}")
+    for row in inv[:15]:
+        lines.append(f"{row['slug'] or row['condition_id'][:8]}\n  Up {row['up']:.1f} · Down {row['down']:.1f}")
     return "\n".join(lines)
 
 
 def _log_text(rt: Runtime) -> str:
-    trades = rt.store.recent_trades(8)
+    trades = [t for t in rt.store.recent_trades(24) if t.get("status") not in NOISE_TRADE][:8]
     if not trades:
-        return "未有成交紀錄。"
-    lines = ["📜 最近成交"]
+        return "近期無成交／對沖／結算。掛單同單邊碰到唔再當成問題單顯示。"
+    lines = ["📜 最近紀錄（隱藏掛單／單邊碰到）"]
     for t in trades:
+        stamp = _fmt_ts(t.get("ts"))
+        status = STATUS_ZH.get(t["status"], t["status"])
+        kind = KIND_ZH.get(t["kind"], t["kind"])
+        net = float(t.get("net") or 0)
+        sign = "+" if net >= 0 else ""
         lines.append(
-            f"{t['status']} {t['mode']} {t['kind']}\n"
+            f"{stamp} {status} · {kind}\n"
             f"{t['slug']}\n"
-            f"{t['up_price']}+{t['down_price']} × {t['shares']}  net ${t['net']:.2f}"
+            f"{t['up_price']}+{t['down_price']} × {t['shares']}  {sign}${net:.2f}"
         )
     return "\n".join(lines)
 
@@ -320,7 +369,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _owner(update, rt):
         await update.effective_message.reply_text("呢個 bot 已經有主人，唔好意思。")
         return
-    await update.effective_message.reply_text(home_text(rt), reply_markup=home_kb(rt))
+    await update.effective_message.reply_text(_clip(home_text(rt)), reply_markup=home_kb(rt))
 
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -332,33 +381,44 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer("唔係主人", show_alert=True)
         return
     data = q.data or ""
+    try:
+        await _handle_callback(rt, q, data)
+    except Exception as exc:
+        rt.store.add_event("warn", f"tg callback {data}: {type(exc).__name__}: {exc}"[:220])
+        try:
+            await q.answer("Bot 出錯，試下 /start", show_alert=True)
+        except Exception:
+            pass
+
+
+async def _handle_callback(rt: Runtime, q, data: str) -> None:
     s = rt.settings()
 
     if data == "home":
         await q.answer()
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "status":
         await q.answer()
-        await q.edit_message_text(_status_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, _status_text(rt), reply_markup=home_kb(rt))
         return
     if data == "pos":
         await q.answer()
-        await q.edit_message_text(_pos_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, _pos_text(rt), reply_markup=home_kb(rt))
         return
     if data == "log":
         await q.answer()
-        await q.edit_message_text(_log_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, _log_text(rt), reply_markup=home_kb(rt))
         return
     if data == "pause":
         rt.store.patch_settings(engine_running=False)
         await q.answer("已暫停")
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "resume":
         rt.store.patch_settings(engine_running=True, killed=False)
         await q.answer("繼續跑")
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "kill":
         kb = InlineKeyboardMarkup(
@@ -368,18 +428,18 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             ]
         )
         await q.answer()
-        await q.edit_message_text("緊急停機會停掃描同落單。確定？", reply_markup=kb)
+        await _safe_edit(q, "緊急停機會停掃描同落單。確定？", reply_markup=kb)
         return
     if data == "kill2":
         rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
         n = rt.store.cancel_all_resting("kill")
         rt.store.add_event("warn", f"kill switch cancelled_resting={n}")
         await q.answer("已停機")
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "mode":
         await q.answer()
-        await q.edit_message_text(
+        await _safe_edit(q, 
             f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
             f"紙盤跟真錢規則：taker 兩邊新鮮盤口先成交。Rev 6 預設停掛單。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
             "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，再撳兩次確認。",
@@ -389,11 +449,11 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "paper":
         rt.store.patch_settings(live_trading=False)
         await q.answer("返紙盤")
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "bank":
         await q.answer()
-        await q.edit_message_text(bank_text(rt), reply_markup=bank_kb(rt))
+        await _safe_edit(q, bank_text(rt), reply_markup=bank_kb(rt))
         return
     if data.startswith("bank:") or data in {"bankinc", "bankdec"}:
         from app.config import clamp_paper_cash
@@ -406,7 +466,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             nxt = clamp_paper_cash(float(data.split(":", 1)[1]))
         rt.store.patch_settings(paper_starting_cash=nxt)
         await q.answer(f"下次重置 ${nxt:.0f}")
-        await q.edit_message_text(bank_text(rt), reply_markup=bank_kb(rt))
+        await _safe_edit(q, bank_text(rt), reply_markup=bank_kb(rt))
         return
     if data == "reset1":
         amt = rt.paper_bankroll()
@@ -417,7 +477,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             ]
         )
         await q.answer()
-        await q.edit_message_text(
+        await _safe_edit(q, 
             f"會清紙盤倉位同掛單，現金同權益打返 ${amt:.0f}。成交紀錄會留低。確定？",
             reply_markup=kb,
         )
@@ -428,7 +488,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         book = rt.store.reset_paper(amt)
         rt.store.add_event("warn", f"paper reset starting=${book['starting']:.2f}")
         await q.answer("紙盤已重置")
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "live1":
         if rt.env.force_paper:
@@ -444,7 +504,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             ]
         )
         await q.answer()
-        await q.edit_message_text(
+        await _safe_edit(q, 
             "實盤會用你把匙簽名落單。\n"
             "全自動模式下唔會逐單確認。\n"
             "建議先紙盤睇一日先。確定轉？",
@@ -455,15 +515,15 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         rt.store.patch_settings(live_trading=True, killed=False, engine_running=True)
         rt.store.add_event("warn", "live trading enabled")
         await q.answer("已轉實盤")
-        await q.edit_message_text(home_text(rt), reply_markup=home_kb(rt))
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "set":
         await q.answer()
-        await q.edit_message_text("高階設定。撳開關或者加減。預設已經係全自動紙盤。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。撳開關或者加減。預設已經係全自動紙盤。", reply_markup=settings_kb(rt))
         return
     if data == "assets":
         await q.answer()
-        await q.edit_message_text("揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, "揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
         return
     if data.startswith("asset:"):
         coin = data.split(":", 1)[1]
@@ -477,11 +537,11 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             cur.append(coin)
         rt.store.patch_settings(assets=cur)
         await q.answer()
-        await q.edit_message_text("揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, "揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
         return
     if data == "tags":
         await q.answer()
-        await q.edit_message_text("揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
+        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
         return
     if data.startswith("tag:"):
         tag = data.split(":", 1)[1]
@@ -495,14 +555,14 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             cur.append(tag)
         rt.store.patch_settings(tags=cur, tag=cur[0])
         await q.answer()
-        await q.edit_message_text("揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
+        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
         return
     if data.startswith("tog:"):
         key = data.split(":", 1)[1]
         if key in TOGGLES:
             rt.store.patch_settings(**{key: not bool(s.get(key))})
         await q.answer("已更新")
-        await q.edit_message_text("高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
         return
     if data.startswith("inc:") or data.startswith("dec:"):
         key = data.split(":", 1)[1]
@@ -518,7 +578,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})
         await q.answer()
-        await q.edit_message_text("高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
         return
     await q.answer()
 
@@ -542,7 +602,7 @@ async def run_telegram(rt: Runtime) -> None:
         try:
             await application.bot.send_message(
                 chat_id=owner,
-                text=home_text(rt) + f"\n\n紙盤下次重置本金 ${rt.paper_bankroll():.0f}。現金／權益／PnL 睇上面同 dashboard。",
+                text=_clip(home_text(rt) + f"\n\n紙盤下次重置本金 ${rt.paper_bankroll():.0f}。現金／權益／PnL 睇上面同 dashboard。"),
                 reply_markup=home_kb(rt),
             )
         except Exception:
@@ -554,7 +614,7 @@ async def run_telegram(rt: Runtime) -> None:
             if owner is None:
                 continue
             try:
-                await application.bot.send_message(chat_id=owner, text=note["text"], reply_markup=home_kb(rt))
+                await application.bot.send_message(chat_id=owner, text=_clip(note["text"]), reply_markup=home_kb(rt))
             except Exception:
                 pass
     finally:

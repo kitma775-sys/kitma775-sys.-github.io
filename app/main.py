@@ -60,6 +60,9 @@ def run() -> None:
     planned = float(store.settings().get("paper_starting_cash") or seed)
     paper = store.ensure_paper(planned)
     apply_strategy_rev(store)
+    pruned = store.prune_empty_inventory()
+    if pruned:
+        store.add_event("info", f"pruned {pruned} empty inventory rows")
     rt = Runtime(store, env)
     store.add_event(
         "info",

@@ -65,6 +65,8 @@ def create_app(rt: Runtime) -> FastAPI:
             rt.store.patch_settings(engine_running=True, killed=False)
         elif name == "kill":
             rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
+            n = rt.store.cancel_all_resting("kill")
+            rt.store.add_event("warn", f"dashboard kill cancelled_resting={n}")
         elif name == "paper":
             rt.store.patch_settings(live_trading=False)
         elif name == "set_paper_cash":

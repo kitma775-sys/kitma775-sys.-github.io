@@ -56,7 +56,7 @@ class BookCache:
         self.last_msg_ts = 0.0
 
     def set_wanted(self, tokens: list[str]) -> bool:
-        nxt = tuple(t for t in tokens if t)
+        nxt = tuple(sorted({t for t in tokens if t}))
         changed = nxt != self.wanted
         self.wanted = nxt
         drop = [k for k in self.books if k not in set(nxt)]

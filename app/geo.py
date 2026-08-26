@@ -83,10 +83,7 @@ def telegram_line(geo: dict[str, Any] | None) -> str:
     if g.get("api_status") == "close_only":
         return f"\n⚠️ IP {cc}：官方 API close-only，新倉會被拒。"
     if g.get("frontend_only"):
-        return (
-            f"\n🌐 IP {cc}：網站 geoblock 係 frontend close-only；"
-            "官方寫明 CLOB API 唔限制。同機其他 Polymarket bot 行嘅就係呢條。"
-        )
+        return f"\n🌐 IP {cc}：網站 geoblock；CLOB API 開放。"
     if g.get("website_blocked") is True and g.get("api_open"):
         return f"\n🌐 IP {cc}：網站報 blocked，但官方 API 名單冇封呢區；CLOB 已通。"
     if g.get("api_open"):

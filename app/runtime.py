@@ -41,6 +41,7 @@ class Runtime:
         self._circuit_latch = False
         self._last_loop_error_ts = 0.0
         self._last_ws_error_ts = 0.0
+        self._last_ws_info_ts = 0.0
         self.books = BookCache()
         self.universe: list[dict] = []
         self.ws_status = "off"
@@ -87,6 +88,9 @@ class Runtime:
         s = self.settings()
         st = self.store.stats()
         paper = self.store.paper_state()
+        noisy = {"paper_leg_fill", "paper_resting", "resting"}
+        trades = [t for t in self.store.recent_trades(40) if t.get("status") not in noisy][:15]
+        scans = [x for x in self.store.recent_scans(40) if float(x.get("ts") or 0) >= self.started_at - 2][:12]
         return {
             "mode": self.mode(),
             "keys_ready": live_keys_ready(self.env),
@@ -99,10 +103,10 @@ class Runtime:
             "paper": paper,
             "last_loop": self.last_loop,
             "ws_status": self.ws_status,
-            "inventory": self.store.inventory()[:20],
+            "inventory": self.store.inventory_open()[:20],
             "resting": self.store.resting_open()[:20],
-            "trades": self.store.recent_trades(15),
-            "scans": self.store.recent_scans(12),
+            "trades": trades,
+            "scans": scans,
             "events": self.store.recent_events(15),
         }
 
@@ -236,22 +240,32 @@ async def _ws_loop(rt: Runtime) -> None:
             kw["close_timeout"] = 5
         if "open_timeout" in params:
             kw["open_timeout"] = 15
+
+        def _sub(ids: list[str]) -> str:
+            return json.dumps(
+                {"assets_ids": ids, "type": "market", "custom_feature_enabled": True, "initial_dump": True}
+            )
+
         try:
             async with websockets.connect(WS_MARKET, **kw) as ws:
                 rt.ws_status = "connected"
                 rt.books.connected = True
                 backoff = 1.0
-                await ws.send(
-                    json.dumps(
-                        {"assets_ids": wanted, "type": "market", "custom_feature_enabled": True, "initial_dump": True}
-                    )
-                )
-                rt.store.add_event("info", f"ws subscribed {len(wanted)} tokens")
+                await ws.send(_sub(wanted))
+                now = time.time()
+                if now - rt._last_ws_info_ts > 60:
+                    rt.store.add_event("info", f"ws connected {len(wanted)} tokens")
+                    rt._last_ws_info_ts = now
                 ping = asyncio.create_task(_ws_ping(ws))
                 try:
                     async for raw in ws:
-                        if list(rt.books.wanted) != wanted:
-                            break
+                        now_wanted = list(rt.books.wanted)
+                        if now_wanted != wanted:
+                            if not now_wanted:
+                                break
+                            wanted = now_wanted
+                            await ws.send(_sub(wanted))
+                            continue
                         changed = rt.books.apply_message(raw)
                         if changed:
                             rt._hunt_event.set()

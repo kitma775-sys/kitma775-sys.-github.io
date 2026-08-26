@@ -25,6 +25,9 @@
     th { background:var(--chip); font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
     .ok { color:var(--ok); font-weight:700; }
     .bad { color:var(--stamp); font-weight:700; }
+    .mono { font-family:ui-monospace,monospace; }
+    .muted { color:#6b6256; }
+    .bad { color:var(--stamp); font-weight:700; }
     pre { background:#1b1712; color:#f3ead7; padding:12px; overflow:auto; font-size:12px; }
   </style>
 </head>
@@ -78,6 +81,7 @@
         " · WS " + (d.ws_status || "off") +
         " · rev " + (s.strategy_rev || "?") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
+        (st.hedges_24h ? (" · 對沖 " + st.hedges_24h) : "") +
         " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
         ((d.last_loop||{}).status === "error" ? " · 引擎錯誤 " + ((d.last_loop||{}).error||"") : "") +
         (tape.n ? (" · 盤口 " + tape.n + " 盤 ask合 " + nfmt(tape.min_ask_sum) + " taker " + shareNet(tape.max_taker_net) + "/股" + (tape.ws_pairs!=null ? (" WS盤 " + tape.ws_pairs) : "") + (tape.stale_pairs ? (" 過期 " + tape.stale_pairs) : "") + (tape.nearest_slug ? (" · 最近 " + tape.nearest_slug) : "") + (tape.slugs && tape.slugs.length ? (" · 掃 " + tape.slugs.slice(0,6).join(", ")) : "")) : (tape.stale_pairs ? (" · 過期盤 " + tape.stale_pairs) : ""));
@@ -113,26 +117,32 @@
         tile(Number(s.maker_window_seconds||0) < 3 ? "關" : (Number(s.maker_window_seconds) + "s"), "掛單尾窗"),
         tile(nfmt(tape.min_ask_sum), "盤口 ask合"),
         tile(shareNet(tape.max_taker_net), "taker淨/股", pnlCls(tape.max_taker_net)),
-        tile(nfmt(tape.max_maker_gross), "掛單缺口"),
+        ...(Number(s.maker_window_seconds||0) < 3 ? [] : [tile(nfmt(tape.max_maker_gross), "掛單缺口")]),
         tile(tape.nearest_s==null ? "—" : (Math.round(Number(tape.nearest_s)) + "s"), tape.nearest_slug ? ("最近 " + String(tape.nearest_slug).slice(0,22)) : "最近完場"),
         tile((Array.isArray(s.tags) ? s.tags : [s.tag || "15M"]).join("+"), "週期"),
         tile(String(s.scan_limit || 16), "每圈最多盤"),
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_execute ? "ON" : "OFF", "全自動")
       ].join("");
+      const statusZh = {paper_filled:"紙盤成交", paper_hedged:"單邊對沖", paper_dumped:"單邊出貨", paper_settled:"結算", paper_missed:"錯過", filled:"成交", cancelled:"已撤"};
+      const fmtTs = (ts) => {
+        if (!ts) return "";
+        try { return new Date(Number(ts)*1000).toISOString().slice(11,19) + "Z"; } catch(e) { return ""; }
+      };
       document.getElementById("scans").innerHTML = (d.scans||[]).map(x => {
         const p = x.payload || {};
-        return "<tr><td>"+esc(p.title||x.slug)+"</td><td>"+esc(x.kind)+"</td><td class=mono>"+p.up+"+"+p.down+"</td><td>"+p.shares+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
-      }).join("") || "<tr><td colspan=6>暫無</td></tr>";
+        const px = (p.up!=null && p.down!=null) ? (p.up+"+"+p.down) : "—";
+        return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+esc(x.kind)+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
+      }).join("") || "<tr><td colspan=6>本輪未有 taker 信號（舊 maker 掃描已隱藏）</td></tr>";
       document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
-        "<tr><td>"+esc(x.status)+"</td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+esc(x.kind)+"</td><td>$"+Number(x.net||0).toFixed(2)+"</td></tr>"
-      ).join("") || "<tr><td colspan=4>暫無</td></tr>";
+        "<tr><td>"+esc(statusZh[x.status]||x.status)+"<div class=muted>"+fmtTs(x.ts)+"</div></td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+(x.kind==="maker"?"掛單":esc(x.kind))+"</td><td class='"+(pnlCls(x.net))+"'>$"+Number(x.net||0).toFixed(2)+"</td></tr>"
+      ).join("") || "<tr><td colspan=4>暫無（掛單／單邊碰到已隱藏）</td></tr>";
       document.getElementById("rest").innerHTML = (d.resting||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+x.up_price+"+"+x.down_price+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
       ).join("") || "<tr><td colspan=6>暫無（Rev 6 預設停掛單）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
-      ).join("") || "<tr><td colspan=3>暫無</td></tr>";
+      ).join("") || "<tr><td colspan=3>暫無倉位（0/0 空列已清）</td></tr>";
       document.getElementById("events").textContent = (d.events||[]).map(e => e.level + " " + e.message).join("\n") || "—";
     }
     function tile(v, l, cls) {

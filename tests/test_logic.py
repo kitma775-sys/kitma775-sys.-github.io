@@ -862,9 +862,11 @@ def test_home_text_shows_scan_tape(tmp_path):
     text = home_text(rt)
     assert "ask合 1.01" in text
     assert "taker淨 -0.045/股" in text
-    assert "掛單缺口 0.01" in text
+    assert "掛單缺口" not in text
     assert "最近 42s btc-updown-15m" in text
     assert "掃 eth-updown-15m-a, sol-updown-15m-b" in text
+    st.patch_settings(maker_window_seconds=75)
+    assert "掛單缺口 0.01" in home_text(rt)
 
 
 def test_pick_markets_ranks_soonest_and_skips_empty():
@@ -1159,5 +1161,99 @@ def test_health_reports_rev_and_ws(tmp_path):
     state = client.get("/api/state?t=tok").json()
     assert state["ws_status"] == "connected"
     assert "ws_status" in state
+
+
+def test_merge_deletes_empty_inventory_row(tmp_path):
+    st = Store(tmp_path / "empty.sqlite")
+    st.add_inventory("c1", "btc", 10, 10)
+    st.merge_inventory("c1", 10)
+    assert st.inventory() == []
+    assert st.inventory_open() == []
+    assert st.inventory_one("c1")["up"] == 0
+
+
+def test_prune_empty_inventory_and_pos_hides_ghosts(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import _log_text, _pos_text
+
+    st = Store(tmp_path / "ghost.sqlite")
+    st.ensure_paper(500)
+    st._conn.execute(
+        "INSERT INTO inventory(condition_id,slug,up,down,updated) VALUES(?,?,?,?,?)",
+        ("c1", "btc-updown-15m-ghost", 0.0, 0.0, 1.0),
+    )
+    st._conn.commit()
+    assert len(st.inventory()) == 1
+    assert st.prune_empty_inventory() == 1
+    assert st.inventory() == []
+    rt = Runtime(st, Env())
+    text = _pos_text(rt)
+    assert "btc-updown-15m-ghost" not in text
+    assert "無倉" in text
+    st.add_trade(slug="btc", kind="maker", shares=10, up_price=0.5, down_price=0.49, net=0.0, mode="paper", status="paper_resting")
+    st.add_trade(slug="btc", kind="maker", shares=10, up_price=0.5, down_price=0.49, net=0.0, mode="paper", status="paper_leg_fill")
+    st.add_trade(slug="btc", kind="maker", shares=10, up_price=0.5, down_price=0.49, net=-10.8, mode="paper", status="paper_hedged")
+    log = _log_text(rt)
+    assert "paper_resting" not in log
+    assert "paper_leg_fill" not in log
+    assert "單邊對沖" in log
+    assert "$-10.80" in log
+
+
+def test_snapshot_hides_old_scans_and_noise_trades(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "snap.sqlite")
+    st.ensure_paper(500)
+    st.add_scan("old-maker", "maker", {"reason": "approved", "net": 1})
+    st.add_trade(slug="btc", kind="maker", shares=5, up_price=0.5, down_price=0.49, net=0, mode="paper", status="paper_resting")
+    st.add_trade(slug="btc", kind="maker", shares=5, up_price=0.5, down_price=0.49, net=-2, mode="paper", status="paper_hedged")
+    rt = Runtime(st, Env())
+    rt.started_at = 9e12
+    snap = rt.snapshot()
+    assert snap["scans"] == []
+    assert [t["status"] for t in snap["trades"]] == ["paper_hedged"]
+    assert snap["inventory"] == []
+
+
+def test_book_cache_wanted_ignores_order():
+    from app.ws_books import BookCache
+
+    cache = BookCache()
+    assert cache.set_wanted(["b", "a", "b"]) is True
+    assert cache.wanted == ("a", "b")
+    assert cache.set_wanted(["a", "b"]) is False
+
+
+def test_dashboard_kill_cancels_resting(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Env
+    from app.dashboard import create_app
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "kill.sqlite")
+    st.ensure_paper(500)
+    st.add_resting(
+        slug="btc",
+        condition_id="c1",
+        title="btc",
+        up_token="u",
+        down_token="d",
+        shares=10,
+        up_price=0.50,
+        down_price=0.49,
+        net=0.10,
+    )
+    rt = Runtime(st, Env(dashboard_token="tok"))
+    client = TestClient(create_app(rt))
+    out = client.post("/api/action/kill?t=tok")
+    assert out.status_code == 200
+    assert st.resting_open() == []
+    assert st.settings()["killed"] is True
+    assert st.settings()["live_trading"] is False
+
 
 

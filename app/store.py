@@ -175,6 +175,15 @@ class Store:
         rows = self._conn.execute("SELECT * FROM inventory ORDER BY updated DESC").fetchall()
         return [dict(r) for r in rows]
 
+    def inventory_open(self) -> list[dict]:
+        return [r for r in self.inventory() if float(r.get("up") or 0) > 0.01 or float(r.get("down") or 0) > 0.01]
+
+    def prune_empty_inventory(self) -> int:
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM inventory WHERE up<=0.01 AND down<=0.01")
+            self._conn.commit()
+            return int(cur.rowcount or 0)
+
     def inventory_one(self, condition_id: str) -> dict:
         row = self._conn.execute("SELECT * FROM inventory WHERE condition_id=?", (condition_id,)).fetchone()
         if row:
@@ -191,24 +200,15 @@ class Store:
 
     def _add_inventory_unlocked(self, condition_id: str, slug: str, up: float, down: float) -> dict:
         cur = self.inventory_one(condition_id)
-        nu, nd = cur["up"] + up, cur["down"] + down
-        self._conn.execute(
-            "INSERT INTO inventory(condition_id,slug,up,down,updated) VALUES(?,?,?,?,?) ON CONFLICT(condition_id) DO UPDATE SET slug=excluded.slug, up=excluded.up, down=excluded.down, updated=excluded.updated",
-            (condition_id, slug or cur.get("slug") or "", nu, nd, time.time()),
-        )
-        self._conn.commit()
-        return {"condition_id": condition_id, "slug": slug, "up": nu, "down": nd}
+        nu, nd = float(cur["up"]) + float(up), float(cur["down"]) + float(down)
+        return self._write_inventory_unlocked(condition_id, slug or cur.get("slug") or "", nu, nd)
 
     def _merge_inventory_unlocked(self, condition_id: str, shares: float) -> dict:
         cur = self.inventory_one(condition_id)
         take = min(shares, cur["up"], cur["down"])
-        nu, nd = cur["up"] - take, cur["down"] - take
-        self._conn.execute(
-            "UPDATE inventory SET up=?, down=?, updated=? WHERE condition_id=?",
-            (nu, nd, time.time(), condition_id),
-        )
-        self._conn.commit()
-        return {"condition_id": condition_id, "merged": take, "up": nu, "down": nd}
+        nu, nd = float(cur["up"]) - take, float(cur["down"]) - take
+        written = self._write_inventory_unlocked(condition_id, cur.get("slug") or "", nu, nd)
+        return {"condition_id": condition_id, "merged": take, "up": written["up"], "down": written["down"]}
 
     def take_inventory(self, condition_id: str, up: float = 0.0, down: float = 0.0) -> dict:
         with self._lock:
@@ -216,12 +216,21 @@ class Store:
             take_up = min(max(float(up), 0.0), float(cur["up"]))
             take_dn = min(max(float(down), 0.0), float(cur["down"]))
             nu, nd = float(cur["up"]) - take_up, float(cur["down"]) - take_dn
-            self._conn.execute(
-                "UPDATE inventory SET up=?, down=?, updated=? WHERE condition_id=?",
-                (nu, nd, time.time(), condition_id),
-            )
+            written = self._write_inventory_unlocked(condition_id, cur.get("slug") or "", nu, nd)
+            return {"condition_id": condition_id, "up": written["up"], "down": written["down"], "took_up": take_up, "took_down": take_dn}
+
+    def _write_inventory_unlocked(self, condition_id: str, slug: str, up: float, down: float) -> dict:
+        up, down = float(up), float(down)
+        if up <= 0.01 and down <= 0.01:
+            self._conn.execute("DELETE FROM inventory WHERE condition_id=?", (condition_id,))
             self._conn.commit()
-            return {"condition_id": condition_id, "up": nu, "down": nd, "took_up": take_up, "took_down": take_dn}
+            return {"condition_id": condition_id, "slug": slug, "up": 0.0, "down": 0.0}
+        self._conn.execute(
+            "INSERT INTO inventory(condition_id,slug,up,down,updated) VALUES(?,?,?,?,?) ON CONFLICT(condition_id) DO UPDATE SET slug=excluded.slug, up=excluded.up, down=excluded.down, updated=excluded.updated",
+            (condition_id, slug, up, down, time.time()),
+        )
+        self._conn.commit()
+        return {"condition_id": condition_id, "slug": slug, "up": up, "down": down}
 
     def unmatched_shares(self) -> float:
         total = 0.0
@@ -572,11 +581,16 @@ class Store:
             "SELECT COUNT(*) c FROM trades WHERE ts>=? AND status IN ('filled','paper_filled','merged')",
             (time.time() - 86400,),
         ).fetchone()["c"]
+        hedges = self._conn.execute(
+            "SELECT COUNT(*) c FROM trades WHERE ts>=? AND status IN ('paper_hedged','paper_dumped','paper_settled')",
+            (time.time() - 86400,),
+        ).fetchone()["c"]
         trades = self._conn.execute("SELECT COUNT(*) c FROM trades WHERE ts>=?", (time.time() - 86400,)).fetchone()["c"]
         paper = self.paper_state()
         return {
             "scans_24h": scans,
             "trades_24h": fills,
+            "hedges_24h": hedges,
             "orders_24h": trades,
             "today_pnl": paper["today_pnl"],
             "open_markets": self._open_market_count(),
