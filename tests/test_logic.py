@@ -930,10 +930,11 @@ def test_replay_taker_tail_has_positive_pnl():
 
 
 def test_replay_maker_two_sided_and_expire_unfilled():
-    from app.replay import replay_market
+    from app.replay import live_replay_settings, replay_market
 
     end, end_ts, _ = _bt_end()
     q = end_ts - 40
+    maker_on = live_replay_settings(maker_window_seconds=75)
     filled = replay_market(
         [
             _px(q, "up", "SELL", 0.50),
@@ -943,6 +944,7 @@ def test_replay_maker_two_sided_and_expire_unfilled():
         ],
         end=end,
         slug="btc-updown-15m-maker",
+        settings=maker_on,
     )
     assert filled["maker_quoted"] >= 1
     assert filled["maker_two_sided_n"] == 1
@@ -951,6 +953,7 @@ def test_replay_maker_two_sided_and_expire_unfilled():
         [_px(q, "up", "SELL", 0.50), _px(q, "down", "SELL", 0.49)],
         end=end,
         slug="btc-updown-15m-dead",
+        settings=maker_on,
     )
     assert dead["maker_quoted"] >= 1
     assert dead["maker_expire_unfilled"] == 1
@@ -958,7 +961,7 @@ def test_replay_maker_two_sided_and_expire_unfilled():
 
 
 def test_replay_one_sided_hedge_can_lose():
-    from app.replay import replay_market
+    from app.replay import live_replay_settings, replay_market
 
     end, end_ts, _ = _bt_end()
     q = end_ts - 40
@@ -972,8 +975,189 @@ def test_replay_one_sided_hedge_can_lose():
         ],
         end=end,
         slug="sol-updown-15m-hedge",
+        settings=live_replay_settings(maker_window_seconds=75, maker_max_skew=0.28),
     )
     assert stats["maker_hedge_n"] == 1
     assert stats["maker_hedge_pnl"] < 0
     assert stats["pnl"] < 0
+
+
+def test_hunt_skips_maker_when_window_off():
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.70, 100)),
+        down_asks=_L((0.40, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.48, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=True,
+        end=_late_end(30),
+        maker_window_seconds=0,
+        maker_min_edge=0.01,
+    )
+    assert setup is None
+
+
+def test_risk_blocks_maker_when_window_off():
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="x",
+        title="x",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="maker",
+        up_price=0.50,
+        down_price=0.48,
+        shares=10,
+        fillable=10,
+        gross=0.02,
+        fees=0,
+        net=0.2,
+        tail=False,
+    )
+    d = approve(
+        setup,
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=0,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=0,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+        seconds_left=30,
+        maker_window=0,
+    )
+    assert d.ok is False
+    assert d.reason == "maker_window_off"
+
+
+def test_book_cache_applies_book_and_skips_stale():
+    import time
+
+    from app.ws_books import BookCache
+
+    cache = BookCache()
+    now = time.time() * 1000.0
+    cache.apply_message(
+        {
+            "event_type": "book",
+            "asset_id": "up",
+            "timestamp": now,
+            "asks": [{"price": "0.51", "size": "10"}],
+            "bids": [{"price": "0.50", "size": "10"}],
+        }
+    )
+    cache.apply_message(
+        {
+            "event_type": "book",
+            "asset_id": "dn",
+            "timestamp": now,
+            "asks": [{"price": "0.50", "size": "10"}],
+            "bids": [{"price": "0.49", "size": "10"}],
+        }
+    )
+    pair = cache.pair("up", "dn", max_age_ms=2000)
+    assert pair is not None
+    assert pair["up"]["asks"][0].price == 0.51
+    assert pair["down"]["bids"][0].price == 0.49
+    cache.put("up", pair["up"]["asks"], pair["up"]["bids"], ts_ms=now - 5000, source="ws")
+    assert cache.pair("up", "dn", max_age_ms=2000) is None
+    assert cache.apply_message("PONG") == []
+
+
+def test_replay_rev6_skips_toxic_maker():
+    from app.replay import live_replay_settings, replay_market
+
+    end, end_ts, _ = _bt_end()
+    q = end_ts - 40
+    stats = replay_market(
+        [
+            _px(q, "up", "SELL", 0.39),
+            _px(q, "down", "SELL", 0.5456),
+            _px(q + 1, "down", "SELL", 0.20),
+            _px(q + 2, "up", "BUY", 0.56, 80),
+            _px(q + 3, "down", "BUY", 0.5456, 80),
+        ],
+        end=end,
+        slug="sol-updown-15m-hedge",
+        settings=live_replay_settings(),
+    )
+    assert stats["maker_quoted"] == 0
+    assert stats["maker_hedge_n"] == 0
+    assert stats["pnl"] == 0
+
+
+def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
+    from app.main import apply_strategy_rev
+
+    st = Store(tmp_path / "rev6.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(20)
+    st.add_inventory("c1", "btc", 5, 0)
+    st.add_resting(
+        slug="btc",
+        condition_id="c1",
+        title="btc",
+        up_token="u",
+        down_token="d",
+        shares=10,
+        up_price=0.50,
+        down_price=0.49,
+        net=0.10,
+    )
+    st.patch_settings(strategy_rev=5, maker_window_seconds=75)
+    cash_before = st.paper_state()["cash"]
+    n = apply_strategy_rev(st)
+    assert n == 1
+    s = st.settings()
+    assert s["strategy_rev"] == 6
+    assert float(s["maker_window_seconds"]) == 0.0
+    assert st.resting_open() == []
+    after = st.paper_state()
+    assert after["cash"] > cash_before
+    assert after["starting"] == 500
+    assert st.inventory_one("c1")["up"] == 5
+    assert apply_strategy_rev(st) == 0
+
+
+def test_health_reports_rev_and_ws(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Env
+    from app.dashboard import create_app
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "h.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env(dashboard_token="tok"))
+    rt.ws_status = "connected"
+    client = TestClient(create_app(rt))
+    h = client.get("/health")
+    assert h.status_code == 200
+    body = h.json()
+    assert body["ok"] is True
+    assert body["strategy_rev"] == 6
+    assert body["ws_status"] == "connected"
+    assert body["live_trading"] is False
+    assert float(body["maker_window_seconds"]) == 0.0
+    state = client.get("/api/state?t=tok").json()
+    assert state["ws_status"] == "connected"
+    assert "ws_status" in state
+
 

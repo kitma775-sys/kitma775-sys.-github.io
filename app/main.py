@@ -17,6 +17,29 @@ from app.store import Store
 from app.telegram_ui import run_telegram
 
 
+def apply_strategy_rev(store: Store) -> int:
+    """Patch live sqlite up to rev 6. Does not reset the paper ledger."""
+    if int(store.settings().get("strategy_rev") or 0) >= 6:
+        return 0
+    n = store.cancel_all_resting("strategy_rev6")
+    store.patch_settings(
+        strategy_rev=6,
+        maker_first=False,
+        maker_min_edge=0.01,
+        maker_window_seconds=0.0,
+        maker_max_skew=0.10,
+        quote_cooldown_seconds=5.0,
+        max_book_age_ms=2000.0,
+        tags=["15M", "1H"],
+        assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
+        scan_limit=16,
+        max_horizon_seconds=3600.0,
+    )
+    if n:
+        store.add_event("info", f"rev6 cancelled {n} resting maker quotes")
+    return n
+
+
 def run() -> None:
     env = load_env()
     Path(env.data_dir).mkdir(parents=True, exist_ok=True)
@@ -36,16 +59,7 @@ def run() -> None:
         store.patch_settings(paper_starting_cash=seed)
     planned = float(store.settings().get("paper_starting_cash") or seed)
     paper = store.ensure_paper(planned)
-    if int(store.settings().get("strategy_rev") or 0) < 5:
-        store.patch_settings(
-            strategy_rev=5,
-            maker_first=False,
-            maker_min_edge=0.01,
-            tags=["15M", "1H"],
-            assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
-            scan_limit=16,
-            max_horizon_seconds=3600.0,
-        )
+    apply_strategy_rev(store)
     rt = Runtime(store, env)
     store.add_event(
         "info",

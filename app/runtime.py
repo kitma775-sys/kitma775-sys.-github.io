@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import json
 import time
 from typing import Any
 
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
-from app.config import Env, clamp_paper_cash, live_keys_ready
+from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
 from app.hunter import book_quote, hunt, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import asks_cross_bid, market_expired, seconds_left
@@ -15,6 +17,7 @@ from app.rescue import parse_outcome_prices, plan_rescue
 from app.risk import approve
 from app.store import Store
 from app.universe import DEFAULT_ASSETS, DEFAULT_TAGS
+from app.ws_books import WS_MARKET, BookCache
 
 
 def fmt_exc(exc: BaseException) -> str:
@@ -37,6 +40,12 @@ class Runtime:
         self.cooldown: dict[str, float] = {}
         self._circuit_latch = False
         self._last_loop_error_ts = 0.0
+        self._last_ws_error_ts = 0.0
+        self.books = BookCache()
+        self.universe: list[dict] = []
+        self.ws_status = "off"
+        self._hunt_event = asyncio.Event()
+        self._lock = asyncio.Lock()
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -89,6 +98,7 @@ class Runtime:
             "stats": st,
             "paper": paper,
             "last_loop": self.last_loop,
+            "ws_status": self.ws_status,
             "inventory": self.store.inventory()[:20],
             "resting": self.store.resting_open()[:20],
             "trades": self.store.recent_trades(15),
@@ -98,26 +108,39 @@ class Runtime:
 
 
 async def engine_loop(rt: Runtime) -> None:
+    await _ensure_http(rt)
+    await asyncio.gather(_universe_loop(rt), _ws_loop(rt), _hunt_loop(rt))
+
+
+async def _ensure_http(rt: Runtime) -> None:
+    if rt.http is not None:
+        return
+    rt.http = httpx.AsyncClient(
+        headers={"User-Agent": "surf-arb-bot/0.2"},
+        timeout=httpx.Timeout(12.0, connect=6.0),
+        limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
+    )
+    rt.data = MarketData(rt.http)
+    try:
+        rt.geo = await rt.data.geoblock()
+        rt.store.add_event("info", f"geoblock={rt.geo}")
+    except Exception as exc:
+        rt.store.add_event("warn", f"geoblock {fmt_exc(exc)}")
+
+
+async def _universe_loop(rt: Runtime) -> None:
     backoff = 1.0
     while True:
         s = rt.settings()
-        poll = max(0.5, float(s.get("poll_seconds") or 2))
+        poll = max(0.5, setting_num(s, "poll_seconds", 2.0))
         try:
-            if rt.http is None:
-                rt.http = httpx.AsyncClient(
-                    headers={"User-Agent": "surf-arb-bot/0.1"},
-                    timeout=httpx.Timeout(12.0, connect=6.0),
-                    limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
-                )
-                rt.data = MarketData(rt.http)
-                rt.geo = await rt.data.geoblock()
-                rt.store.add_event("info", f"geoblock={rt.geo}")
-            await _tick(rt)
+            await _ensure_http(rt)
+            await _refresh_universe(rt)
             backoff = 1.0
         except Exception as exc:
             detail = fmt_exc(exc)
-            rt.store.add_event("error", f"loop {detail}")
-            rt.last_loop = {"ts": time.time(), "status": "error", "error": detail}
+            rt.store.add_event("error", f"universe {detail}")
+            rt.last_loop = {"ts": time.time(), "status": "error", "error": detail, "where": "live_events"}
             now = time.time()
             if now - rt._last_loop_error_ts > 120:
                 rt._last_loop_error_ts = now
@@ -127,37 +150,36 @@ async def engine_loop(rt: Runtime) -> None:
         await asyncio.sleep(max(poll, backoff) if rt.settings().get("engine_running") else 1.0)
 
 
-async def _tick(rt: Runtime) -> None:
+async def _refresh_universe(rt: Runtime) -> None:
     s = rt.settings()
-    rt.last_loop = {"ts": time.time(), "status": "idle"}
     if s.get("killed"):
         n = rt.store.cancel_all_resting("kill")
         if n:
             await rt.notify(f"🛑 已撤 {n} 張紙盤掛單")
-        rt.last_loop["status"] = "killed"
+        rt.last_loop = {"ts": time.time(), "status": "killed", "tape": (rt.last_loop or {}).get("tape") or {}}
         return
     if not s.get("engine_running"):
-        rt.last_loop["status"] = "paused"
+        rt.last_loop = {"ts": time.time(), "status": "paused", "tape": (rt.last_loop or {}).get("tape") or {}}
         return
     assert rt.data is not None
-    try:
-        events = await rt.data.live_events(
-            s.get("tags") or [s.get("tag") or DEFAULT_TAGS[0]],
-            list(s.get("assets") or DEFAULT_ASSETS),
-            want=int(s.get("scan_limit") or 16),
-            max_horizon=float(s.get("max_horizon_seconds") or 3600),
-        )
-    except Exception as exc:
-        detail = fmt_exc(exc)
-        rt.last_loop = {"ts": time.time(), "status": "error", "error": detail, "where": "live_events"}
-        raise
+    events = await rt.data.live_events(
+        s.get("tags") or [s.get("tag") or DEFAULT_TAGS[0]],
+        list(s.get("assets") or DEFAULT_ASSETS),
+        want=int(s.get("scan_limit") or 16),
+        max_horizon=float(s.get("max_horizon_seconds") or 3600),
+    )
+    tokens: list[str] = []
+    for ev in events:
+        tokens.append(str(ev.get("up_token") or ""))
+        tokens.append(str(ev.get("down_token") or ""))
+    rt.universe = events
+    rt.books.set_wanted(tokens)
     settled = await _settle_inventory(rt)
     resting_fills = await _process_resting(rt)
     rescued = await _rescue_naked(rt, events)
-    paper_mode = rt.mode() == "paper"
-    paper = rt.store.paper_state() if paper_mode else None
     if rt.circuit_tripped():
         n = rt.store.cancel_all_resting("circuit")
+        paper = rt.store.paper_state() if rt.mode() == "paper" else None
         rt.last_loop = {
             "ts": time.time(),
             "status": "circuit_breaker",
@@ -165,13 +187,11 @@ async def _tick(rt: Runtime) -> None:
             "signals": 0,
             "fills": resting_fills + rescued + settled,
             "paper": paper,
-            "resting_fills": resting_fills,
-            "rescues": rescued,
-            "settled": settled,
+            "ws_status": rt.ws_status,
         }
         if not rt._circuit_latch:
             rt._circuit_latch = True
-            limit = float(s.get("daily_loss_limit_usd") or 0)
+            limit = setting_num(s, "daily_loss_limit_usd", 0)
             pnl = paper["today_pnl"] if paper else rt.store.today_pnl()
             rt.store.add_event("warn", f"circuit breaker pnl={pnl:.2f} limit={limit:.2f} cancelled_resting={n}")
             await rt.notify(
@@ -181,6 +201,117 @@ async def _tick(rt: Runtime) -> None:
             )
         return
     rt._circuit_latch = False
+    rt.last_loop.setdefault("tape", {})
+    rt.last_loop.update({"settled": settled, "resting_fills": resting_fills, "rescues": rescued, "markets": len(events)})
+
+
+async def _ws_loop(rt: Runtime) -> None:
+    backoff = 1.0
+    while True:
+        if not rt.settings().get("engine_running") or rt.settings().get("killed"):
+            rt.ws_status = "paused"
+            rt.books.connected = False
+            await asyncio.sleep(1.0)
+            continue
+        wanted = list(rt.books.wanted)
+        if not wanted:
+            rt.ws_status = "idle"
+            await asyncio.sleep(0.4)
+            continue
+        try:
+            import websockets
+        except ImportError:
+            rt.ws_status = "no_lib"
+            rt.books.connected = False
+            await asyncio.sleep(15)
+            continue
+        kw: dict[str, Any] = {"ping_interval": None, "max_size": 2**22}
+        params = inspect.signature(websockets.connect).parameters
+        headers = {"Origin": "https://polymarket.com", "User-Agent": "surf-arb-bot/0.2"}
+        if "additional_headers" in params:
+            kw["additional_headers"] = headers
+        elif "extra_headers" in params:
+            kw["extra_headers"] = headers
+        if "close_timeout" in params:
+            kw["close_timeout"] = 5
+        if "open_timeout" in params:
+            kw["open_timeout"] = 15
+        try:
+            async with websockets.connect(WS_MARKET, **kw) as ws:
+                rt.ws_status = "connected"
+                rt.books.connected = True
+                backoff = 1.0
+                await ws.send(
+                    json.dumps(
+                        {"assets_ids": wanted, "type": "market", "custom_feature_enabled": True, "initial_dump": True}
+                    )
+                )
+                rt.store.add_event("info", f"ws subscribed {len(wanted)} tokens")
+                ping = asyncio.create_task(_ws_ping(ws))
+                try:
+                    async for raw in ws:
+                        if list(rt.books.wanted) != wanted:
+                            break
+                        changed = rt.books.apply_message(raw)
+                        if changed:
+                            rt._hunt_event.set()
+                finally:
+                    ping.cancel()
+        except Exception as exc:
+            rt.ws_status = "down"
+            rt.books.connected = False
+            detail = fmt_exc(exc)
+            now = time.time()
+            if now - rt._last_ws_error_ts > 120:
+                rt._last_ws_error_ts = now
+                rt.store.add_event("warn", f"ws {detail}")
+            await asyncio.sleep(backoff)
+            backoff = min(15.0, backoff * 2)
+        else:
+            rt.books.connected = False
+            rt.ws_status = "reconnect"
+            await asyncio.sleep(0.2)
+
+
+async def _ws_ping(ws) -> None:
+    while True:
+        await asyncio.sleep(10)
+        try:
+            await ws.send("PING")
+        except Exception:
+            return
+
+
+async def _hunt_loop(rt: Runtime) -> None:
+    while True:
+        s = rt.settings()
+        if s.get("killed") or not s.get("engine_running"):
+            await asyncio.sleep(0.4)
+            continue
+        try:
+            await asyncio.wait_for(rt._hunt_event.wait(), timeout=0.25 if rt.books.connected else max(0.5, setting_num(s, "poll_seconds", 2.0)))
+        except asyncio.TimeoutError:
+            pass
+        rt._hunt_event.clear()
+        events = list(rt.universe)
+        if not events:
+            continue
+        try:
+            async with rt._lock:
+                await _scan_markets(rt, events, http_ok=not rt.books.connected)
+        except Exception as exc:
+            detail = fmt_exc(exc)
+            rt.store.add_event("error", f"hunt {detail}")
+            await asyncio.sleep(0.5)
+
+
+async def _scan_markets(rt: Runtime, events: list[dict], *, http_ok: bool) -> None:
+    s = rt.settings()
+    if s.get("killed") or not s.get("engine_running") or rt.circuit_tripped():
+        return
+    assert rt.data is not None
+    paper_mode = rt.mode() == "paper"
+    paper = rt.store.paper_state() if paper_mode else None
     prev_tape = (rt.last_loop or {}).get("tape") or {}
     rt.last_loop = {
         "ts": time.time(),
@@ -189,22 +320,27 @@ async def _tick(rt: Runtime) -> None:
         "signals": 0,
         "fills": 0,
         "tape": prev_tape,
+        "ws_status": rt.ws_status,
     }
     broker = rt.broker()
     signals = 0
     fills = 0
     quotes: list[dict] = []
     book_errors = 0
+    stale_pairs = 0
+    ws_pairs = 0
+    http_pairs = 0
+    max_age = setting_num(s, "max_book_age_ms", 2000.0)
+    window = setting_num(s, "maker_window_seconds", 0.0)
     for ev in events:
-        try:
-            up_book, dn_book = await asyncio.gather(
-                rt.data.book(ev["up_token"]),
-                rt.data.book(ev["down_token"]),
-            )
-        except Exception as exc:
-            book_errors += 1
-            rt.store.add_event("warn", f"book {ev.get('slug')}: {fmt_exc(exc)}")
+        up_book, dn_book, src = await _pair_books(rt, ev, http_ok=http_ok, max_age_ms=max_age)
+        if up_book is None or dn_book is None:
+            stale_pairs += 1
             continue
+        if src == "ws":
+            ws_pairs += 1
+        else:
+            http_pairs += 1
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
         quotes.append(
             book_quote(
@@ -236,9 +372,9 @@ async def _tick(rt: Runtime) -> None:
                 tail_confirm=float(s["tail_confirm"]),
                 maker_first=bool(s["maker_first"]),
                 end=ev.get("end"),
-                maker_min_leg=float(s.get("maker_min_leg") or 0.22),
-                maker_max_skew=float(s.get("maker_max_skew") or 0.28),
-                maker_window_seconds=float(s.get("maker_window_seconds") or 75),
+                maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
+                maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
+                maker_window_seconds=window,
                 maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
             )
         except Exception as exc:
@@ -246,11 +382,13 @@ async def _tick(rt: Runtime) -> None:
             continue
         if not setup:
             continue
+        if setup.kind == "maker" and window < 3:
+            continue
         if paper_mode and rt.store.has_open_resting(setup.slug):
             continue
         if paper_mode:
             setup.extra["paper_slip_ticks"] = int(s.get("paper_slip_ticks") or 0)
-        cool = float(s.get("quote_cooldown_seconds") or 30)
+        cool = setting_num(s, "quote_cooldown_seconds", 5.0)
         last = rt.cooldown.get(setup.slug, 0)
         if time.time() - last < cool:
             continue
@@ -276,9 +414,9 @@ async def _tick(rt: Runtime) -> None:
             cost=setup.cost if paper else None,
             unmatched_shares=rt.store.unmatched_shares(),
             seconds_left=seconds_left(ev.get("end")),
-            maker_window=float(s.get("maker_window_seconds") or 75),
-            maker_min_leg=float(s.get("maker_min_leg") or 0.22),
-            maker_max_skew=float(s.get("maker_max_skew") or 0.28),
+            maker_window=window,
+            maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
+            maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
         )
         payload = {
             "title": setup.title,
@@ -292,6 +430,7 @@ async def _tick(rt: Runtime) -> None:
             "tail": setup.tail,
             "reason": decision.reason,
             "mode": rt.mode(),
+            "book": src,
         }
         rt.store.add_scan(setup.slug, setup.kind, payload)
         if not decision.ok:
@@ -348,6 +487,9 @@ async def _tick(rt: Runtime) -> None:
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
+            if window < 3:
+                rt.store.add_event("info", f"skip rest {setup.slug}: maker window off")
+                continue
             if paper_mode:
                 try:
                     rt.store.add_resting(
@@ -377,18 +519,42 @@ async def _tick(rt: Runtime) -> None:
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
     tape = summarize_quotes(quotes)
     tape["book_errors"] = book_errors
+    tape["stale_pairs"] = stale_pairs
+    tape["ws_pairs"] = ws_pairs
+    tape["http_pairs"] = http_pairs
+    tape["ws_status"] = rt.ws_status
     tape["slugs"] = [ev.get("slug") for ev in events[:12] if ev.get("slug")]
     tape["tags"] = list(s.get("tags") or [s.get("tag") or "15M"])
     rt.last_loop.update(
         {
             "signals": signals,
-            "fills": fills + resting_fills,
+            "fills": fills,
             "status": "ok",
             "paper": paper,
-            "resting_fills": resting_fills,
             "tape": tape,
+            "ws_status": rt.ws_status,
         }
     )
+
+
+async def _pair_books(rt: Runtime, ev: dict, *, http_ok: bool, max_age_ms: float) -> tuple[dict | None, dict | None, str]:
+    cached = rt.books.pair(ev.get("up_token") or "", ev.get("down_token") or "", max_age_ms=max_age_ms)
+    if cached:
+        return cached["up"], cached["down"], "ws"
+    if not http_ok or rt.data is None:
+        return None, None, "stale"
+    try:
+        up_book, dn_book = await asyncio.gather(
+            rt.data.book(ev["up_token"]),
+            rt.data.book(ev["down_token"]),
+        )
+    except Exception as exc:
+        rt.store.add_event("warn", f"book {ev.get('slug')}: {fmt_exc(exc)}")
+        return None, None, "error"
+    now_ms = time.time() * 1000.0
+    rt.books.put(ev["up_token"], up_book["asks"], up_book["bids"], ts_ms=now_ms, source="http")
+    rt.books.put(ev["down_token"], dn_book["asks"], dn_book["bids"], ts_ms=now_ms, source="http")
+    return up_book, dn_book, "http"
 
 
 async def _process_resting(rt: Runtime) -> int:

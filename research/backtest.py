@@ -177,7 +177,8 @@ def run(hours: float, max_markets: int) -> dict:
         markets = markets[:max_markets]
 
     live_s = live_replay_settings()
-    tight_s = live_replay_settings(maker_max_skew=0.10)
+    maker_s = live_replay_settings(maker_window_seconds=75.0)
+    tight_s = live_replay_settings(maker_window_seconds=75.0, maker_max_skew=0.10)
     sync_parts: list[dict] = []
     maker_parts: list[dict] = []
     tight_parts: list[dict] = []
@@ -187,7 +188,7 @@ def run(hours: float, max_markets: int) -> dict:
             trades = fetch_trades(mkt["condition_id"])
             kw = {"end": mkt["end"], "resolution": mkt.get("resolution"), "slug": mkt["slug"]}
             sync = replay_market(trades, settings=live_s, allow_taker=True, **kw)
-            maker = replay_market(trades, settings=live_s, allow_taker=False, **kw)
+            maker = replay_market(trades, settings=maker_s, allow_taker=False, **kw)
             tight = replay_market(trades, settings=tight_s, allow_taker=False, **kw)
         except Exception as exc:
             errors += 1
@@ -235,7 +236,8 @@ def run(hours: float, max_markets: int) -> dict:
         "settings": {
             "min_edge": live_s["min_edge"],
             "maker_min_edge": live_s["maker_min_edge"],
-            "maker_window_seconds": live_s["maker_window_seconds"],
+            "maker_window_seconds": maker_s["maker_window_seconds"],
+            "live_maker_window_seconds": live_s["maker_window_seconds"],
             "maker_max_skew": live_s["maker_max_skew"],
             "maker_min_leg": live_s["maker_min_leg"],
             "fee_rate": live_s["fee_rate"],

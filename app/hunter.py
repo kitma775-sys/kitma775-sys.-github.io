@@ -135,32 +135,34 @@ def hunt(
         end=end,
     )
     maker_edge = min_edge if maker_min_edge is None else float(maker_min_edge)
-    maker = _maker_setup(
-        slug=slug,
-        title=title,
-        condition_id=condition_id,
-        up_token=up_token,
-        down_token=down_token,
-        up_bids=up_bids,
-        down_bids=down_bids,
-        max_usd=max_usd,
-        min_shares=min_shares,
-        min_edge=maker_edge,
-        tail_confirm=tail_confirm,
-        end=end,
-        seconds_left=_seconds_left(end, now),
-        maker_min_leg=maker_min_leg,
-        maker_max_skew=maker_max_skew,
-        maker_window_seconds=maker_window_seconds,
-    )
+    window = float(maker_window_seconds or 0)
+    maker = None
+    if window >= 3:
+        maker = _maker_setup(
+            slug=slug,
+            title=title,
+            condition_id=condition_id,
+            up_token=up_token,
+            down_token=down_token,
+            up_bids=up_bids,
+            down_bids=down_bids,
+            max_usd=max_usd,
+            min_shares=min_shares,
+            min_edge=maker_edge,
+            tail_confirm=tail_confirm,
+            end=end,
+            seconds_left=_seconds_left(end, now),
+            maker_min_leg=maker_min_leg,
+            maker_max_skew=maker_max_skew,
+            maker_window_seconds=window,
+        )
     # Certain two-ask arb always beats hoping both bids get hit.
     if prefer_tail and taker and taker.tail:
         return taker
     if taker and taker.net > 0:
         return taker
-    # Last-window maker is already gated in `_maker_setup` (final ~75s, balanced
-    # legs). Return it even when maker_first is off — that flag used to mean
-    # "quote all session", which is how paper bled. Full-session maker is gone.
+    # Resting maker is off unless the window is explicitly ≥ 3s. Rev 6 default
+    # is 0: last-window bids were −EV one-sided fills on the 6h tape.
     if maker:
         return maker
     return taker
@@ -291,7 +293,8 @@ def _taker_setup(**kw) -> Setup | None:
 
 def _maker_setup(**kw) -> Setup | None:
     left = kw.get("seconds_left")
-    window = float(kw.get("maker_window_seconds") or MAKER_WINDOW_SECONDS)
+    raw_window = kw.get("maker_window_seconds")
+    window = float(raw_window) if raw_window is not None else MAKER_WINDOW_SECONDS
     if left is None or left > window or left < 3:
         return None
     up_bids: list[Level] = _sorted_bids(kw["up_bids"])

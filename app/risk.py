@@ -58,6 +58,8 @@ def approve(
             return RiskDecision(False, "maker_unbalanced")
         if abs(setup.up_price - setup.down_price) > maker_max_skew:
             return RiskDecision(False, "maker_skew")
+        if maker_window < 3:
+            return RiskDecision(False, "maker_window_off")
         if seconds_left is None or seconds_left > maker_window or seconds_left < 3:
             return RiskDecision(False, "maker_too_early")
         if unmatched_shares > 0.5:

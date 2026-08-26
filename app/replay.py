@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from itertools import groupby
 from typing import Any
 
-from app.config import DEFAULT_SETTINGS
+from app.config import DEFAULT_SETTINGS, setting_num
 from app.hunter import Level, hunt
 from app.paper_sim import asks_cross_bid, parse_end, seconds_left
 from app.rescue import plan_rescue
@@ -180,7 +180,7 @@ def replay_market(
             end=end,
             maker_min_leg=float(s.get("maker_min_leg") or 0.22),
             maker_max_skew=float(s.get("maker_max_skew") or 0.28),
-            maker_window_seconds=float(s.get("maker_window_seconds") or 75),
+            maker_window_seconds=setting_num(s, "maker_window_seconds", 0.0),
             maker_min_edge=s.get("maker_min_edge"),
             now=clock,
         )
@@ -204,7 +204,7 @@ def replay_market(
             cost=setup.cost,
             unmatched_shares=0.0,
             seconds_left=left,
-            maker_window=float(s.get("maker_window_seconds") or 75),
+            maker_window=setting_num(s, "maker_window_seconds", 0.0),
             maker_min_leg=float(s.get("maker_min_leg") or 0.22),
             maker_max_skew=float(s.get("maker_max_skew") or 0.28),
         )

@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "max_open_markets": 8,
     "max_imbalance_shares": 40.0,
     "poll_seconds": 2.0,
+    "max_book_age_ms": 2000.0,
     "prefer_tail": True,
     "tail_confirm": 0.90,
     "stale_leg": 0.02,
@@ -29,15 +30,15 @@ DEFAULT_SETTINGS = {
     "max_horizon_seconds": 3600.0,
     "notify_signals": True,
     "notify_rejects": False,
-    "quote_cooldown_seconds": 30.0,
+    "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 5,
+    "strategy_rev": 6,
     "maker_min_leg": 0.22,
-    "maker_max_skew": 0.28,
-    "maker_window_seconds": 75.0,
-    # Last-window maker only. 15m crypto books sit at bid_sum≈0.99; taker min_edge
-    # stays 0.02 so we never lift the 1.01 ask pair after 7% fees.
+    "maker_max_skew": 0.10,
+    "maker_window_seconds": 0.0,
+    # Rev 6: no resting maker. 6h tape had 0 two-sided fills and −EV one-sided
+    # hedges. Taker min_edge stays 0.02; hunt only when both books are fresh.
     "maker_min_edge": 0.01,
 }
 
@@ -51,6 +52,7 @@ SETTING_STEPS = {
     "max_open_markets": (1.0, 1.0, 30.0),
     "max_imbalance_shares": (5.0, 5.0, 500.0),
     "poll_seconds": (0.5, 1.0, 15.0),
+    "maker_window_seconds": (5.0, 0.0, 120.0),
     "tail_confirm": (0.01, 0.80, 0.98),
     "stale_leg": (0.005, 0.005, 0.10),
     "fee_rate": (0.01, 0.0, 0.12),
@@ -62,6 +64,13 @@ SETTING_STEPS = {
 
 def clamp_paper_cash(amount: float) -> float:
     return float(min(100000.0, max(50.0, round(float(amount), 2))))
+
+
+def setting_num(s: dict, key: str, default: float) -> float:
+    v = s.get(key)
+    if v is None or v == "":
+        return float(default)
+    return float(v)
 
 
 @dataclass

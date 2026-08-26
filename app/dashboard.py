@@ -24,7 +24,15 @@ def create_app(rt: Runtime) -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {"ok": True, "mode": rt.mode()}
+        s = rt.settings()
+        return {
+            "ok": True,
+            "mode": rt.mode(),
+            "strategy_rev": s.get("strategy_rev"),
+            "ws_status": rt.ws_status,
+            "live_trading": bool(s.get("live_trading")),
+            "maker_window_seconds": s.get("maker_window_seconds"),
+        }
 
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request, t: str | None = Query(default=None)):
