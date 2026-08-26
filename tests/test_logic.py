@@ -825,12 +825,15 @@ def test_book_quote_and_tape_summary():
     assert q["ask_sum"] == 1.01
     assert q["bid_sum"] == 0.99
     assert q["maker_gross"] == 0.01
+    assert q["maker_balanced"] is True
     assert q["taker_net"] < 0
-    tape = summarize_quotes([q, {**q, "slug": "eth-updown", "ask_sum": 1.02, "taker_net": -0.05}])
+    wide = {**q, "slug": "eth-wide", "ask_sum": 1.41, "taker_net": -0.43, "maker_gross": 0.41, "maker_balanced": False}
+    tape = summarize_quotes([q, wide])
     assert tape["n"] == 2
     assert tape["min_ask_sum"] == 1.01
     assert tape["max_maker_gross"] == 0.01
     assert tape["best_taker_slug"] == "btc-updown"
+    assert tape["best_maker_slug"] == "btc-updown"
 
 
 def test_home_text_shows_scan_tape(tmp_path):

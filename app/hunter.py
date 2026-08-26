@@ -184,12 +184,19 @@ def book_quote(
     bid_sum = None if up_bid is None or dn_bid is None else round(up_bid + dn_bid, 4)
     tnet = None if up_ask is None or dn_ask is None else round(taker_net(1.0, up_ask, dn_ask, fee_rate), 4)
     left = _seconds_left(end)
+    balanced = (
+        up_bid is not None
+        and dn_bid is not None
+        and min(up_bid, dn_bid) >= MAKER_MIN_LEG
+        and abs(up_bid - dn_bid) <= MAKER_MAX_SKEW
+    )
     return {
         "slug": slug,
         "ask_sum": ask_sum,
         "bid_sum": bid_sum,
         "taker_net": tnet,
         "maker_gross": None if bid_sum is None else round(gross_edge(up_bid or 0.0, dn_bid or 0.0), 4),
+        "maker_balanced": balanced,
         "seconds_left": None if left is None else round(left, 1),
         "up_ask": up_ask,
         "down_ask": dn_ask,
@@ -202,12 +209,13 @@ def summarize_quotes(rows: list[dict]) -> dict:
     if not rows:
         return {"n": 0}
     asks = [r["ask_sum"] for r in rows if r.get("ask_sum") is not None]
-    bids = [r["bid_sum"] for r in rows if r.get("bid_sum") is not None]
+    bids = [r["bid_sum"] for r in rows if r.get("maker_balanced") and r.get("bid_sum") is not None]
     nets = [r["taker_net"] for r in rows if r.get("taker_net") is not None]
-    mg = [r["maker_gross"] for r in rows if r.get("maker_gross") is not None]
+    mg = [r["maker_gross"] for r in rows if r.get("maker_balanced") and r.get("maker_gross") is not None]
     lefts = [(r["seconds_left"], r.get("slug") or "") for r in rows if r.get("seconds_left") is not None]
     best_taker = max(rows, key=lambda r: (r.get("taker_net") is not None, r.get("taker_net") if r.get("taker_net") is not None else -9e9))
-    best_maker = max(rows, key=lambda r: (r.get("maker_gross") is not None, r.get("maker_gross") if r.get("maker_gross") is not None else -9e9))
+    maker_rows = [r for r in rows if r.get("maker_balanced") and r.get("maker_gross") is not None]
+    best_maker = max(maker_rows, key=lambda r: r.get("maker_gross") or 0) if maker_rows else {}
     nearest = min(lefts) if lefts else (None, None)
     return {
         "n": len(rows),
