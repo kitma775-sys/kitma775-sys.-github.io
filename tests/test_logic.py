@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.fees import taker_net
-from app.hunter import Level, hunt
+from app.hunter import Level, book_quote, hunt, summarize_quotes
 from app.risk import approve
 from app.store import Store
 
@@ -707,3 +707,156 @@ def test_paper_settle_credits_winner(tmp_path):
     after = st.paper_state()
     assert after["cash"] - before["cash"] == 25.5
     assert st.inventory_one("c1")["up"] == 0
+
+
+def _late_end(seconds: float) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+
+
+def test_hunt_late_maker_when_taker_first():
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.70, 100)),
+        down_asks=_L((0.40, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.48, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(30),
+    )
+    assert setup is not None
+    assert setup.kind == "maker"
+
+
+def test_hunt_late_one_tick_maker_uses_separate_edge():
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.51, 100)),
+        down_asks=_L((0.50, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.49, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(30),
+        maker_min_edge=0.01,
+    )
+    assert setup is not None
+    assert setup.kind == "maker"
+    assert setup.gross == 0.01
+
+
+def test_hunt_late_one_tick_skipped_without_maker_edge():
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.51, 100)),
+        down_asks=_L((0.50, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.49, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(30),
+    )
+    assert setup is None
+
+
+def test_hunt_skips_one_tick_maker_outside_window():
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.51, 100)),
+        down_asks=_L((0.50, 100)),
+        up_bids=_L((0.50, 80)),
+        down_bids=_L((0.49, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(600),
+        maker_min_edge=0.01,
+    )
+    assert setup is None
+
+
+def test_book_quote_and_tape_summary():
+    q = book_quote(
+        slug="btc-updown",
+        up_asks=_L((0.51, 10)),
+        down_asks=_L((0.50, 10)),
+        up_bids=_L((0.50, 10)),
+        down_bids=_L((0.49, 10)),
+        fee_rate=0.07,
+        end=_late_end(40),
+    )
+    assert q["ask_sum"] == 1.01
+    assert q["bid_sum"] == 0.99
+    assert q["maker_gross"] == 0.01
+    assert q["taker_net"] < 0
+    tape = summarize_quotes([q, {**q, "slug": "eth-updown", "ask_sum": 1.02, "taker_net": -0.05}])
+    assert tape["n"] == 2
+    assert tape["min_ask_sum"] == 1.01
+    assert tape["max_maker_gross"] == 0.01
+    assert tape["best_taker_slug"] == "btc-updown"
+
+
+def test_home_text_shows_scan_tape(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import home_text
+
+    st = Store(tmp_path / "t.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    rt.last_loop = {
+        "status": "ok",
+        "markets": 10,
+        "signals": 0,
+        "fills": 0,
+        "tape": {
+            "n": 10,
+            "min_ask_sum": 1.01,
+            "max_taker_net": -0.045,
+            "max_maker_gross": 0.01,
+            "nearest_s": 42,
+            "nearest_slug": "btc-updown-15m",
+        },
+    }
+    text = home_text(rt)
+    assert "ask合 1.01" in text
+    assert "taker淨 -0.045/股" in text
+    assert "掛單缺口 0.01" in text
+    assert "最近 42s btc-updown-15m" in text

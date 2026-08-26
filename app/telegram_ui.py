@@ -12,7 +12,7 @@ from app.runtime import Runtime
 TOGGLES = {
     "auto_execute": ("全自動落單", "開咗就唔會逐單問你"),
     "prefer_tail": ("尾盤優先", "近完場、一邊好貴一邊好平先掃"),
-    "maker_first": ("掛單（尾盤先，易中毒）", "15m 兩邊掛單會買死邊；預設關"),
+    "maker_first": ("全日掛單（易中毒）", "開咗都唔會全日掛；策略只准最後75秒平衡掛單"),
     "auto_merge": ("自動 merge", "兩邊齊就換返現金"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
@@ -160,7 +160,8 @@ def assets_kb(rt: Runtime) -> InlineKeyboardMarkup:
 
 def _label(key: str) -> str:
     return {
-        "min_edge": "最小缺口",
+        "min_edge": "taker最小缺口",
+        "maker_min_edge": "掛單最小缺口",
         "max_usd_per_trade": "單筆上限$",
         "min_shares": "最少股數",
         "daily_loss_limit_usd": "日虧熔斷$",
@@ -199,10 +200,33 @@ def home_text(rt: Runtime) -> str:
         f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']}\n"
         f"開倉市場 {st['open_markets']} · {keys}\n"
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')}"
+        f"{_tape_line(last)}"
         f"{geo_line}\n\n"
         "預設係全自動：見到合規缺口就自己做，唔會逐單問。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
+
+
+def _tape_line(last: dict) -> str:
+    tape = last.get("tape") or {}
+    if not tape.get("n"):
+        err = tape.get("book_errors")
+        if err:
+            return f"\n盤口：拉簿失敗 {err} 個"
+        return ""
+    bits = [f"盤口 {tape['n']} 盤"]
+    if tape.get("min_ask_sum") is not None:
+        bits.append(f"ask合 {float(tape['min_ask_sum']):.2f}")
+    if tape.get("max_taker_net") is not None:
+        n = float(tape["max_taker_net"])
+        bits.append(f"taker淨 {n:+.3f}/股")
+    if tape.get("max_maker_gross") is not None:
+        bits.append(f"掛單缺口 {float(tape['max_maker_gross']):.2f}")
+    if tape.get("nearest_s") is not None:
+        slug = str(tape.get("nearest_slug") or "")[:28]
+        bits.append(f"最近 {int(tape['nearest_s'])}s {slug}".rstrip())
+    extra = f" · 拉簿失敗 {tape['book_errors']}" if tape.get("book_errors") else ""
+    return "\n" + " · ".join(bits) + extra
 
 
 def _status_text(rt: Runtime) -> str:
@@ -211,9 +235,9 @@ def _status_text(rt: Runtime) -> str:
     return (
         home_text(rt)
         + "\n\n高階參數\n"
-        + f"缺口 ≥ {s['min_edge']} · 單筆 ≤ ${s['max_usd_per_trade']}\n"
-        + f"日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · 掛單優先 {'開' if s['maker_first'] else '關'}\n"
+        + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
+        + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
+        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · 尾窗 {float(s.get('maker_window_seconds') or 75):.0f}s\n"
         + f"幣：{assets or '全部'}"
     )
 

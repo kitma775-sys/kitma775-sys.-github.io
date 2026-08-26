@@ -29,15 +29,19 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 30.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 3,
+    "strategy_rev": 4,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.28,
     "maker_window_seconds": 75.0,
+    # Last-window maker only. 15m crypto books sit at bid_sum≈0.99; taker min_edge
+    # stays 0.02 so we never lift the 1.01 ask pair after 7% fees.
+    "maker_min_edge": 0.01,
 }
 
 
 SETTING_STEPS = {
     "min_edge": (0.005, 0.005, 0.08),
+    "maker_min_edge": (0.005, 0.005, 0.08),
     "max_usd_per_trade": (5.0, 5.0, 500.0),
     "min_shares": (1.0, 5.0, 50.0),
     "daily_loss_limit_usd": (10.0, 10.0, 1000.0),

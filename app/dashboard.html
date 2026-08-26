@@ -70,11 +70,15 @@
       const circuit = d.circuit;
       document.getElementById("stateLine").textContent =
         (killed ? "已停機" : circuit ? "日虧熔斷（停新倉）" : run ? "全自動運行中" : "暫停") + " · " + (d.mode === "live" ? "實盤" : "紙盤");
+      const tape = (d.last_loop||{}).tape || {};
+      const nfmt = (x, digits) => (x==null || x==="") ? "—" : Number(x).toFixed(digits==null?2:digits);
+      const shareNet = (x) => (x==null || x==="") ? "—" : ((Number(x)>=0?"+":"") + Number(x).toFixed(3));
       document.getElementById("sub").textContent =
         "keys " + (d.keys_ready ? "ready" : "missing") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
         " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
-        ((d.last_loop||{}).status === "error" ? " · 引擎錯誤 " + ((d.last_loop||{}).error||"") : "");
+        ((d.last_loop||{}).status === "error" ? " · 引擎錯誤 " + ((d.last_loop||{}).error||"") : "") +
+        (tape.n ? (" · 盤口 " + tape.n + " 盤 ask合 " + nfmt(tape.min_ask_sum) + " taker " + shareNet(tape.max_taker_net) + "/股") : "");
       const p = d.paper || st;
       const planned = Number((s.paper_starting_cash != null ? s.paper_starting_cash : p.starting) || 500);
       const bank = document.getElementById("bankroll");
@@ -100,6 +104,10 @@
         tile(String(st.open_markets||0), "開倉市場"),
         tile(String((d.last_loop||{}).signals ?? "—"), "上一圈信號"),
         tile(String((d.last_loop||{}).fills ?? "—"), "上一圈成交"),
+        tile(nfmt(tape.min_ask_sum), "盤口 ask合"),
+        tile(shareNet(tape.max_taker_net), "taker淨/股", pnlCls(tape.max_taker_net)),
+        tile(nfmt(tape.max_maker_gross), "掛單缺口"),
+        tile(tape.nearest_s==null ? "—" : (Math.round(Number(tape.nearest_s)) + "s"), "最近完場"),
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_execute ? "ON" : "OFF", "全自動")
       ].join("");

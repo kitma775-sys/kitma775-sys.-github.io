@@ -8,7 +8,7 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, live_keys_ready
-from app.hunter import hunt
+from app.hunter import book_quote, hunt, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import asks_cross_bid, market_expired, seconds_left
 from app.rescue import parse_outcome_prices, plan_rescue
@@ -179,6 +179,8 @@ async def _tick(rt: Runtime) -> None:
     broker = rt.broker()
     signals = 0
     fills = 0
+    quotes: list[dict] = []
+    book_errors = 0
     for ev in events:
         try:
             up_book, dn_book = await asyncio.gather(
@@ -186,9 +188,21 @@ async def _tick(rt: Runtime) -> None:
                 rt.data.book(ev["down_token"]),
             )
         except Exception as exc:
+            book_errors += 1
             rt.store.add_event("warn", f"book {ev.get('slug')}: {fmt_exc(exc)}")
             continue
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
+        quotes.append(
+            book_quote(
+                slug=ev["slug"],
+                up_asks=up_book["asks"],
+                down_asks=dn_book["asks"],
+                up_bids=up_book["bids"],
+                down_bids=dn_book["bids"],
+                fee_rate=fee_rate,
+                end=ev.get("end"),
+            )
+        )
         try:
             setup = hunt(
                 slug=ev["slug"],
@@ -211,6 +225,7 @@ async def _tick(rt: Runtime) -> None:
                 maker_min_leg=float(s.get("maker_min_leg") or 0.22),
                 maker_max_skew=float(s.get("maker_max_skew") or 0.28),
                 maker_window_seconds=float(s.get("maker_window_seconds") or 75),
+                maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
             )
         except Exception as exc:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
@@ -346,6 +361,8 @@ async def _tick(rt: Runtime) -> None:
                 )
         else:
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
+    tape = summarize_quotes(quotes)
+    tape["book_errors"] = book_errors
     rt.last_loop.update(
         {
             "signals": signals,
@@ -353,6 +370,7 @@ async def _tick(rt: Runtime) -> None:
             "status": "ok",
             "paper": paper,
             "resting_fills": resting_fills,
+            "tape": tape,
         }
     )
 

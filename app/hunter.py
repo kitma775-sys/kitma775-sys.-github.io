@@ -113,6 +113,7 @@ def hunt(
     maker_min_leg: float = MAKER_MIN_LEG,
     maker_max_skew: float = MAKER_MAX_SKEW,
     maker_window_seconds: float = MAKER_WINDOW_SECONDS,
+    maker_min_edge: float | None = None,
 ) -> Setup | None:
     taker = _taker_setup(
         slug=slug,
@@ -129,6 +130,7 @@ def hunt(
         tail_confirm=tail_confirm,
         end=end,
     )
+    maker_edge = min_edge if maker_min_edge is None else float(maker_min_edge)
     maker = _maker_setup(
         slug=slug,
         title=title,
@@ -139,7 +141,7 @@ def hunt(
         down_bids=down_bids,
         max_usd=max_usd,
         min_shares=min_shares,
-        min_edge=min_edge,
+        min_edge=maker_edge,
         tail_confirm=tail_confirm,
         end=end,
         seconds_left=_seconds_left(end),
@@ -152,9 +154,73 @@ def hunt(
         return taker
     if taker and taker.net > 0:
         return taker
-    if maker_first:
+    # Last-window maker is already gated in `_maker_setup` (final ~75s, balanced
+    # legs). Return it even when maker_first is off — that flag used to mean
+    # "quote all session", which is how paper bled. Full-session maker is gone.
+    if maker:
         return maker
     return taker
+
+
+def _top(levels: list[Level], *, asks: bool) -> float | None:
+    ordered = _sorted_asks(levels) if asks else _sorted_bids(levels)
+    return ordered[0].price if ordered else None
+
+
+def book_quote(
+    *,
+    slug: str,
+    up_asks: list[Level],
+    down_asks: list[Level],
+    up_bids: list[Level],
+    down_bids: list[Level],
+    fee_rate: float,
+    end: str | None = None,
+) -> dict:
+    """Top-of-book tape so idle scans can show 'no arb' instead of looking hung."""
+    up_ask, dn_ask = _top(up_asks, asks=True), _top(down_asks, asks=True)
+    up_bid, dn_bid = _top(up_bids, asks=False), _top(down_bids, asks=False)
+    ask_sum = None if up_ask is None or dn_ask is None else round(up_ask + dn_ask, 4)
+    bid_sum = None if up_bid is None or dn_bid is None else round(up_bid + dn_bid, 4)
+    tnet = None if up_ask is None or dn_ask is None else round(taker_net(1.0, up_ask, dn_ask, fee_rate), 4)
+    left = _seconds_left(end)
+    return {
+        "slug": slug,
+        "ask_sum": ask_sum,
+        "bid_sum": bid_sum,
+        "taker_net": tnet,
+        "maker_gross": None if bid_sum is None else round(gross_edge(up_bid or 0.0, dn_bid or 0.0), 4),
+        "seconds_left": None if left is None else round(left, 1),
+        "up_ask": up_ask,
+        "down_ask": dn_ask,
+        "up_bid": up_bid,
+        "down_bid": dn_bid,
+    }
+
+
+def summarize_quotes(rows: list[dict]) -> dict:
+    if not rows:
+        return {"n": 0}
+    asks = [r["ask_sum"] for r in rows if r.get("ask_sum") is not None]
+    bids = [r["bid_sum"] for r in rows if r.get("bid_sum") is not None]
+    nets = [r["taker_net"] for r in rows if r.get("taker_net") is not None]
+    mg = [r["maker_gross"] for r in rows if r.get("maker_gross") is not None]
+    lefts = [(r["seconds_left"], r.get("slug") or "") for r in rows if r.get("seconds_left") is not None]
+    best_taker = max(rows, key=lambda r: (r.get("taker_net") is not None, r.get("taker_net") if r.get("taker_net") is not None else -9e9))
+    best_maker = max(rows, key=lambda r: (r.get("maker_gross") is not None, r.get("maker_gross") if r.get("maker_gross") is not None else -9e9))
+    nearest = min(lefts) if lefts else (None, None)
+    return {
+        "n": len(rows),
+        "min_ask_sum": min(asks) if asks else None,
+        "max_ask_sum": max(asks) if asks else None,
+        "max_taker_net": max(nets) if nets else None,
+        "min_bid_sum": min(bids) if bids else None,
+        "max_maker_gross": max(mg) if mg else None,
+        "best_taker_slug": best_taker.get("slug"),
+        "best_maker_slug": best_maker.get("slug"),
+        "nearest_s": nearest[0],
+        "nearest_slug": nearest[1],
+    }
 
 
 def _size_from_depth(up: list[Level], down: list[Level], max_usd: float, min_shares: float, pair_px: float) -> float:
