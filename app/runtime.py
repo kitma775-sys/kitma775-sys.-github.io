@@ -107,7 +107,7 @@ class Runtime:
             "resting": self.store.resting_open()[:20],
             "trades": trades,
             "scans": scans,
-            "events": self.store.recent_events(15),
+            "events": [e for e in self.store.recent_events(40) if float(e.get("ts") or 0) >= self.started_at - 30][:15],
         }
 
 

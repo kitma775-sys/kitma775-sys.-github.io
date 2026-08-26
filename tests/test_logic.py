@@ -1210,12 +1210,14 @@ def test_snapshot_hides_old_scans_and_noise_trades(tmp_path):
     st.add_scan("old-maker", "maker", {"reason": "approved", "net": 1})
     st.add_trade(slug="btc", kind="maker", shares=5, up_price=0.5, down_price=0.49, net=0, mode="paper", status="paper_resting")
     st.add_trade(slug="btc", kind="maker", shares=5, up_price=0.5, down_price=0.49, net=-2, mode="paper", status="paper_hedged")
+    st.add_event("info", "ws subscribed 32 tokens")
     rt = Runtime(st, Env())
     rt.started_at = 9e12
     snap = rt.snapshot()
     assert snap["scans"] == []
     assert [t["status"] for t in snap["trades"]] == ["paper_hedged"]
     assert snap["inventory"] == []
+    assert snap["events"] == []
 
 
 def test_book_cache_wanted_ignores_order():
