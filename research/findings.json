@@ -28,6 +28,13 @@
     "month": 30.5,
     "week": 31.7
   },
+  "universe_scan_2026_08_26": {
+    "file": "research/universe_findings.json",
+    "live_binaries": 1970,
+    "ask_sum_min": 1.001,
+    "taker_net_positive": 0,
+    "conclusion": "Full-universe HTTP scan does not create rest-state YES+NO taker arb."
+  },
   "clob_facts": {
     "primary_region": "eu-west-2",
     "closest_unrestricted_region": "eu-west-1",
