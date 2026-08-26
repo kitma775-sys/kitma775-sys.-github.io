@@ -36,8 +36,16 @@ def run() -> None:
         store.patch_settings(paper_starting_cash=seed)
     planned = float(store.settings().get("paper_starting_cash") or seed)
     paper = store.ensure_paper(planned)
-    if int(store.settings().get("strategy_rev") or 0) < 4:
-        store.patch_settings(strategy_rev=4, maker_first=False, maker_min_edge=0.01)
+    if int(store.settings().get("strategy_rev") or 0) < 5:
+        store.patch_settings(
+            strategy_rev=5,
+            maker_first=False,
+            maker_min_edge=0.01,
+            tags=["15M", "1H"],
+            assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
+            scan_limit=16,
+            max_horizon_seconds=3600.0,
+        )
     rt = Runtime(store, env)
     store.add_event(
         "info",

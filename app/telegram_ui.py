@@ -8,6 +8,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from app.config import SETTING_STEPS, live_keys_ready
 from app.geo import telegram_line
 from app.runtime import Runtime
+from app.universe import DEFAULT_ASSETS
 
 TOGGLES = {
     "auto_execute": ("全自動落單", "開咗就唔會逐單問你"),
@@ -136,6 +137,7 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
             ]
         )
     rows.append([InlineKeyboardButton("幣種過濾", callback_data="assets")])
+    rows.append([InlineKeyboardButton("週期 15M／1H", callback_data="tags")])
     rows.append([InlineKeyboardButton("↩️ 返主頁", callback_data="home")])
     return InlineKeyboardMarkup(rows)
 
@@ -143,7 +145,7 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
 def assets_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     cur = set(s.get("assets") or [])
-    coins = ["btc", "eth", "sol", "xrp", "doge", "bnb"]
+    coins = list(DEFAULT_ASSETS)
     rows = []
     row = []
     for c in coins:
@@ -154,6 +156,17 @@ def assets_kb(rt: Runtime) -> InlineKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
+    rows.append([InlineKeyboardButton("↩️ 返設定", callback_data="set")])
+    return InlineKeyboardMarkup(rows)
+
+
+def tags_kb(rt: Runtime) -> InlineKeyboardMarkup:
+    s = rt.settings()
+    cur = set(s.get("tags") or [s.get("tag") or "15M"])
+    rows = []
+    for tag, hint in (("15M", "15分鐘升跌"), ("1H", "1小時升跌")):
+        mark = "✅" if tag in cur else "⬜️"
+        rows.append([InlineKeyboardButton(f"{mark} {tag} {hint}", callback_data=f"tag:{tag}")])
     rows.append([InlineKeyboardButton("↩️ 返設定", callback_data="set")])
     return InlineKeyboardMarkup(rows)
 
@@ -173,6 +186,7 @@ def _label(key: str) -> str:
         "fee_rate": "taker費率",
         "paper_slip_ticks": "紙盤滑點tick",
         "paper_starting_cash": "紙盤本金$",
+        "scan_limit": "每圈最多盤",
     }.get(key, key)
 
 
@@ -225,6 +239,9 @@ def _tape_line(last: dict) -> str:
     if tape.get("nearest_s") is not None:
         slug = str(tape.get("nearest_slug") or "")[:28]
         bits.append(f"最近 {int(tape['nearest_s'])}s {slug}".rstrip())
+    names = [str(x) for x in (tape.get("slugs") or []) if x][:4]
+    if names:
+        bits.append("掃 " + ", ".join(names))
     extra = f" · 拉簿失敗 {tape['book_errors']}" if tape.get("book_errors") else ""
     return "\n" + " · ".join(bits) + extra
 
@@ -238,6 +255,7 @@ def _status_text(rt: Runtime) -> str:
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · 尾窗 {float(s.get('maker_window_seconds') or 75):.0f}s\n"
+        + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
         + f"幣：{assets or '全部'}"
     )
 
@@ -442,6 +460,24 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await q.answer()
         await q.edit_message_text("揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
         return
+    if data == "tags":
+        await q.answer()
+        await q.edit_message_text("揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
+        return
+    if data.startswith("tag:"):
+        tag = data.split(":", 1)[1]
+        cur = list(s.get("tags") or [s.get("tag") or "15M"])
+        if tag in cur:
+            if len(cur) == 1:
+                await q.answer("至少留一種週期", show_alert=True)
+                return
+            cur.remove(tag)
+        else:
+            cur.append(tag)
+        rt.store.patch_settings(tags=cur, tag=cur[0])
+        await q.answer()
+        await q.edit_message_text("揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
+        return
     if data.startswith("tog:"):
         key = data.split(":", 1)[1]
         if key in TOGGLES:
@@ -458,7 +494,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         cur = float(s.get(key) or 0)
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
-        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash"}:
+        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash", "scan_limit"}:
             rt.store.patch_settings(**{key: int(round(nxt))})
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})

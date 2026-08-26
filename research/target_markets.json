@@ -1,0 +1,36 @@
+{
+  "researched_at_utc": "2026-08-26T08:08:00Z",
+  "question": "Which Polymarket books are most likely to print a true complement arb for this HTTP bot?",
+  "winner": "Short-dated crypto Up/Down windows (tag 15M, then 1H), all liquid assets, ranked by seconds-to-expiry. Not top-24h-volume long books, not sports tags, not fee-free geopolitics at rest.",
+  "why": [
+    "Top-2100 by 24h volume had 0 markets ending in 1h — 15m windows are low 24h volume because each condition dies in 15 minutes, so a volume-sorted 'scan all' misses the surf set.",
+    "Sports/NBA/MLB/soccer tags currently list series/season end dates (later / none), not game clocks. August snapshot: 0 events ending in 6h.",
+    "Fee-free geopolitics still rest at ask_sum 1.001. Last-window maker on a months-long market is more toxic time, not more edge.",
+    "True tails (0.97+0.01) and last-75s 1c maker only exist as the 15m/1h clock dies. BTC+ETH is 8 windows/hour; 7 liquid alts is ~28 15m windows/hour.",
+    "Empty alts (ZEC 1.00+1.00) look like maker gross 1.00 and must be skipped (Gamma bestAsk ≥ 0.99).",
+    "Gamma /events?tag_slug=15M without end_date_min still returns ended windows (closed=false). Must filter end_date_min=now, end_date_max=now+horizon, order=endDate ascending.",
+    "1H slugs are bitcoin-up-or-down-… not btc-updown-…. Asset filter needs aliases. Skip bitcoin-above-on price binaries."
+  ],
+  "live_snapshot": {
+    "15m_pairs": 76,
+    "1h_pairs": 28,
+    "taker_positive": 0,
+    "ask_sum_min": 1.01,
+    "nearest_left_s": 396,
+    "nearest_eth": "0.81+0.20 ask_sum 1.01 taker_net -0.032 (getting tailed, still not takeable)",
+    "balanced_maker_books": 87,
+    "skip": "zec empty"
+  },
+  "bot_change": {
+    "strategy_rev": 5,
+    "tags": ["15M", "1H"],
+    "assets": ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
+    "scan_limit": 16,
+    "max_horizon_seconds": 3600,
+    "rank": "soonest expiry first",
+    "gamma": "end_date_min=now&end_date_max=now+1h&order=endDate&ascending=true",
+    "asset_aliases": {"btc": ["btc", "bitcoin"], "eth": ["eth", "ethereum"]},
+    "skip_slugs": "*-above-on-*, zec",
+    "still_not": "full-universe HTTP, sports tags, all-session maker, lowering taker min_edge"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "now": "2026-08-26T08:06:21.466721+00:00",
+  "live_binaries": 1918,
+  "priority_scanned": 400,
+  "taker_positive": 0,
+  "ask_lt_1": 0,
+  "tail_books": 390,
+  "tail_taker_positive": 0,
+  "very_soon": 0,
+  "very_soon_taker_positive": 0,
+  "top_taker": [],
+  "soon_sample": []
+}

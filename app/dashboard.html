@@ -78,7 +78,7 @@
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
         " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
         ((d.last_loop||{}).status === "error" ? " · 引擎錯誤 " + ((d.last_loop||{}).error||"") : "") +
-        (tape.n ? (" · 盤口 " + tape.n + " 盤 ask合 " + nfmt(tape.min_ask_sum) + " taker " + shareNet(tape.max_taker_net) + "/股") : "");
+        (tape.n ? (" · 盤口 " + tape.n + " 盤 ask合 " + nfmt(tape.min_ask_sum) + " taker " + shareNet(tape.max_taker_net) + "/股" + (tape.nearest_slug ? (" · 最近 " + tape.nearest_slug) : "") + (tape.slugs && tape.slugs.length ? (" · 掃 " + tape.slugs.slice(0,6).join(", ")) : "")) : "");
       const p = d.paper || st;
       const planned = Number((s.paper_starting_cash != null ? s.paper_starting_cash : p.starting) || 500);
       const bank = document.getElementById("bankroll");
@@ -107,7 +107,9 @@
         tile(nfmt(tape.min_ask_sum), "盤口 ask合"),
         tile(shareNet(tape.max_taker_net), "taker淨/股", pnlCls(tape.max_taker_net)),
         tile(nfmt(tape.max_maker_gross), "掛單缺口"),
-        tile(tape.nearest_s==null ? "—" : (Math.round(Number(tape.nearest_s)) + "s"), "最近完場"),
+        tile(tape.nearest_s==null ? "—" : (Math.round(Number(tape.nearest_s)) + "s"), tape.nearest_slug ? ("最近 " + String(tape.nearest_slug).slice(0,22)) : "最近完場"),
+        tile((Array.isArray(s.tags) ? s.tags : [s.tag || "15M"]).join("+"), "週期"),
+        tile(String(s.scan_limit || 16), "每圈最多盤"),
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_execute ? "ON" : "OFF", "全自動")
       ].join("");

@@ -59,7 +59,7 @@ FORCE_PAPER=true
 - 用 ask/bid 深度，唔用 mid
 - taker 費：`C × feeRate × p × (1-p)`；crypto 0.07，sports 等 0.05，politics 等 0.04，geopolitics **0**
 - 中間價 taker 多數死亡；尾盤 0.97+0.01 類先有淨利
-- **掃全市場唔會令 taker 互補突然變多**：2026-08-26 對成交量最高 1970 個有盤 binary，`ask_sum` 最少都係 1.001，taker 淨利 0 單。詳情 `research/universe_findings.json`
+- **掃全市場唔會令 taker 互補突然變多**：成交量最高嘅長線盤 `ask_sum` 最少 1.001。HTTP 最可能有機會嘅係 **15m／1h crypto 升跌窗**（多幣、先掃最臨完場），唔係 sports 標籤、亦唔係 0 費長線 geopolitics。詳情 `research/target_markets.json`
 - 便宜腳 + 對手唔貴 = 當過期單，唔做
 - 兩邊齊就 merge，加快資金
 - 紙盤 maker **唔會當即成交**：掛單鎖現金，要後續盤口 ask 碰到（trade-through）先填；只成交一邊就按 $0 計未配對倉。taker 先按掃描 VWAP 成交（可加滑點 tick）

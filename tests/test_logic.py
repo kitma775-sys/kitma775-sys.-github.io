@@ -856,6 +856,7 @@ def test_home_text_shows_scan_tape(tmp_path):
             "max_maker_gross": 0.01,
             "nearest_s": 42,
             "nearest_slug": "btc-updown-15m",
+            "slugs": ["eth-updown-15m-a", "sol-updown-15m-b"],
         },
     }
     text = home_text(rt)
@@ -863,3 +864,39 @@ def test_home_text_shows_scan_tape(tmp_path):
     assert "taker淨 -0.045/股" in text
     assert "掛單缺口 0.01" in text
     assert "最近 42s btc-updown-15m" in text
+    assert "掃 eth-updown-15m-a, sol-updown-15m-b" in text
+
+
+def test_pick_markets_ranks_soonest_and_skips_empty():
+    from app.universe import DEFAULT_ASSETS, asset_hit, looks_empty, pick_markets
+
+    rows = [
+        {"condition_id": "far", "slug": "btc-updown-15m-z", "seconds_left": 2000, "best_ask": 0.51, "volume24hr": 9},
+        {"condition_id": "empty", "slug": "zec-updown-15m", "seconds_left": 40, "best_ask": 1.0, "volume24hr": 1},
+        {"condition_id": "soon", "slug": "eth-updown-15m-a", "seconds_left": 80, "best_ask": 0.81, "volume24hr": 5},
+        {"condition_id": "next", "slug": "sol-updown-15m-b", "seconds_left": 400, "best_ask": 0.50, "volume24hr": 8},
+        {"condition_id": "late", "slug": "btc-updown-15m-x", "seconds_left": 1, "best_ask": 0.97, "volume24hr": 99},
+        {"condition_id": "hour", "slug": "btc-updown-1h", "seconds_left": 5000, "best_ask": 0.50, "volume24hr": 99},
+        {"condition_id": "soon", "slug": "eth-updown-15m-a-again", "seconds_left": 80, "best_ask": 0.81, "volume24hr": 99},
+    ]
+    picked = pick_markets(rows, want=3, max_horizon=3600)
+    assert [r["condition_id"] for r in picked] == ["soon", "next", "far"]
+    assert looks_empty(1.0) is True
+    assert looks_empty(0.97) is False
+    assert "zec" not in DEFAULT_ASSETS
+    assert asset_hit("sol-updown-15m-123", DEFAULT_ASSETS) is True
+    assert asset_hit("zec-updown-15m-123", DEFAULT_ASSETS) is False
+    assert asset_hit("bitcoin-up-or-down-august-26-2026-4am-et", ["btc"]) is True
+    assert asset_hit("ethereum-up-or-down-august-26-2026-4am-et", ["eth"]) is True
+    from app.universe import gamma_events_params, is_updown
+
+    assert is_updown("btc-updown-15m-1") is True
+    assert is_updown("bitcoin-up-or-down-august-26-2026-4am-et") is True
+    assert is_updown("bitcoin-above-on-august-26-2026-5am-et") is False
+    from datetime import datetime, timezone
+
+    q = gamma_events_params("15M", limit=40, now=datetime(2026, 8, 26, 8, 17, tzinfo=timezone.utc), max_horizon=3600)
+    assert q["end_date_min"] == "2026-08-26T08:17:00Z"
+    assert q["end_date_max"] == "2026-08-26T09:17:00Z"
+    assert q["order"] == "endDate"
+    assert q["ascending"] == "true"

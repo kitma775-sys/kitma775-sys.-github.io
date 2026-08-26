@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,6 +8,16 @@ import httpx
 
 from app.geo import interpret
 from app.hunter import Level
+from app.universe import (
+    DEFAULT_ASSETS,
+    DEFAULT_TAGS,
+    asset_hit,
+    gamma_events_params,
+    is_updown,
+    parse_tokens,
+    pick_markets,
+    seconds_left,
+)
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
@@ -41,19 +50,45 @@ class MarketData:
         except Exception as exc:
             return interpret({"blocked": None, "error": str(exc)})
 
-    async def live_events(self, tag: str, assets: list[str], want: int = 12) -> list[dict]:
+    async def live_events(
+        self,
+        tags: str | list[str] | None,
+        assets: list[str] | None,
+        want: int = 16,
+        max_horizon: float = 3600.0,
+    ) -> list[dict]:
+        tag_list = [str(t).strip() for t in (tags if isinstance(tags, list) else [tags or "15M"]) if str(t).strip()]
+        if not tag_list:
+            tag_list = list(DEFAULT_TAGS)
+        asset_list = [str(a).strip() for a in (assets if assets is not None else DEFAULT_ASSETS) if str(a).strip()]
+        now = datetime.now(timezone.utc)
+        fetched = await asyncio.gather(
+            *(
+                self._events_tag(tag, limit=max(want * 4, 40), now=now, max_horizon=max_horizon)
+                for tag in tag_list
+            ),
+            return_exceptions=True,
+        )
+        rows: list[dict] = []
+        for tag, payload in zip(tag_list, fetched):
+            if isinstance(payload, Exception):
+                continue
+            rows.extend(self._normalize_events(payload, tag, asset_list, now))
+        return pick_markets(rows, want=want, max_horizon=max_horizon)
+
+    async def _events_tag(self, tag: str, limit: int = 40, now: datetime | None = None, max_horizon: float = 3600.0) -> list:
+        stamp = now or datetime.now(timezone.utc)
         r = await self.client.get(
             f"{GAMMA}/events",
-            params={"active": "true", "closed": "false", "limit": max(want * 4, 24), "tag_slug": tag},
+            params=gamma_events_params(tag, limit=limit, now=stamp, max_horizon=max_horizon),
             timeout=15,
         )
         r.raise_for_status()
         events = r.json() or []
-        if not isinstance(events, list):
-            return []
-        now = datetime.now(timezone.utc)
+        return events if isinstance(events, list) else []
+
+    def _normalize_events(self, events: list, tag: str, assets: list[str], now: datetime) -> list[dict]:
         picked: list[dict] = []
-        assets_l = [a.lower() for a in assets if a]
         for ev in events:
             markets = ev.get("markets") or []
             if not markets:
@@ -62,22 +97,13 @@ class MarketData:
             if m.get("closed") or ev.get("closed") or m.get("acceptingOrders") is False:
                 continue
             end = m.get("endDate") or ev.get("endDate")
-            if end:
-                try:
-                    end_dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
-                    if end_dt < now:
-                        continue
-                except ValueError:
-                    pass
-            slug = str(ev.get("slug") or "")
-            if assets_l and not any(a in slug.lower() for a in assets_l):
+            slug = str(ev.get("slug") or m.get("slug") or "")
+            if not is_updown(slug) or not asset_hit(slug, assets):
                 continue
-            try:
-                tokens = json.loads(m["clobTokenIds"])
-            except (KeyError, TypeError, json.JSONDecodeError):
-                continue
+            tokens = parse_tokens(m.get("clobTokenIds"))
             if len(tokens) < 2:
                 continue
+            fs = m.get("feeSchedule") if isinstance(m.get("feeSchedule"), dict) else {}
             picked.append(
                 {
                     "slug": slug,
@@ -88,12 +114,14 @@ class MarketData:
                     "end": end,
                     "tick": m.get("orderPriceMinTickSize") or 0.01,
                     "min_size": m.get("orderMinSize") or 5,
-                    "fee_rate": ((m.get("feeSchedule") or {}).get("rate") if isinstance(m.get("feeSchedule"), dict) else None),
+                    "fee_rate": fs.get("rate"),
                     "neg_risk": bool(m.get("negRisk")),
+                    "tag": tag,
+                    "best_ask": m.get("bestAsk"),
+                    "volume24hr": float(m.get("volume24hr") or ev.get("volume24hr") or 0),
+                    "seconds_left": seconds_left(end, now=now),
                 }
             )
-            if len(picked) >= want:
-                break
         return picked
 
     async def book(self, token_id: str) -> dict[str, list[Level]]:

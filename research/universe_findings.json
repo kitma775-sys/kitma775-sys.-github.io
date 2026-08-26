@@ -53,7 +53,7 @@
     "True neg-risk bundles require the FULL outcome list (n listed == n live) plus per-leg fees. Rest-state those also sit at par.",
     "Maker 1-tick remains the only rest-state complement, and only in a short window with balanced legs and rescue. Expanding that to long-dated geopolitics increases toxic time."
   ],
-  "recommendation_for_surf_arb": "Do not switch the live engine to scan-all. Keep 15m (or a small liquid list) until there is a websocket book. A research scanner can keep snapshotting the top-volume universe to watch for structural breaks.",
+  "recommendation_for_surf_arb": "Do not HTTP-scan the top-volume universe. Point the engine at 15M+1H crypto windows, all liquid assets, soonest expiry first. See research/target_markets.json.",
   "official_taker_fee_rates": {
     "crypto": 0.07,
     "sports_economics_culture_weather_other": 0.05,

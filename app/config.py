@@ -23,13 +23,16 @@ DEFAULT_SETTINGS = {
     "auto_merge": True,
     "fee_rate": 0.07,
     "tag": "15M",
-    "assets": ["btc", "eth"],
+    "tags": ["15M", "1H"],
+    "assets": ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
+    "scan_limit": 16,
+    "max_horizon_seconds": 3600.0,
     "notify_signals": True,
     "notify_rejects": False,
     "quote_cooldown_seconds": 30.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 4,
+    "strategy_rev": 5,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.28,
     "maker_window_seconds": 75.0,
@@ -53,6 +56,7 @@ SETTING_STEPS = {
     "fee_rate": (0.01, 0.0, 0.12),
     "paper_slip_ticks": (1.0, 0.0, 3.0),
     "paper_starting_cash": (100.0, 50.0, 100000.0),
+    "scan_limit": (1.0, 8.0, 32.0),
 }
 
 

@@ -14,6 +14,7 @@ from app.paper_sim import asks_cross_bid, market_expired, seconds_left
 from app.rescue import parse_outcome_prices, plan_rescue
 from app.risk import approve
 from app.store import Store
+from app.universe import DEFAULT_ASSETS, DEFAULT_TAGS
 
 
 def fmt_exc(exc: BaseException) -> str:
@@ -140,7 +141,12 @@ async def _tick(rt: Runtime) -> None:
         return
     assert rt.data is not None
     try:
-        events = await rt.data.live_events(s.get("tag") or "15M", list(s.get("assets") or ["btc", "eth"]))
+        events = await rt.data.live_events(
+            s.get("tags") or [s.get("tag") or DEFAULT_TAGS[0]],
+            list(s.get("assets") or DEFAULT_ASSETS),
+            want=int(s.get("scan_limit") or 16),
+            max_horizon=float(s.get("max_horizon_seconds") or 3600),
+        )
     except Exception as exc:
         detail = fmt_exc(exc)
         rt.last_loop = {"ts": time.time(), "status": "error", "error": detail, "where": "live_events"}
@@ -363,6 +369,8 @@ async def _tick(rt: Runtime) -> None:
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
     tape = summarize_quotes(quotes)
     tape["book_errors"] = book_errors
+    tape["slugs"] = [ev.get("slug") for ev in events[:12] if ev.get("slug")]
+    tape["tags"] = list(s.get("tags") or [s.get("tag") or "15M"])
     rt.last_loop.update(
         {
             "signals": signals,
