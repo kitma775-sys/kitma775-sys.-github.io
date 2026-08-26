@@ -47,6 +47,7 @@ class Runtime:
         self.ws_status = "off"
         self._hunt_event = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._http_at: dict[str, float] = {}
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -312,14 +313,14 @@ async def _hunt_loop(rt: Runtime) -> None:
             continue
         try:
             async with rt._lock:
-                await _scan_markets(rt, events, http_ok=not rt.books.connected)
+                await _scan_markets(rt, events)
         except Exception as exc:
             detail = fmt_exc(exc)
             rt.store.add_event("error", f"hunt {detail}")
             await asyncio.sleep(0.5)
 
 
-async def _scan_markets(rt: Runtime, events: list[dict], *, http_ok: bool) -> None:
+async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     s = rt.settings()
     if s.get("killed") or not s.get("engine_running") or rt.circuit_tripped():
         return
@@ -344,10 +345,11 @@ async def _scan_markets(rt: Runtime, events: list[dict], *, http_ok: bool) -> No
     stale_pairs = 0
     ws_pairs = 0
     http_pairs = 0
-    max_age = setting_num(s, "max_book_age_ms", 2000.0)
+    empty_asks = 0
+    max_age = setting_num(s, "max_book_age_ms", 60000.0)
     window = setting_num(s, "maker_window_seconds", 0.0)
     for ev in events:
-        up_book, dn_book, src = await _pair_books(rt, ev, http_ok=http_ok, max_age_ms=max_age)
+        up_book, dn_book, src = await _pair_books(rt, ev, max_age_ms=max_age)
         if up_book is None or dn_book is None:
             stale_pairs += 1
             continue
@@ -355,6 +357,8 @@ async def _scan_markets(rt: Runtime, events: list[dict], *, http_ok: bool) -> No
             ws_pairs += 1
         else:
             http_pairs += 1
+        if not up_book.get("asks") or not dn_book.get("asks"):
+            empty_asks += 1
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
         quotes.append(
             book_quote(
@@ -536,6 +540,7 @@ async def _scan_markets(rt: Runtime, events: list[dict], *, http_ok: bool) -> No
     tape["stale_pairs"] = stale_pairs
     tape["ws_pairs"] = ws_pairs
     tape["http_pairs"] = http_pairs
+    tape["empty_ask_legs"] = empty_asks
     tape["ws_status"] = rt.ws_status
     tape["slugs"] = [ev.get("slug") for ev in events[:12] if ev.get("slug")]
     tape["tags"] = list(s.get("tags") or [s.get("tag") or "15M"])
@@ -551,24 +556,33 @@ async def _scan_markets(rt: Runtime, events: list[dict], *, http_ok: bool) -> No
     )
 
 
-async def _pair_books(rt: Runtime, ev: dict, *, http_ok: bool, max_age_ms: float) -> tuple[dict | None, dict | None, str]:
+async def _pair_books(rt: Runtime, ev: dict, *, max_age_ms: float) -> tuple[dict | None, dict | None, str]:
     cached = rt.books.pair(ev.get("up_token") or "", ev.get("down_token") or "", max_age_ms=max_age_ms)
+    left = seconds_left(ev.get("end"))
+    near = left is not None and 0 < left <= 120
+    slug = str(ev.get("slug") or ev.get("condition_id") or "")
+    missing = cached is None
+    now = time.time()
+    http_due = missing or near
+    if http_due and rt.data is not None and now - rt._http_at.get(slug, 0.0) >= 1.0:
+        try:
+            up_book, dn_book = await asyncio.gather(
+                rt.data.book(ev["up_token"]),
+                rt.data.book(ev["down_token"]),
+            )
+        except Exception as exc:
+            rt.store.add_event("warn", f"book {ev.get('slug')}: {fmt_exc(exc)}")
+            if cached:
+                return cached["up"], cached["down"], "ws"
+            return None, None, "error"
+        rt._http_at[slug] = now
+        now_ms = time.time() * 1000.0
+        rt.books.put(ev["up_token"], up_book["asks"], up_book["bids"], ts_ms=now_ms, source="http")
+        rt.books.put(ev["down_token"], dn_book["asks"], dn_book["bids"], ts_ms=now_ms, source="http")
+        return up_book, dn_book, "http"
     if cached:
         return cached["up"], cached["down"], "ws"
-    if not http_ok or rt.data is None:
-        return None, None, "stale"
-    try:
-        up_book, dn_book = await asyncio.gather(
-            rt.data.book(ev["up_token"]),
-            rt.data.book(ev["down_token"]),
-        )
-    except Exception as exc:
-        rt.store.add_event("warn", f"book {ev.get('slug')}: {fmt_exc(exc)}")
-        return None, None, "error"
-    now_ms = time.time() * 1000.0
-    rt.books.put(ev["up_token"], up_book["asks"], up_book["bids"], ts_ms=now_ms, source="http")
-    rt.books.put(ev["down_token"], dn_book["asks"], dn_book["bids"], ts_ms=now_ms, source="http")
-    return up_book, dn_book, "http"
+    return None, None, "stale"
 
 
 async def _process_resting(rt: Runtime) -> int:

@@ -262,7 +262,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 6：WebSocket 盤口，兩邊都新鮮先做 taker。預設停尾盤掛單。\n"
+        "Rev 7：WS 盤口 hold 60s（一邊郁用另一邊最後簿）。尾盤補 HTTP。預設停掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -275,6 +275,8 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
             bits.append(f"WS {tape['ws_status']}")
         if tape.get("stale_pairs"):
             bits.append(f"過期 {int(tape['stale_pairs'])}")
+        if tape.get("empty_ask_legs"):
+            bits.append(f"單邊空簿 {int(tape['empty_ask_legs'])}")
         err = tape.get("book_errors")
         if err:
             bits.append(f"拉簿失敗 {err}")
@@ -290,6 +292,8 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
         bits.append(f"HTTP {int(tape['http_pairs'])}")
     if tape.get("stale_pairs"):
         bits.append(f"過期 {int(tape['stale_pairs'])}")
+    if tape.get("empty_ask_legs"):
+        bits.append(f"單邊空簿 {int(tape['empty_ask_legs'])}")
     if tape.get("min_ask_sum") is not None:
         bits.append(f"ask合 {float(tape['min_ask_sum']):.2f}")
     if tape.get("max_taker_net") is not None:

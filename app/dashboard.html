@@ -114,6 +114,7 @@
         tile(String(s.strategy_rev || "—"), "策略 rev"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
+        tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),
         tile(Number(s.maker_window_seconds||0) < 3 ? "關" : (Number(s.maker_window_seconds) + "s"), "掛單尾窗"),
         tile(nfmt(tape.min_ask_sum), "盤口 ask合"),
         tile(shareNet(tape.max_taker_net), "taker淨/股", pnlCls(tape.max_taker_net)),

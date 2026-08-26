@@ -16,7 +16,7 @@ DEFAULT_SETTINGS = {
     "max_open_markets": 8,
     "max_imbalance_shares": 40.0,
     "poll_seconds": 2.0,
-    "max_book_age_ms": 2000.0,
+    "max_book_age_ms": 60000.0,
     "prefer_tail": True,
     "tail_confirm": 0.90,
     "stale_leg": 0.02,
@@ -33,12 +33,12 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 6,
+    "strategy_rev": 7,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 6: no resting maker. 6h tape had 0 two-sided fills and −EV one-sided
-    # hedges. Taker min_edge stays 0.02; hunt only when both books are fresh.
+    # Rev 7: WS last-book hold 60s so one-leg updates can still complete a pair.
+    # Maker stays off. Taker min_edge stays 0.02.
     "maker_min_edge": 0.01,
 }
 

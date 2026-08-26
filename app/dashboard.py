@@ -32,6 +32,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "ws_status": rt.ws_status,
             "live_trading": bool(s.get("live_trading")),
             "maker_window_seconds": s.get("maker_window_seconds"),
+            "max_book_age_ms": s.get("max_book_age_ms"),
         }
 
     @app.get("/", response_class=HTMLResponse)

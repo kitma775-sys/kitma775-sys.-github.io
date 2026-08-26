@@ -101,15 +101,26 @@ def asset_hit(slug: str, assets: list[str] | None) -> bool:
     return False
 
 
-def looks_empty(best_ask: Any) -> bool:
-    """Gamma bestAsk ≥ 0.99 on the YES token is an empty / locked book, not a tail.
+def looks_empty(best_ask: Any, seconds_left: float | None = None) -> bool:
+    """Skip locked 1.00/1.00 books. Keep 0.99 tails in the last 3 minutes.
 
-    True tails are YES cheap (0.01) or rich-but-not-1 (0.97). Empty alts quote 1.00.
+    Gamma bestAsk ≥ 0.99 mid-window is usually an empty alt. At expiry the
+    winning YES can quote 0.99 while NO is still 0.01 — that is the surf.
     """
     try:
-        return float(best_ask) >= EMPTY_YES_ASK
+        ask = float(best_ask)
     except (TypeError, ValueError):
         return False
+    if ask >= 1.0:
+        return True
+    if ask >= EMPTY_YES_ASK:
+        if seconds_left is None:
+            return True
+        try:
+            return float(seconds_left) > 180.0
+        except (TypeError, ValueError):
+            return True
+    return False
 
 
 def pick_markets(
@@ -128,7 +139,7 @@ def pick_markets(
             continue
         if left_f < min_left or left_f > max_horizon:
             continue
-        if looks_empty(row.get("best_ask")):
+        if looks_empty(row.get("best_ask"), row.get("seconds_left")):
             continue
         live.append(row)
     live.sort(key=lambda r: (float(r["seconds_left"]), -float(r.get("volume24hr") or 0)))

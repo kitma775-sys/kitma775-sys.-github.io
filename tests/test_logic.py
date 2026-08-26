@@ -885,6 +885,18 @@ def test_pick_markets_ranks_soonest_and_skips_empty():
     assert [r["condition_id"] for r in picked] == ["soon", "next", "far"]
     assert looks_empty(1.0) is True
     assert looks_empty(0.97) is False
+    assert looks_empty(0.99) is True
+    assert looks_empty(0.99, 40) is False
+    assert looks_empty(1.0, 40) is True
+    tailed = pick_markets(
+        [
+            {"condition_id": "empty", "slug": "zec-updown-15m", "seconds_left": 40, "best_ask": 1.0, "volume24hr": 1},
+            {"condition_id": "tail99", "slug": "btc-updown-15m-tail", "seconds_left": 40, "best_ask": 0.99, "volume24hr": 9},
+        ],
+        want=3,
+        max_horizon=3600,
+    )
+    assert [r["condition_id"] for r in tailed] == ["tail99"]
     assert "zec" not in DEFAULT_ASSETS
     assert asset_hit("sol-updown-15m-123", DEFAULT_ASSETS) is True
     assert asset_hit("zec-updown-15m-123", DEFAULT_ASSETS) is False
@@ -1080,6 +1092,7 @@ def test_book_cache_applies_book_and_skips_stale():
     assert pair["down"]["bids"][0].price == 0.49
     cache.put("up", pair["up"]["asks"], pair["up"]["bids"], ts_ms=now - 5000, source="ws")
     assert cache.pair("up", "dn", max_age_ms=2000) is None
+    assert cache.pair("up", "dn", max_age_ms=60000) is not None
     assert cache.apply_message("PONG") == []
 
 
@@ -1128,8 +1141,9 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 6
+    assert s["strategy_rev"] == 7
     assert float(s["maker_window_seconds"]) == 0.0
+    assert float(s["max_book_age_ms"]) == 60000.0
     assert st.resting_open() == []
     after = st.paper_state()
     assert after["cash"] > cash_before
@@ -1154,7 +1168,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 6
+    assert body["strategy_rev"] == 7
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
     assert float(body["maker_window_seconds"]) == 0.0

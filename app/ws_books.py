@@ -1,7 +1,9 @@
 """In-memory CLOB books from the public market websocket.
 
-HTTP 2s polls cannot win the 80–200ms MM requote window. This cache is the
-live book; hunt skips a pair if either leg is older than max_book_age_ms.
+HTTP 2s polls cannot win the 80–200ms MM requote window. While the socket
+is up the last snapshot of each token *is* the live book until a delta
+arrives. Hunt uses a long hold (60s) so a price_change on one leg can
+still pair against the other leg's last book.
 """
 
 from __future__ import annotations

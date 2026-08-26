@@ -18,25 +18,33 @@ from app.telegram_ui import run_telegram
 
 
 def apply_strategy_rev(store: Store) -> int:
-    """Patch live sqlite up to rev 6. Does not reset the paper ledger."""
-    if int(store.settings().get("strategy_rev") or 0) >= 6:
-        return 0
-    n = store.cancel_all_resting("strategy_rev6")
-    store.patch_settings(
-        strategy_rev=6,
-        maker_first=False,
-        maker_min_edge=0.01,
-        maker_window_seconds=0.0,
-        maker_max_skew=0.10,
-        quote_cooldown_seconds=5.0,
-        max_book_age_ms=2000.0,
-        tags=["15M", "1H"],
-        assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
-        scan_limit=16,
-        max_horizon_seconds=3600.0,
-    )
-    if n:
-        store.add_event("info", f"rev6 cancelled {n} resting maker quotes")
+    """Patch live sqlite up to rev 7. Does not reset the paper ledger."""
+    rev = int(store.settings().get("strategy_rev") or 0)
+    n = 0
+    if rev < 6:
+        n = store.cancel_all_resting("strategy_rev6")
+        store.patch_settings(
+            strategy_rev=6,
+            maker_first=False,
+            maker_min_edge=0.01,
+            maker_window_seconds=0.0,
+            maker_max_skew=0.10,
+            quote_cooldown_seconds=5.0,
+            tags=["15M", "1H"],
+            assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
+            scan_limit=16,
+            max_horizon_seconds=3600.0,
+        )
+        if n:
+            store.add_event("info", f"rev6 cancelled {n} resting maker quotes")
+    if rev < 7:
+        store.patch_settings(
+            strategy_rev=7,
+            maker_first=False,
+            maker_window_seconds=0.0,
+            max_book_age_ms=60000.0,
+        )
+        store.add_event("info", "rev7 ws book hold 60s + near-expiry HTTP")
     return n
 
 
