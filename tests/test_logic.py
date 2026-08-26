@@ -900,3 +900,80 @@ def test_pick_markets_ranks_soonest_and_skips_empty():
     assert q["end_date_max"] == "2026-08-26T09:17:00Z"
     assert q["order"] == "endDate"
     assert q["ascending"] == "true"
+
+
+def _bt_end(seconds_from_epoch_offset: int = 0):
+    from datetime import datetime, timezone
+
+    end = datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
+    ts = int(end.timestamp()) - seconds_from_epoch_offset
+    return end.isoformat().replace("+00:00", "Z"), int(end.timestamp()), ts
+
+
+def _px(t, outcome, side, price, size=80.0):
+    return {"t": t, "outcome": outcome, "side": side, "price": price, "size": size}
+
+
+def test_replay_taker_tail_has_positive_pnl():
+    from app.replay import replay_market
+
+    end, end_ts, _ = _bt_end()
+    t = end_ts - 120
+    stats = replay_market(
+        [_px(t, "down", "BUY", 0.01), _px(t, "up", "BUY", 0.97)],
+        end=end,
+        slug="btc-updown-15m-taker",
+    )
+    assert stats["taker_n"] == 1
+    assert stats["taker_pnl"] > 0
+    assert stats["pnl"] > 0
+
+
+def test_replay_maker_two_sided_and_expire_unfilled():
+    from app.replay import replay_market
+
+    end, end_ts, _ = _bt_end()
+    q = end_ts - 40
+    filled = replay_market(
+        [
+            _px(q, "up", "SELL", 0.50),
+            _px(q, "down", "SELL", 0.49),
+            _px(q + 2, "up", "BUY", 0.50),
+            _px(q + 2, "down", "BUY", 0.49),
+        ],
+        end=end,
+        slug="btc-updown-15m-maker",
+    )
+    assert filled["maker_quoted"] >= 1
+    assert filled["maker_two_sided_n"] == 1
+    assert filled["pnl"] > 0
+    dead = replay_market(
+        [_px(q, "up", "SELL", 0.50), _px(q, "down", "SELL", 0.49)],
+        end=end,
+        slug="btc-updown-15m-dead",
+    )
+    assert dead["maker_quoted"] >= 1
+    assert dead["maker_expire_unfilled"] == 1
+    assert dead["pnl"] == 0
+
+
+def test_replay_one_sided_hedge_can_lose():
+    from app.replay import replay_market
+
+    end, end_ts, _ = _bt_end()
+    q = end_ts - 40
+    stats = replay_market(
+        [
+            _px(q, "up", "SELL", 0.39),
+            _px(q, "down", "SELL", 0.5456),
+            _px(q + 1, "down", "SELL", 0.20),
+            _px(q + 2, "up", "BUY", 0.56, 80),
+            _px(q + 3, "down", "BUY", 0.5456, 80),
+        ],
+        end=end,
+        slug="sol-updown-15m-hedge",
+    )
+    assert stats["maker_hedge_n"] == 1
+    assert stats["maker_hedge_pnl"] < 0
+    assert stats["pnl"] < 0
+

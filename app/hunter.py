@@ -73,7 +73,7 @@ def total_size(levels: list[Level]) -> float:
     return sum(lv.size for lv in levels if lv.size > 0)
 
 
-def _seconds_left(end: str | None) -> float | None:
+def _seconds_left(end: str | None, now: datetime | None = None) -> float | None:
     if not end:
         return None
     try:
@@ -82,7 +82,10 @@ def _seconds_left(end: str | None) -> float | None:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return (dt - datetime.now(timezone.utc)).total_seconds()
+    stamp = now or datetime.now(timezone.utc)
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return (dt - stamp).total_seconds()
 
 
 def is_tail(up: float, down: float, confirm: float) -> bool:
@@ -114,6 +117,7 @@ def hunt(
     maker_max_skew: float = MAKER_MAX_SKEW,
     maker_window_seconds: float = MAKER_WINDOW_SECONDS,
     maker_min_edge: float | None = None,
+    now: datetime | None = None,
 ) -> Setup | None:
     taker = _taker_setup(
         slug=slug,
@@ -144,7 +148,7 @@ def hunt(
         min_edge=maker_edge,
         tail_confirm=tail_confirm,
         end=end,
-        seconds_left=_seconds_left(end),
+        seconds_left=_seconds_left(end, now),
         maker_min_leg=maker_min_leg,
         maker_max_skew=maker_max_skew,
         maker_window_seconds=maker_window_seconds,

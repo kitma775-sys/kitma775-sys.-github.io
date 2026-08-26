@@ -181,7 +181,15 @@ async def _tick(rt: Runtime) -> None:
             )
         return
     rt._circuit_latch = False
-    rt.last_loop = {"ts": time.time(), "status": "scan", "markets": len(events), "signals": 0, "fills": 0}
+    prev_tape = (rt.last_loop or {}).get("tape") or {}
+    rt.last_loop = {
+        "ts": time.time(),
+        "status": "scan",
+        "markets": len(events),
+        "signals": 0,
+        "fills": 0,
+        "tape": prev_tape,
+    }
     broker = rt.broker()
     signals = 0
     fills = 0
