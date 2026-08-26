@@ -560,10 +560,14 @@ async def _pair_books(rt: Runtime, ev: dict, *, max_age_ms: float) -> tuple[dict
     cached = rt.books.pair(ev.get("up_token") or "", ev.get("down_token") or "", max_age_ms=max_age_ms)
     left = seconds_left(ev.get("end"))
     near = left is not None and 0 < left <= 120
+    ws_empty = False
+    if cached:
+        ws_empty = not (cached["up"].get("asks") or []) or not (cached["down"].get("asks") or [])
+    flicker = left is not None and 0 < left <= 180 and ws_empty
     slug = str(ev.get("slug") or ev.get("condition_id") or "")
     missing = cached is None
     now = time.time()
-    http_due = missing or near
+    http_due = missing or near or flicker
     if http_due and rt.data is not None and now - rt._http_at.get(slug, 0.0) >= 1.0:
         try:
             up_book, dn_book = await asyncio.gather(

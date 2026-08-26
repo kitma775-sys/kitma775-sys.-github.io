@@ -157,19 +157,35 @@ class BookCache:
             return []
         cur = self.books.get(token) or _empty()
         asks, bids = list(cur.get("asks") or []), list(cur.get("bids") or [])
-        try:
-            if ask is not None and float(ask) > 0:
-                top_sz = asks[0].size if asks else 50.0
-                asks = [Level(float(ask), top_sz)] + [lv for lv in asks if lv.price > float(ask) + 1e-12]
-        except (TypeError, ValueError):
-            pass
-        try:
-            if bid is not None and float(bid) > 0:
-                top_sz = bids[0].size if bids else 50.0
-                bids = [Level(float(bid), top_sz)] + [lv for lv in bids if lv.price < float(bid) - 1e-12]
-        except (TypeError, ValueError):
-            pass
-        self.put(token, _levels([{"price": lv.price, "size": lv.size} for lv in asks], asks=True), _levels([{"price": lv.price, "size": lv.size} for lv in bids], asks=False), ts_ms=ts, source="ws")
+        if ask is not None:
+            try:
+                a = float(ask)
+            except (TypeError, ValueError):
+                a = None
+            else:
+                if a <= 0:
+                    asks = []
+                else:
+                    top_sz = asks[0].size if asks else 50.0
+                    asks = [Level(a, top_sz)] + [lv for lv in asks if lv.price > a + 1e-12]
+        if bid is not None:
+            try:
+                b = float(bid)
+            except (TypeError, ValueError):
+                b = None
+            else:
+                if b <= 0:
+                    bids = []
+                else:
+                    top_sz = bids[0].size if bids else 50.0
+                    bids = [Level(b, top_sz)] + [lv for lv in bids if lv.price < b - 1e-12]
+        self.put(
+            token,
+            _levels([{"price": lv.price, "size": lv.size} for lv in asks], asks=True),
+            _levels([{"price": lv.price, "size": lv.size} for lv in bids], asks=False),
+            ts_ms=ts,
+            source="ws",
+        )
         return [token]
 
     def _delta(self, token: str, ch: dict, ts: float) -> list[str]:

@@ -1,8 +1,9 @@
 """Pick short-dated liquid binaries — the only HTTP-reachable surf set.
 
 Long-dated high-volume books rest at ask_sum ≥ 1.001. Sports tags are not
-game-clock. The books that still *move* on a 2s poll are 15m/1h crypto
-windows, ranked by time-to-expiry, skipping empty 1.00/1.00 books.
+game-clock. The books that still *move* are 5m/15m/1h crypto windows.
+Soonest expiry first, but mid-window one-sided penny books do not crowd
+out two-ask 15m/1h tails. Skip empty 1.00/1.00 books.
 """
 
 from __future__ import annotations
@@ -10,10 +11,18 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-DEFAULT_TAGS = ["15M", "1H"]
+DEFAULT_TAGS = ["5M", "15M", "1H"]
 DEFAULT_ASSETS = ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"]
 EMPTY_YES_ASK = 0.99
-# 15m slugs are btc-updown-15m-… ; 1h slugs are bitcoin-up-or-down-…
+NEAR_EXPIRY_SECONDS = 180.0
+ONE_SIDED_ASK = 0.05
+# 5m/15m slugs are btc-updown-5m-… / btc-updown-15m-… ;
+# 1h slugs are bitcoin-up-or-down-…
+TAG_HORIZON = {
+    "5M": 900.0,
+    "15M": 1800.0,
+    "1H": 3600.0,
+}
 ASSET_ALIASES = {
     "btc": ("btc", "bitcoin"),
     "eth": ("eth", "ethereum"),
@@ -60,6 +69,15 @@ def iso_z(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def tag_horizon(tag: str, max_horizon: float) -> float:
+    """Cap how far ahead each tag is fetched. 5M listed for the next hour would drown 15M/1H."""
+    wanted = max(60.0, float(max_horizon))
+    cap = TAG_HORIZON.get(str(tag).upper())
+    if cap is None:
+        return wanted
+    return min(wanted, float(cap))
 
 
 def gamma_events_params(
@@ -123,6 +141,24 @@ def looks_empty(best_ask: Any, seconds_left: float | None = None) -> bool:
     return False
 
 
+def _universe_rank(row: dict) -> tuple[int, float]:
+    """Last 3 minutes always first. Mid-window penny books (winner ask pulled) go last."""
+    try:
+        left = float(row.get("seconds_left"))
+    except (TypeError, ValueError):
+        left = 9e9
+    try:
+        ask = float(row.get("best_ask"))
+    except (TypeError, ValueError):
+        ask = 0.5
+    one_sided = ask <= ONE_SIDED_ASK or ask >= (1.0 - ONE_SIDED_ASK)
+    if left <= NEAR_EXPIRY_SECONDS:
+        return (0, left)
+    if one_sided:
+        return (2, left)
+    return (1, left)
+
+
 def pick_markets(
     rows: list[dict],
     *,
@@ -142,7 +178,7 @@ def pick_markets(
         if looks_empty(row.get("best_ask"), row.get("seconds_left")):
             continue
         live.append(row)
-    live.sort(key=lambda r: (float(r["seconds_left"]), -float(r.get("volume24hr") or 0)))
+    live.sort(key=lambda r: (*_universe_rank(r), -float(r.get("volume24hr") or 0)))
     out: list[dict] = []
     seen: set[str] = set()
     for row in live:

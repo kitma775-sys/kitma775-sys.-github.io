@@ -17,6 +17,7 @@ from app.universe import (
     parse_tokens,
     pick_markets,
     seconds_left,
+    tag_horizon,
 )
 
 GAMMA = "https://gamma-api.polymarket.com"
@@ -64,7 +65,12 @@ class MarketData:
         now = datetime.now(timezone.utc)
         fetched = await asyncio.gather(
             *(
-                self._events_tag(tag, limit=max(want * 4, 40), now=now, max_horizon=max_horizon)
+                self._events_tag(
+                    tag,
+                    limit=max(want * 4, 40),
+                    now=now,
+                    max_horizon=tag_horizon(tag, max_horizon),
+                )
                 for tag in tag_list
             ),
             return_exceptions=True,

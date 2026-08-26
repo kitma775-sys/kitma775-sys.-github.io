@@ -65,6 +65,30 @@ def test_hunter_skips_expensive_asks():
     assert setup is None
 
 
+def test_hunter_skips_fee_killed_underround():
+    """ask_sum 0.98 at 0.72+0.26 is still −EV after 7% crypto fees. Do not lower min_edge."""
+    setup = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0x2",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.72, 20)),
+        down_asks=_L((0.26, 50)),
+        up_bids=_L((0.69, 10)),
+        down_bids=_L((0.25, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+    )
+    assert setup is None
+    assert taker_net(1.0, 0.72, 0.26, 0.07) < 0
+
+
 def test_risk_blocks_stale_and_kill():
     setup = hunt(
         slug="btc",
@@ -905,6 +929,7 @@ def test_pick_markets_ranks_soonest_and_skips_empty():
     from app.universe import gamma_events_params, is_updown
 
     assert is_updown("btc-updown-15m-1") is True
+    assert is_updown("btc-updown-5m-1") is True
     assert is_updown("bitcoin-up-or-down-august-26-2026-4am-et") is True
     assert is_updown("bitcoin-above-on-august-26-2026-5am-et") is False
     from datetime import datetime, timezone
@@ -914,6 +939,24 @@ def test_pick_markets_ranks_soonest_and_skips_empty():
     assert q["end_date_max"] == "2026-08-26T09:17:00Z"
     assert q["order"] == "endDate"
     assert q["ascending"] == "true"
+    from app.universe import DEFAULT_TAGS, tag_horizon
+
+    assert DEFAULT_TAGS[0] == "5M"
+    assert tag_horizon("5M", 3600) == 900
+    assert tag_horizon("15M", 3600) == 1800
+    assert tag_horizon("1H", 3600) == 3600
+    assert tag_horizon("15M", 600) == 600
+
+    crowded = pick_markets(
+        [
+            {"condition_id": "penny", "slug": "doge-updown-5m-x", "seconds_left": 200, "best_ask": 0.02, "volume24hr": 99},
+            {"condition_id": "twosided", "slug": "eth-updown-15m-y", "seconds_left": 500, "best_ask": 0.51, "volume24hr": 1},
+            {"condition_id": "flicker", "slug": "btc-updown-5m-z", "seconds_left": 90, "best_ask": 0.03, "volume24hr": 1},
+        ],
+        want=2,
+        max_horizon=3600,
+    )
+    assert [r["condition_id"] for r in crowded] == ["flicker", "twosided"]
 
 
 def _bt_end(seconds_from_epoch_offset: int = 0):
@@ -1094,6 +1137,19 @@ def test_book_cache_applies_book_and_skips_stale():
     assert cache.pair("up", "dn", max_age_ms=2000) is None
     assert cache.pair("up", "dn", max_age_ms=60000) is not None
     assert cache.apply_message("PONG") == []
+    cache.apply_message(
+        {
+            "event_type": "best_bid_ask",
+            "asset_id": "dn",
+            "timestamp": now,
+            "best_ask": "0",
+            "best_bid": "0.49",
+        }
+    )
+    gone = cache.pair("up", "dn", max_age_ms=60000)
+    assert gone is not None
+    assert gone["down"]["asks"] == []
+    assert gone["down"]["bids"][0].price == 0.49
 
 
 def test_replay_rev6_skips_toxic_maker():
@@ -1141,9 +1197,11 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 7
+    assert s["strategy_rev"] == 8
     assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["max_book_age_ms"]) == 60000.0
+    assert s["tags"] == ["5M", "15M", "1H"]
+    assert int(s["scan_limit"]) == 24
     assert st.resting_open() == []
     after = st.paper_state()
     assert after["cash"] > cash_before
@@ -1168,7 +1226,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 7
+    assert body["strategy_rev"] == 8
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
     assert float(body["maker_window_seconds"]) == 0.0

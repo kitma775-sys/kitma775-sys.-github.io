@@ -1,0 +1,48 @@
+{
+  "researched_at_utc": "2026-08-26T15:12:51Z",
+  "question": "Why does rev 7 still print zero trades, and what +EV hunt actually creates more takes without last-window maker?",
+  "live_bot_then": {
+    "strategy_rev": 7,
+    "ws": "connected",
+    "live_trading": false,
+    "maker_window_seconds": 0,
+    "universe": ["15M", "1H"]
+  },
+  "findings": [
+    {
+      "id": "5m_unscanned",
+      "result": "Gamma tag 5M is live (btc-updown-5m-…). Same crypto fee 0.07, same Up/Down complete set. Rev 7 never subscribed. 7 assets × 12 windows/hour vs 4 for 15M — three times as many last-90s two-ask moments. 4H also exists; not used (longer toxic time, not more tails per hour)."
+    },
+    {
+      "id": "rest_still_overround_after_fees",
+      "result": "At 15:12Z, 42 live 5M+15M+1H books: 41 two-ask, 1 empty winning ask. One ask_sum 0.98 (eth-updown-15m 0.72+0.26) but taker_net −0.0076 after 7% fees. mint-and-sell into bids: max net −0.012. Lowering min_edge does not create a take. Re-enabling last-window maker still toxic."
+    },
+    {
+      "id": "two_ask_still_there_on_5m",
+      "result": "At ~129s to 5M expiry, BTC/XRP/HYPE still had both asks (0.12+0.89, 0.05+0.97, 0.05+0.98). Only doge 5m had Down asks empty. The 0.97+0.01 surf is a two-ask race on these short clocks, not a rest-state 1.01 book."
+    },
+    {
+      "id": "universe_crowding",
+      "result": "scan_limit 16 + soonest-first fills with dying 15m pennies (Gamma bestAsk 0.001–0.04, winning ask gone) and drops two-ask 15m/1h. Rank last-3-min first, mid-window pennies last, raise scan_limit to 24, fetch 5M only 15 min ahead so the next hour of 5M listings cannot drown 15M/1H."
+    },
+    {
+      "id": "ws_zero_ask_ghost",
+      "result": "best_bid_ask / price_change with best_ask 0 left the previous ask in cache. Hunt could pair a pulled winner with the cheap side. Clear asks/bids when the top is ≤0. Last 180s empty WS legs still HTTP-gap-fill."
+    },
+    {
+      "id": "print_windows_are_not_books",
+      "result": "Same-second BUY prints on both legs (min price in a ±2s window) look like fat underrounds. That cherry-picks independent trades, not a simultaneous two-ask book. Do not hunt from last-trade implied mids. data-api tape still shows 5M has heavy two-sided flow — reason to watch the books, not to take prints."
+    }
+  ],
+  "rev8": {
+    "strategy_rev": 8,
+    "tags": ["5M", "15M", "1H"],
+    "scan_limit": 24,
+    "tag_horizon": {"5M": 900, "15M": 1800, "1H": 3600},
+    "rank": "seconds_left≤180 first; else two-ask (bestAsk not a penny); else pennies",
+    "ws_clear_zero": true,
+    "http_flicker": "empty WS ask + ≤180s left also REST-fills, 1s/slug",
+    "still": "maker_window=0, min_edge=0.02, FORCE_PAPER, no live, no paper reset"
+  },
+  "honest_expectation": "Rev 8 puts the engine on the clocks where two-ask tails actually appear. Rest-state ATM books stay ask_sum≥1.01 and taker_net negative. Many 5M expiries will still print zero fills when the winning ask is pulled. Dashboard tape with 5m slugs and empty_ask_legs is the tell. Do not treat no-fill windows as a hung engine, and do not re-enable maker to force trades."
+}

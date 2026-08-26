@@ -18,7 +18,7 @@ from app.telegram_ui import run_telegram
 
 
 def apply_strategy_rev(store: Store) -> int:
-    """Patch live sqlite up to rev 7. Does not reset the paper ledger."""
+    """Patch live sqlite up to rev 8. Does not reset the paper ledger."""
     rev = int(store.settings().get("strategy_rev") or 0)
     n = 0
     if rev < 6:
@@ -45,6 +45,16 @@ def apply_strategy_rev(store: Store) -> int:
             max_book_age_ms=60000.0,
         )
         store.add_event("info", "rev7 ws book hold 60s + near-expiry HTTP")
+    if rev < 8:
+        store.patch_settings(
+            strategy_rev=8,
+            maker_first=False,
+            maker_window_seconds=0.0,
+            max_book_age_ms=60000.0,
+            tags=["5M", "15M", "1H"],
+            scan_limit=24,
+        )
+        store.add_event("info", "rev8 5m windows + two-ask ranking; maker still off")
     return n
 
 

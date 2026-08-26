@@ -180,7 +180,7 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
             ]
         )
     rows.append([InlineKeyboardButton("幣種過濾", callback_data="assets")])
-    rows.append([InlineKeyboardButton("週期 15M／1H", callback_data="tags")])
+    rows.append([InlineKeyboardButton("週期 5M／15M／1H", callback_data="tags")])
     rows.append([InlineKeyboardButton("↩️ 返主頁", callback_data="home")])
     return InlineKeyboardMarkup(rows)
 
@@ -207,7 +207,7 @@ def tags_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     cur = set(s.get("tags") or [s.get("tag") or "15M"])
     rows = []
-    for tag, hint in (("15M", "15分鐘升跌"), ("1H", "1小時升跌")):
+    for tag, hint in (("5M", "5分鐘升跌"), ("15M", "15分鐘升跌"), ("1H", "1小時升跌")):
         mark = "✅" if tag in cur else "⬜️"
         rows.append([InlineKeyboardButton(f"{mark} {tag} {hint}", callback_data=f"tag:{tag}")])
     rows.append([InlineKeyboardButton("↩️ 返設定", callback_data="set")])

@@ -23,22 +23,22 @@ DEFAULT_SETTINGS = {
     "maker_first": False,
     "auto_merge": True,
     "fee_rate": 0.07,
-    "tag": "15M",
-    "tags": ["15M", "1H"],
+    "tag": "5M",
+    "tags": ["5M", "15M", "1H"],
     "assets": ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"],
-    "scan_limit": 16,
+    "scan_limit": 24,
     "max_horizon_seconds": 3600.0,
     "notify_signals": True,
     "notify_rejects": False,
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 7,
+    "strategy_rev": 8,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 7: WS last-book hold 60s so one-leg updates can still complete a pair.
-    # Maker stays off. Taker min_edge stays 0.02.
+    # Rev 8: add 5M windows (3× more tails) and rank two-ask books over
+    # mid-window pennies. Maker stays off. Taker min_edge stays 0.02.
     "maker_min_edge": 0.01,
 }
 
