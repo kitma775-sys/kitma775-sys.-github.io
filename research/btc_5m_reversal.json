@@ -9185,14 +9185,14 @@
       "optional_tighten": {
         "favorite_max_price": 0.97
       },
-      "why": "Keep 96\u201398 last 3 minutes. 90\u201392 last 5m wins on EV but blowups trip a $50 circuit. 97 last 3 min is the fewest steamrolls. Do not add 99."
+      "why": "Keep 96-98 last 3 minutes. 90-only full 5m PnL in this file is a truncated-tape artifact (see tape_cap_audit). Do not add 99."
     },
     "playbook": {
-      "max_ev": "90-92 last 240-300s",
+      "max_ev": "unknown after tape-cap audit; do not use 90-only full 5m from this file",
       "safest_plus_ev": "97 last 180s",
       "best_for_this_bot": "96-98 last 180s (optional max 97)",
-      "best_no_water": "90\u00a2 only, full 5 minutes (favorite_min=0.90, favorite_max=0.90, window=300 or 0 for \u5168\u6bb5)",
-      "pnl_note": "After $50 circuit in time order: 90\u00a2 full 5m +$7,268 / 31d (+$234/day), 15% below unclipped. Current 96-98 last 180s +$1,166 (+$38/day). 91\u00a2 full 5m +$7,120 with only 3 halt days. 99\u00a2 still negative. Last water: print \u2260 FOK."
+      "best_no_water": "DO NOT USE 90-only full 5m from this file; newest-1000 tape cap. See tape_cap_audit.",
+      "pnl_note": "SUPERSEDED FOR 90c FULL 5m: those +$7,268 / 31d figures used a newest-1000 tape cap. See tape_cap_audit. 96-98 last 180s is much less sensitive to that cap. Last water: print \u2260 FOK."
     },
     "best_no_water": {
       "band": "0.90-0.90",
@@ -9203,13 +9203,25 @@
       "n_taken": 7195,
       "lose_taken": 413,
       "vs_current": 6.23,
-      "why": "Max 30d PnL after $50 UTC-day circuit, $25/fill, one fill per market, band first BUY. Prints still optimistic vs live FOK."
+      "why": "SUPERSEDED. This ranking used a truncated newest-1000 tape. Paginated 36h redo hid about half of 90c last300s losses. Do not trade 90-only full 5m off this number. See tape_cap_audit."
     }
   },
   "honest": [
     "A wide cheap band (90\u201399 last 5m) fills at the first 90\u00a2 print, then has the whole window to get steamrolled.",
     "99\u00a2 is not certain. One dump after you lift is \u2212~99\u00a2/share vs +~0.93\u00a2 if you win.",
     "Prints that already traded are not a 250ms FAK fill. Live fill rate is lower.",
-    "5m books can trade before the BTC window; this study keeps last 900s of tape only."
-  ]
+    "5m books can trade before the BTC window; this study keeps last 900s of tape only.",
+    "TAPE CAP: /trades?limit=1000 is newest-first. Liquid 5m books do not fit; 'first 90 of last 300s' was often the first 90 still on page 0 after a reverse.",
+    "Do not scale the 90c-only full-5m +$7k / 30d figure. 36h paginated tape hid about half of 90c last300s losses on the capped page.",
+    "Last-30s 90c (~9.3% reverse, ~0 EV after 7% fees) is the most complete original slice and still looks like fee breakeven.",
+    "Seeing the other side trade 50c after a 90c buy is common; seeing it trade 90c usually means the fill loses at resolve."
+  ],
+  "tape_cap_audit": {
+    "file": "research/btc_5m_90_audit.json",
+    "researched_at_utc": "2026-08-27T17:10:29Z",
+    "finding": "The 30d 90c last300s headline used one newest-first /trades page (limit=1000). On liquid BTC 5m that page is typically the last ~3 minutes, not the first 90 of the window. A 36h paginated redo roughly doubled visible 90c last300s losses (14 -> 27) and cut $25 PnL from +$638 to +$276. Last-30s 90c was already ~fee breakeven and did not change with pagination. Do not treat +$7268 / 30d as a real edge.",
+    "full_tape_90_last300s_reverse_36h": 0.068528,
+    "capped_page0_90_last300s_reverse_36h": 0.035533,
+    "original_30d_capped_90_last300s_reverse": 0.056529
+  }
 }

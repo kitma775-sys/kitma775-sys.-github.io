@@ -109,6 +109,8 @@ def load_market(start: int) -> dict | None:
     winner = outcomes[0] if prices[0] >= prices[1] else outcomes[1]
     end = end_ts(m["endDate"])
     cid = m["conditionId"]
+    # Newest-first, no offset: liquid 5m books often return only the last ~2 minutes.
+    # Do not treat this as the first 90c print of the whole window. See btc_5m_90_audit.py.
     trades = get_json(f"{DATA}/trades?market={cid}&limit=1000") or []
     rows = []
     for t in trades:
