@@ -117,7 +117,7 @@
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
         tile({"auto":"自動","complement":"互補","favorite":"大熱"}[s.strategy_mode] || (s.strategy_mode || "—"), "策略模式"),
-        tile(((Number(s.favorite_min_price||0.95)*100).toFixed(0)) + "–" + ((Number(s.favorite_max_price||0.99)*100).toFixed(0)) + "¢", "大熱區間"),
+        tile(((Number(s.favorite_min_price||0.95)*100).toFixed(0)) + "–" + ((Number(s.favorite_max_price||0.99)*100).toFixed(0)) + "¢ / " + String(Math.round(Number(s.favorite_window_seconds||30))) + "s", "大熱區間／尾窗"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
         tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),
@@ -139,7 +139,8 @@
       document.getElementById("scans").innerHTML = (d.scans||[]).map(x => {
         const p = x.payload || {};
         const px = (p.up!=null && p.down!=null) ? (p.up+"+"+p.down) : "—";
-        return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+esc(x.kind)+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
+        const kind = (p.strategy==="favorite" ? "大熱" : "") + (x.kind==="maker" ? "掛單" : esc(x.kind));
+        return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+kind+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
       }).join("") || "<tr><td colspan=6>本輪未有 taker 信號（舊 maker 掃描已隱藏）</td></tr>";
       document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
         "<tr><td>"+esc(statusZh[x.status]||x.status)+"<div class=muted>"+fmtTs(x.ts)+"</div></td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+(x.kind==="maker"?"掛單":esc(x.kind))+"</td><td class='"+(pnlCls(x.net))+"'>$"+Number(x.net||0).toFixed(2)+"</td></tr>"

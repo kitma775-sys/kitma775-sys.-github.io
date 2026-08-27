@@ -25,6 +25,24 @@ def fmt_exc(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {text}"[:300]
 
 
+def http_book_due(*, missing: bool, flicker: bool) -> bool:
+    """HTTP only when WS has no pair, or last-3-min books are one-sided empty.
+
+    Polling every 1s across 24 near-expiry markets stalled the CLOB socket
+    (1013 slow consumer) and missed 97–99¢ asks.
+    """
+    return bool(missing or flicker)
+
+
+def favorite_taker_replaces_rest(setup, rest: dict | None) -> bool:
+    """A 97¢ bid must not block lifting a live 97–99¢ ask on the same slug."""
+    if rest is None or setup is None:
+        return False
+    if setup.kind != "taker" or not is_favorite_setup(setup):
+        return False
+    return (rest.get("payload") or {}).get("strategy") == "favorite"
+
+
 class Runtime:
     def __init__(self, store: Store, env: Env):
         self.store = store
@@ -180,7 +198,6 @@ async def _refresh_universe(rt: Runtime) -> None:
     rt.universe = events
     rt.books.set_wanted(tokens)
     settled = await _settle_inventory(rt)
-    resting_fills = await _process_resting(rt)
     rescued = await _rescue_naked(rt, events)
     if rt.circuit_tripped():
         n = rt.store.cancel_all_resting("circuit")
@@ -190,7 +207,7 @@ async def _refresh_universe(rt: Runtime) -> None:
             "status": "circuit_breaker",
             "markets": len(events),
             "signals": 0,
-            "fills": resting_fills + rescued + settled,
+            "fills": rescued + settled,
             "paper": paper,
             "ws_status": rt.ws_status,
         }
@@ -207,7 +224,7 @@ async def _refresh_universe(rt: Runtime) -> None:
         return
     rt._circuit_latch = False
     rt.last_loop.setdefault("tape", {})
-    rt.last_loop.update({"settled": settled, "resting_fills": resting_fills, "rescues": rescued, "markets": len(events)})
+    rt.last_loop.update({"settled": settled, "rescues": rescued, "markets": len(events)})
 
 
 async def _ws_loop(rt: Runtime) -> None:
@@ -309,11 +326,11 @@ async def _hunt_loop(rt: Runtime) -> None:
             pass
         rt._hunt_event.clear()
         events = list(rt.universe)
-        if not events:
-            continue
         try:
             async with rt._lock:
-                await _scan_markets(rt, events)
+                await _process_resting(rt)
+                if events:
+                    await _scan_markets(rt, events)
         except Exception as exc:
             detail = fmt_exc(exc)
             rt.store.add_event("error", f"hunt {detail}")
@@ -410,11 +427,19 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             continue
         if setup.kind == "maker" and window < 3 and not is_favorite_setup(setup):
             continue
-        if paper_mode and rt.store.has_open_resting(setup.slug):
-            continue
+        replacing_rest = False
+        if paper_mode:
+            rest = rt.store.resting_by_slug(setup.slug)
+            if rest is not None:
+                if favorite_taker_replaces_rest(setup, rest):
+                    rt.store.cancel_resting(rest["id"], "favorite_lift")
+                    replacing_rest = True
+                    rt.store.add_event("info", f"cancel rest {setup.slug} to lift {setup.up_price}+{setup.down_price}")
+                else:
+                    continue
         if paper_mode:
             setup.extra["paper_slip_ticks"] = int(s.get("paper_slip_ticks") or 0)
-        if rt.cooldown.get(setup.slug, 0.0) > time.time():
+        if rt.cooldown.get(setup.slug, 0.0) > time.time() and not replacing_rest:
             continue
         signals += 1
         if paper_mode:
@@ -458,6 +483,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             "reason": decision.reason,
             "mode": rt.mode(),
             "book": src,
+            "strategy": (setup.extra or {}).get("strategy"),
+            "leg": (setup.extra or {}).get("leg"),
         }
         rt.store.add_scan(setup.slug, setup.kind, payload)
         if not decision.ok:
@@ -550,6 +577,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             rt.store.add_scan(setup.slug, "taker", payload)
         result: FillResult = await broker.execute_pair(setup)
         cool = setting_num(s, "quote_cooldown_seconds", 5.0)
+        if is_favorite_setup(setup) and setup.kind == "maker":
+            cool = min(cool, 0.4)
         rt.cooldown[setup.slug] = time.time() + cool
         rt.store.add_trade(
             slug=setup.slug,
@@ -659,6 +688,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["strategy_mode"] = str(s.get("strategy_mode") or "auto")
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.95)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.99)
+    tape["favorite_window"] = setting_num(s, "favorite_window_seconds", 30.0)
     rt.last_loop.update(
         {
             "signals": signals,
@@ -782,7 +812,6 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
 async def _pair_books(rt: Runtime, ev: dict, *, max_age_ms: float) -> tuple[dict | None, dict | None, str]:
     cached = rt.books.pair(ev.get("up_token") or "", ev.get("down_token") or "", max_age_ms=max_age_ms)
     left = seconds_left(ev.get("end"))
-    near = left is not None and 0 < left <= 120
     ws_empty = False
     if cached:
         ws_empty = not (cached["up"].get("asks") or []) or not (cached["down"].get("asks") or [])
@@ -790,7 +819,7 @@ async def _pair_books(rt: Runtime, ev: dict, *, max_age_ms: float) -> tuple[dict
     slug = str(ev.get("slug") or ev.get("condition_id") or "")
     missing = cached is None
     now = time.time()
-    http_due = missing or near or flicker
+    http_due = http_book_due(missing=missing, flicker=flicker)
     if http_due and rt.data is not None and now - rt._http_at.get(slug, 0.0) >= 1.0:
         try:
             up_book, dn_book = await asyncio.gather(
@@ -812,12 +841,30 @@ async def _pair_books(rt: Runtime, ev: dict, *, max_age_ms: float) -> tuple[dict
     return None, None, "stale"
 
 
+async def _resting_pair_books(rt: Runtime, row: dict, *, max_age_ms: float) -> tuple[dict | None, dict | None]:
+    """Prefer WS books so a last-second dump can hit a 97¢ bid. HTTP is fallback."""
+    cached = rt.books.pair(row.get("up_token") or "", row.get("down_token") or "", max_age_ms=max_age_ms)
+    if cached:
+        return cached["up"], cached["down"]
+    if rt.data is None:
+        return None, None
+    try:
+        return await asyncio.gather(
+            rt.data.book(row["up_token"]),
+            rt.data.book(row["down_token"]),
+        )
+    except Exception as exc:
+        rt.store.add_event("warn", f"rest book {row['slug']}: {exc}"[:200])
+        return None, None
+
+
 async def _process_resting(rt: Runtime) -> int:
     """Fill paper maker legs only when the live book trades through the resting bid."""
-    if rt.mode() != "paper" or rt.data is None:
+    if rt.mode() != "paper":
         return 0
     s = rt.settings()
     fills = 0
+    max_age = setting_num(s, "max_book_age_ms", 60000.0)
     for row in list(rt.store.resting_open()):
         payload = row.get("payload") or {}
         favorite = payload.get("strategy") == "favorite"
@@ -829,13 +876,8 @@ async def _process_resting(rt: Runtime) -> int:
                 leftover = "；未配對倉等結算" if one_sided else ""
                 await rt.notify(f"⌛ 紙盤掛單到期撤單 {row['slug']}{leftover}")
             continue
-        try:
-            up_book, dn_book = await asyncio.gather(
-                rt.data.book(row["up_token"]),
-                rt.data.book(row["down_token"]),
-            )
-        except Exception as exc:
-            rt.store.add_event("warn", f"rest book {row['slug']}: {exc}"[:200])
+        up_book, dn_book = await _resting_pair_books(rt, row, max_age_ms=max_age)
+        if up_book is None or dn_book is None:
             continue
         if favorite:
             leg = str(payload.get("leg") or ("up" if float(row["up_price"]) >= float(row["down_price"]) else "down"))

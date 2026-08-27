@@ -284,7 +284,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 11：自動＝互補優先，否則最後30秒買 95–99¢ 大熱（可改）。定價掛單預設 95¢，0費但爆倉風險大。紙盤、停互補掛單。\n"
+        "Rev 12：掛 97¢ 唔再擋住抬 97–99¢。自動＝互補優先，否則尾窗買大熱。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 

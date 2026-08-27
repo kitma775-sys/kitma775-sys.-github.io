@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 11" in text
+    assert "Rev 12" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1256,6 +1256,61 @@ def test_favorite_maker_consume_then_complete_does_not_double_release(tmp_path):
     assert inv["down"] == 0
 
 
+def test_favorite_taker_replaces_rest_and_http_due():
+    from app.hunter import Setup
+    from app.runtime import favorite_taker_replaces_rest, http_book_due
+
+    setup = Setup(
+        slug="btc",
+        title="btc",
+        condition_id="c1",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.99,
+        down_price=0.0,
+        shares=10,
+        fillable=10,
+        gross=0.01,
+        fees=0.01,
+        net=0.06,
+        tail=True,
+        extra={"strategy": "favorite", "leg": "up"},
+    )
+    rest = {"payload": {"strategy": "favorite", "leg": "up"}}
+    assert favorite_taker_replaces_rest(setup, rest) is True
+    setup.kind = "maker"
+    assert favorite_taker_replaces_rest(setup, rest) is False
+    setup.kind = "taker"
+    assert favorite_taker_replaces_rest(setup, {"payload": {}}) is False
+    assert http_book_due(missing=False, flicker=False) is False
+    assert http_book_due(missing=True, flicker=False) is True
+    assert http_book_due(missing=False, flicker=True) is True
+
+
+def test_favorite_replace_rest_releases_cash(tmp_path):
+    st = Store(tmp_path / "lift.sqlite")
+    st.ensure_paper(500)
+    row = st.add_resting(
+        slug="btc",
+        condition_id="c1",
+        title="btc",
+        up_token="u",
+        down_token="d",
+        shares=10,
+        up_price=0.97,
+        down_price=0.0,
+        net=0.30,
+        payload={"strategy": "favorite", "leg": "up"},
+    )
+    assert st.has_open_resting("btc")
+    st.cancel_resting(row["id"], "favorite_lift")
+    paper = st.paper_state()
+    assert paper["reserved"] == 0
+    assert abs(paper["cash"] - 500) < 1e-9
+    assert st.has_open_resting("btc") is False
+
+
 def test_telegram_clip_uses_tg_max():
     from app.telegram_ui import TG_MAX, _clip
 
@@ -1725,7 +1780,7 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 11
+    assert s["strategy_rev"] == 12
     assert s.get("strategy_mode") == "auto"
     assert float(s["favorite_min_price"]) == 0.95
     assert float(s["maker_window_seconds"]) == 0.0
@@ -1757,7 +1812,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 11
+    assert body["strategy_rev"] == 12
     assert body.get("strategy_mode") == "auto"
     assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"

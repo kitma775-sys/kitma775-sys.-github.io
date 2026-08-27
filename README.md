@@ -57,6 +57,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 12**：對齊「尾窗 97–99¢」——97¢ 掛單唔再擋住抬 97–99 ask；用 WS 偵測有冇砸中（唔再每 2 秒 HTTP）；尾盤有 WS 就唔狂拉 HTTP，避免 socket 1013 slow consumer。紙盤未重置。
 - **Rev 11**：現有 bot 加 `strategy_mode`（Telegram 可切：自動／只互補／只大熱）。自動＝兩邊 ask 互補優先；否則最後 **30 秒** 只買 **95–99¢** 大熱（區間可調），250ms 後單腿 FAK。定價掛單預設喺下限 **95¢** 掛買（maker 0 費，被人砸中先成交、唔對沖、拿到結算）。ZEC 式 0.99/0.01 空簿跳過。紙盤未重置、未開實盤。詳情 `research/favorite_97_99.json`
 - **Rev 10**：taker 仍然等 250ms，確認 **FAK 剩餘 +EV 量**，限價沒了就 requote。掛單（互補）仍然關。`min_edge` 維持 0.02。
 - **Rev 9**：taker **pair FOK**。Hunt 仍然用當刻盤口找信號；成交前等 250ms 再 HTTP 重拉兩邊簿。兩邊都要喺限價內掃滿原數量，否則 **整單取消、唔入紙盤 PnL**。全量 FOK 對 sticky 洞太死（剩餘量同 1 tick 變價都會殺）。Dashboard 會分開「snapshot 會成」同「確認殺單」。
