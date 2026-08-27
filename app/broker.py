@@ -105,16 +105,23 @@ class LiveBroker:
                 kwargs = dict(
                     token_id=token,
                     side="BUY",
-                    price=f"{price:.2f}",
+                    price=f"{price:.4f}",
                     size=f"{setup.shares:.2f}",
+                    order_type="FOK",
                 )
                 if setup.kind == "maker":
+                    kwargs.pop("order_type", None)
                     kwargs["post_only"] = True
-                resp = await client.place_limit_order(**kwargs)
+                try:
+                    resp = await client.place_limit_order(**kwargs)
+                except TypeError:
+                    kwargs.pop("order_type", None)
+                    resp = await client.place_limit_order(**kwargs)
                 ok = bool(getattr(resp, "ok", False))
+                status = str(getattr(resp, "status", "") or "").lower()
                 results.append({"token": token, "ok": ok, "status": getattr(resp, "status", None), "id": getattr(resp, "order_id", None)})
-                if not ok:
-                    return FillResult(False, "rejected", "live", str(getattr(resp, "message", "order rejected")), {"legs": results})
+                if not ok or (setup.kind == "taker" and status in {"live", "unmatched", "delayed"}):
+                    return FillResult(False, "rejected", "live", str(getattr(resp, "message", status or "order rejected")), {"legs": results})
         except Exception as exc:
             return FillResult(False, "error", "live", str(exc)[:300], {"legs": results})
         return FillResult(True, "filled" if setup.kind == "taker" else "resting", "live", "兩邊已提交", {"legs": results})

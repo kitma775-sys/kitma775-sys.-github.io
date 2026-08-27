@@ -387,6 +387,85 @@ def test_paper_taker_slip_can_kill_edge():
     assert result.status == "paper_missed"
 
 
+def test_fok_pair_fills_full_size_at_or_better():
+    from app.hunter import Level
+    from app.paper_sim import fok_pair
+
+    ok = fok_pair(
+        up_asks=[Level(0.81, 40), Level(0.82, 40)],
+        down_asks=[Level(0.11, 40)],
+        shares=26.6,
+        up_limit=0.82,
+        down_limit=0.12,
+        fee_rate=0.07,
+    )
+    assert ok.ok is True
+    assert ok.reason == "fok_filled"
+    assert ok.up_price <= 0.82
+    assert ok.down_price <= 0.12
+    assert ok.net > 0
+
+
+def test_fok_pair_kills_short_size_and_worse_ask():
+    from app.hunter import Level
+    from app.paper_sim import fok_pair
+
+    short = fok_pair(
+        up_asks=[Level(0.82, 10)],
+        down_asks=[Level(0.12, 40)],
+        shares=26.6,
+        up_limit=0.82,
+        down_limit=0.12,
+        fee_rate=0.07,
+    )
+    assert short.ok is False
+    assert short.reason == "fok_up_short"
+    moved = fok_pair(
+        up_asks=[Level(0.91, 40)],
+        down_asks=[Level(0.12, 40)],
+        shares=26.6,
+        up_limit=0.82,
+        down_limit=0.12,
+        fee_rate=0.07,
+    )
+    assert moved.ok is False
+    assert moved.reason == "fok_up_short"
+
+
+def test_home_text_shows_fok_kill_tape(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import home_text
+
+    st = Store(tmp_path / "fok.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    rt.last_loop = {
+        "status": "ok",
+        "markets": 10,
+        "signals": 1,
+        "fills": 0,
+        "snapshot_signals": 1,
+        "fok_kills": 1,
+        "fok_fills": 0,
+        "tape": {
+            "n": 10,
+            "min_ask_sum": 1.01,
+            "max_taker_net": -0.01,
+            "taker_fok": True,
+            "snapshot_signals": 1,
+            "fok_kills": 1,
+            "fok_fills": 0,
+            "nearest_s": 40,
+            "nearest_slug": "sol-updown-5m",
+            "slugs": ["sol-updown-5m"],
+        },
+    }
+    text = home_text(rt)
+    assert "FOK 影1/成0/殺1" in text
+    assert "Rev 9" in text
+
+
 def test_asks_cross_bid_requires_size_through():
     from app.hunter import Level
     from app.paper_sim import asks_cross_bid
@@ -1197,11 +1276,12 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 8
+    assert s["strategy_rev"] == 9
     assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["max_book_age_ms"]) == 60000.0
     assert s["tags"] == ["5M", "15M", "1H"]
     assert int(s["scan_limit"]) == 24
+    assert s.get("taker_fok") is True
     assert st.resting_open() == []
     after = st.paper_state()
     assert after["cash"] > cash_before
@@ -1226,7 +1306,8 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 8
+    assert body["strategy_rev"] == 9
+    assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
     assert float(body["maker_window_seconds"]) == 0.0

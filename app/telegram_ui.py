@@ -19,7 +19,8 @@ STATUS_ZH = {
     "paper_hedged": "單邊對沖",
     "paper_dumped": "單邊出貨",
     "paper_settled": "結算",
-    "paper_missed": "錯過（滑點）",
+    "paper_fok_killed": "FOK殺單",
+    "fok_killed": "FOK殺單",
     "filled": "成交",
     "cancelled": "已撤",
 }
@@ -32,6 +33,7 @@ TOGGLES = {
     "auto_merge": ("自動 merge", "兩邊齊就換返現金"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
+    "taker_fok": ("FOK 確認", "250ms 後重拉兩邊簿，掃不滿就整單取消（舊紙盤會當成交）"),
 }
 
 
@@ -262,7 +264,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 7：WS 盤口 hold 60s（一邊郁用另一邊最後簿）。尾盤補 HTTP。預設停掛單。\n"
+        "Rev 9：taker 用 FOK。等 250ms 再拉兩邊真簿，掃不滿就殺單（舊紙盤會當成交）。預設停掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -294,6 +296,12 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
         bits.append(f"過期 {int(tape['stale_pairs'])}")
     if tape.get("empty_ask_legs"):
         bits.append(f"單邊空簿 {int(tape['empty_ask_legs'])}")
+    if tape.get("taker_fok") and (tape.get("snapshot_signals") or tape.get("fok_kills") or tape.get("fok_fills")):
+        bits.append(
+            f"FOK 影{int(tape.get('snapshot_signals') or 0)}/"
+            f"成{int(tape.get('fok_fills') or 0)}/"
+            f"殺{int(tape.get('fok_kills') or 0)}"
+        )
     if tape.get("min_ask_sum") is not None:
         bits.append(f"ask合 {float(tape['min_ask_sum']):.2f}")
     if tape.get("max_taker_net") is not None:
@@ -322,7 +330,7 @@ def _status_text(rt: Runtime) -> str:
         + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status}\n"
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · 掛單尾窗 {win_txt}\n"
+        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 掛單尾窗 {win_txt}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
         + f"幣：{assets or '全部'}"
     )

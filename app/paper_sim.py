@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.fees import pair_taker_fee, taker_net
-from app.hunter import Level, Setup
+from app.hunter import Level, Setup, walk
 
 TICK = 0.01
 
@@ -50,6 +50,49 @@ def simulate_taker(
     if net <= 0:
         return TakerSim(False, up, down, net, cost, fees, slipped, "slip_killed_edge" if slipped else "non_positive_net")
     return TakerSim(True, up, down, net, cost, fees, slipped, "filled")
+
+
+def fok_pair(
+    *,
+    up_asks: list[Level],
+    down_asks: list[Level],
+    shares: float,
+    up_limit: float,
+    down_limit: float,
+    fee_rate: float,
+) -> TakerSim:
+    """Fill-or-kill both legs: full size at or better than the limits, or nothing.
+
+    This is the pair-FOK paper model. Live CLOB cannot atomically FOK two tokens;
+    paper still fills neither if either leg would kill, so we do not credit a
+    one-sided snapshot the way the old taker ledger did.
+    """
+    need = float(shares)
+    if need <= 0:
+        return TakerSim(False, 0.0, 0.0, 0.0, 0.0, 0.0, False, "fok_no_size")
+    up_cap = [lv for lv in up_asks if lv.price <= float(up_limit) + 1e-12]
+    dn_cap = [lv for lv in down_asks if lv.price <= float(down_limit) + 1e-12]
+    filled_up, up_vwap = walk(up_cap, need, asks=True)
+    filled_dn, dn_vwap = walk(dn_cap, need, asks=True)
+    if filled_up + 1e-9 < need:
+        return TakerSim(False, up_vwap, dn_vwap, 0.0, 0.0, 0.0, False, "fok_up_short")
+    if filled_dn + 1e-9 < need:
+        return TakerSim(False, up_vwap, dn_vwap, 0.0, 0.0, 0.0, False, "fok_down_short")
+    fees = pair_taker_fee(need, up_vwap, dn_vwap, fee_rate)
+    net = taker_net(need, up_vwap, dn_vwap, fee_rate)
+    cost = round(need - net, 6)
+    if net <= 0:
+        return TakerSim(False, round(up_vwap, 4), round(dn_vwap, 4), net, cost, fees, False, "fok_net")
+    return TakerSim(
+        True,
+        round(up_vwap, 4),
+        round(dn_vwap, 4),
+        round(net, 5),
+        cost,
+        fees,
+        False,
+        "fok_filled",
+    )
 
 
 def asks_cross_bid(asks: list[Level], bid_px: float, shares: float) -> bool:

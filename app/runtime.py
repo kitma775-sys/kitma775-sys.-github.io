@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
 from app.hunter import book_quote, hunt, summarize_quotes
 from app.markets import MarketData
-from app.paper_sim import asks_cross_bid, market_expired, seconds_left
+from app.paper_sim import TakerSim, asks_cross_bid, fok_pair, market_expired, seconds_left
 from app.rescue import parse_outcome_prices, plan_rescue
 from app.risk import approve
 from app.store import Store
@@ -340,6 +340,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     broker = rt.broker()
     signals = 0
     fills = 0
+    snapshot_signals = 0
+    fok_kills = 0
+    fok_fills = 0
     quotes: list[dict] = []
     book_errors = 0
     stale_pairs = 0
@@ -455,6 +458,53 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             if s.get("notify_rejects"):
                 await rt.notify(f"⏭ 跳過 {setup.title}\n原因：{decision.reason}")
             continue
+        if setup.kind == "taker":
+            snapshot_signals += 1
+        if setup.kind == "taker" and bool(s.get("taker_fok", True)):
+            setup.extra["paper_slip_ticks"] = 0
+            confirm = await _fok_confirm(rt, ev, setup)
+            payload["fok"] = confirm.reason
+            payload["fok_up"] = confirm.up_price
+            payload["fok_down"] = confirm.down_price
+            payload["snapshot_net"] = setup.net
+            if not confirm.ok:
+                fok_kills += 1
+                rt.cooldown[setup.slug] = time.time()
+                rt.store.add_scan(setup.slug, "taker", {**payload, "reason": confirm.reason})
+                rt.store.add_trade(
+                    slug=setup.slug,
+                    kind="taker",
+                    shares=setup.shares,
+                    up_price=setup.up_price,
+                    down_price=setup.down_price,
+                    net=0.0,
+                    mode=rt.mode(),
+                    status="paper_fok_killed" if paper_mode else "fok_killed",
+                    payload={
+                        "detail": f"FOK {confirm.reason} snapshot ${setup.net:.2f} @{setup.up_price}+{setup.down_price}",
+                        "snapshot_net": setup.net,
+                        "snapshot_up": setup.up_price,
+                        "snapshot_down": setup.down_price,
+                        "fok": confirm.reason,
+                    },
+                )
+                if s.get("notify_signals"):
+                    await rt.notify(
+                        f"🧪FOK 殺單（舊紙盤會當成交）\n{setup.title}\n"
+                        f"snapshot {setup.up_price}+{setup.down_price} × {setup.shares:.1f} 淨 ${setup.net:.2f}\n"
+                        f"確認後：{confirm.reason}",
+                    )
+                continue
+            setup.up_price = confirm.up_price
+            setup.down_price = confirm.down_price
+            setup.net = confirm.net
+            setup.fees = confirm.fees
+            setup.gross = round(1.0 - (confirm.up_price + confirm.down_price), 4)
+            payload["up"] = confirm.up_price
+            payload["down"] = confirm.down_price
+            payload["net"] = confirm.net
+            payload["reason"] = "fok_filled"
+            rt.store.add_scan(setup.slug, "taker", payload)
         result: FillResult = await broker.execute_pair(setup)
         rt.cooldown[setup.slug] = time.time()
         rt.store.add_trade(
@@ -470,6 +520,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if result.ok and result.status in {"filled", "paper_filled"}:
             fills += 1
+            if setup.kind == "taker" and bool(s.get("taker_fok", True)):
+                fok_fills += 1
             fill_cost = float((result.payload or {}).get("cost", setup.cost))
             fill_net = float((result.payload or {}).get("net", setup.net))
             fill_up = float((result.payload or {}).get("up_price", setup.up_price))
@@ -544,15 +596,49 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["ws_status"] = rt.ws_status
     tape["slugs"] = [ev.get("slug") for ev in events[:12] if ev.get("slug")]
     tape["tags"] = list(s.get("tags") or [s.get("tag") or "15M"])
+    tape["taker_fok"] = bool(s.get("taker_fok", True))
+    tape["snapshot_signals"] = snapshot_signals
+    tape["fok_kills"] = fok_kills
+    tape["fok_fills"] = fok_fills
     rt.last_loop.update(
         {
             "signals": signals,
             "fills": fills,
+            "snapshot_signals": snapshot_signals,
+            "fok_kills": fok_kills,
+            "fok_fills": fok_fills,
             "status": "ok",
             "paper": paper,
             "tape": tape,
             "ws_status": rt.ws_status,
         }
+    )
+
+
+async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
+    """Re-read both CLOB books after the official 250ms taker delay, then pair-FOK."""
+    s = rt.settings()
+    delay_ms = setting_num(s, "fok_delay_ms", 250.0)
+    if delay_ms > 0:
+        await asyncio.sleep(min(2.0, delay_ms / 1000.0))
+    if rt.data is None:
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "fok_no_http")
+    try:
+        up_book, dn_book = await asyncio.gather(
+            rt.data.book(ev["up_token"]),
+            rt.data.book(ev["down_token"]),
+        )
+    except Exception as exc:
+        rt.store.add_event("warn", f"fok book {ev.get('slug')}: {fmt_exc(exc)}")
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "fok_http")
+    fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
+    return fok_pair(
+        up_asks=up_book.get("asks") or [],
+        down_asks=dn_book.get("asks") or [],
+        shares=setup.shares,
+        up_limit=setup.up_price,
+        down_limit=setup.down_price,
+        fee_rate=fee_rate,
     )
 
 

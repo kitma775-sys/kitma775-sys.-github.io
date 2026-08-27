@@ -1,0 +1,43 @@
+{
+  "researched_at_utc": "2026-08-27T02:00:00Z",
+  "question": "If we switch paper/live taker from snapshot-fill to FOK, how do the four Rev 8 paper fills change?",
+  "current_paper": "Fill both legs immediately at the hunt snapshot VWAP if net>0 after fees. No delay. Size is the scanned depth.",
+  "fok": {
+    "delay_ms": 250,
+    "why": "Crypto up/down CLOB markets set itode=true: live taker orders are held 250ms then revalidated.",
+    "rule": "After the delay, HTTP both books. Full original size must still be available at price <= snapshot limits on BOTH legs, and taker_net must stay >0. Otherwise kill, no paper PnL.",
+    "live_caveat": "CLOB cannot atomically FOK two tokens. Paper pair-FOK fills neither if either leg would kill. Sequential live FOK can still leave one filled leg if the second dies; FORCE_PAPER stays on."
+  },
+  "four_rev8_fills_vs_public_tape": [
+    {
+      "slug": "sol-updown-5m-1787794500",
+      "paper_net": 1.12,
+      "snapshot": "0.82+0.12 × 26.6",
+      "tape": "±2s Up@0.82 size ~10; Down@0.12 existed; Up already 0.91–0.97 a few seconds later",
+      "fok": "kill (up short / price through 0.82 after 250ms)"
+    },
+    {
+      "slug": "eth-updown-5m-1787787900",
+      "paper_net": 1.39,
+      "snapshot": "0.2408+0.68 × 27.2",
+      "tape": "same-second Up prints at 0.27, not 0.2408; Down@0.68 is +3s",
+      "fok": "kill"
+    },
+    {
+      "slug": "btc-updown-5m-1787766600",
+      "paper_net": 0.75,
+      "snapshot": "0.62+0.32 × 26.6",
+      "tape": "0 public prints within ±8s",
+      "fok": "kill (ghost book)"
+    },
+    {
+      "slug": "doge-updown-5m-1787763600",
+      "paper_net": 0.71,
+      "snapshot": "0.58+0.36 × 26.6",
+      "tape": "nearby prints 0.38/0.73 and 0.52/0.68, not 0.58+0.36",
+      "fok": "kill"
+    }
+  ],
+  "expected_going_forward": "Dashboard 影/成/殺: snapshot_signals counts setups the old paper would have booked; fok_fills credit cash; fok_kills are the difference. Many 5m last-minute 6¢ holes will show as 殺單. A FOK fill is the subset that survived 250ms with full two-ask size still on the book.",
+  "still": "maker_window=0, min_edge=0.02, FORCE_PAPER, no live, no paper reset"
+}

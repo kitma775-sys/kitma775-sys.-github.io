@@ -110,6 +110,10 @@
         tile(String(st.open_markets||0), "開倉市場"),
         tile(String((d.last_loop||{}).signals ?? "—"), "上一圈信號"),
         tile(String((d.last_loop||{}).fills ?? "—"), "上一圈成交"),
+        tile(String((d.last_loop||{}).snapshot_signals ?? "—"), "snapshot會成"),
+        tile(String((d.last_loop||{}).fok_fills ?? "—"), "FOK成交"),
+        tile(String((d.last_loop||{}).fok_kills ?? "—"), "FOK殺單"),
+        tile(s.taker_fok===false ? "關" : "開", "FOK確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
@@ -125,7 +129,7 @@
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_execute ? "ON" : "OFF", "全自動")
       ].join("");
-      const statusZh = {paper_filled:"紙盤成交", paper_hedged:"單邊對沖", paper_dumped:"單邊出貨", paper_settled:"結算", paper_missed:"錯過", filled:"成交", cancelled:"已撤"};
+      const statusZh = {paper_filled:"紙盤成交", paper_fok_killed:"FOK殺單", fok_killed:"FOK殺單", paper_hedged:"單邊對沖", paper_dumped:"單邊出貨", paper_settled:"結算", paper_missed:"錯過", filled:"成交", cancelled:"已撤"};
       const fmtTs = (ts) => {
         if (!ts) return "";
         try { return new Date(Number(ts)*1000).toISOString().slice(11,19) + "Z"; } catch(e) { return ""; }

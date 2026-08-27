@@ -57,7 +57,8 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
-- **Rev 8**：掃 **5M＋15M＋1H**（5 分鐘窗每小時完場次數係 15m 的 3 倍）。每圈 24 盤；最後 3 分鐘優先，中段單邊 1 分盤唔好佔晒位。`best_ask=0` 會清 WS 賣盤，避免抽走後仲當有單。掛單仍然關。`min_edge` 維持 0.02。詳情 `research/no_trade_strategy.json`
+- **Rev 9**：taker **pair FOK**。Hunt 仍然用當刻盤口找信號；成交前等 250ms（crypto up/down `itode` delay）再 HTTP 重拉兩邊簿。兩邊都要喺限價內掃滿原數量，否則 **整單取消、唔入紙盤 PnL**。Dashboard 會分開「snapshot 會成」同「FOK 殺單」。掛單仍然關。`min_edge` 維持 0.02。紙盤未重置、未開實盤。詳情 `research/fok_vs_snapshot.json`
+- **Rev 8**：掃 **5M＋15M＋1H**（5 分鐘窗每小時完場次數係 15m 的 3 倍）。每圈 24 盤；最後 3 分鐘優先，中段單邊 1 分盤唔好佔晒位。`best_ask=0` 會清 WS 賣盤，避免抽走後仲當有單。
 - **Rev 7**：WS 盤口 hold 60 秒——一邊 ask 郁可以用另一邊最後簿去配。尾盤 ≤120s 每秒補一次 HTTP。Gamma `bestAsk≥0.99` 喺最後 3 分鐘唔再當空盤丟掉。
 - **Rev 6 教訓**：要求兩邊都 <2s 新鮮會跳過 MM requote；尾盤贏家 ask 被抽走就做唔到互補。HTTP 式尾盤掛單 6 小時 −$4.79、0 次兩邊成交。
 - 6 小時成交回放：HTTP 式尾盤掛單 $500→$495.21（兩邊齊成交 0 次，單邊對沖／出貨 −EV）。樂觀 1 秒成交推斷 taker 有正期望，但靜態 HTTP ask 合仍然 ≥ 1.01，所以要 WS 先有機會。

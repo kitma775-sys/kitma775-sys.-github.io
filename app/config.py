@@ -33,13 +33,15 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 8,
+    "strategy_rev": 9,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 8: add 5M windows (3× more tails) and rank two-ask books over
-    # mid-window pennies. Maker stays off. Taker min_edge stays 0.02.
+    # Rev 9: pair FOK — wait taker delay, re-fetch both books, fill both
+    # fully at the snapshot limits or credit nothing. Maker stays off.
     "maker_min_edge": 0.01,
+    "taker_fok": True,
+    "fok_delay_ms": 250.0,
 }
 
 
