@@ -20,6 +20,7 @@ TICKS = tuple(round(i / 100.0, 2) for i in range(90, 100))
 WINDOWS = (30, 45, 60, 90, 120, 180, 240, 300)
 FEE = 0.07
 DAYS = 30
+NOTIONAL = 25.0
 BANDS = [(lo, hi) for lo in TICKS for hi in TICKS if hi >= lo]
 
 
@@ -212,6 +213,18 @@ def add_stat(store: dict, key: str, won: bool, price: float, size: float) -> Non
     row["prices"].append(round(price, 4))
 
 
+def usd_fields(n, pnl_ps, avg_px) -> dict:
+    if not n or pnl_ps is None or not avg_px:
+        return {"usd_per_fill_at_25": None, "total_usd_at_25": None, "usd_per_day_at_25": None}
+    fill = pnl_ps * NOTIONAL / avg_px
+    total = n * fill
+    return {
+        "usd_per_fill_at_25": round(fill, 4),
+        "total_usd_at_25": round(total, 2),
+        "usd_per_day_at_25": round(total / DAYS, 2),
+    }
+
+
 def finish(store: dict) -> dict:
     out = {}
     for key, row in store.items():
@@ -230,6 +243,7 @@ def finish(store: dict) -> dict:
             "pnl_sizew_per_share": round(row["pnl_sizew"] / row["size"], 6) if row["size"] else None,
             "total_pnl_unweighted": round(row["pnl"], 4) if n else None,
             "avg_px": avg_px,
+            **usd_fields(n, row["pnl"] / n if n else None, avg_px),
         }
     return out
 
@@ -250,6 +264,9 @@ def compact_buy(block: dict) -> dict:
                 "pnl_per_share": cell["pnl_per_share"],
                 "wr_ci95": cell["wr_ci95"],
                 "avg_px": cell.get("avg_px"),
+                "usd_per_fill_at_25": cell.get("usd_per_fill_at_25"),
+                "total_usd_at_25": cell.get("total_usd_at_25"),
+                "usd_per_day_at_25": cell.get("usd_per_day_at_25"),
             }
         out[f"{tick:.2f}"] = row
     return out
@@ -344,6 +361,7 @@ def rank_bands(finished: dict, min_n: int = 500) -> dict:
         )
 
     def slim(r: dict) -> dict:
+        usd = usd_fields(r.get("n"), r.get("pnl_per_share"), r.get("avg_px"))
         return {
             "band": r["band"],
             "window": r["window"],
@@ -356,6 +374,7 @@ def rank_bands(finished: dict, min_n: int = 500) -> dict:
             "total_pnl_unweighted": r["total_pnl_unweighted"],
             "wr_ci95": r["wr_ci95"],
             "ci_clears": r["ci_clears"],
+            **usd,
         }
 
     clearing = [r for r in rows if r["ci_clears"] and r["n"] >= min_n]
@@ -393,6 +412,84 @@ def rank_bands(finished: dict, min_n: int = 500) -> dict:
         "best_plus_ev_if_ci_thin": top(plus, lambda r: r["pnl_per_share"] or -9)[:5],
         "best_window_by_tick": best_window_by_tick,
         "avoid_windows": [30, 45],
+    }
+
+
+def build_pnl_compare(finished_buy: dict, ranks: dict) -> dict:
+    ticks = []
+    for tick in TICKS:
+        for win in WINDOWS:
+            cell = finished_buy.get(f"buy_{tick:.2f}_last{win}s")
+            if not cell:
+                continue
+            usd = usd_fields(cell["n"], cell["pnl_per_share"], cell["avg_px"])
+            ticks.append(
+                {
+                    "combo": f"{tick:.2f} last{win}s",
+                    "tick": f"{tick:.2f}",
+                    "window": win,
+                    "n": cell["n"],
+                    "lose": cell["lose"],
+                    "reverse": cell["reverse"],
+                    "pnl_per_share": cell["pnl_per_share"],
+                    **usd,
+                }
+            )
+    current = ranks.get("current_bot_96_98_last180s") or {}
+    cur_total = usd_fields(current.get("n"), current.get("pnl_per_share"), current.get("avg_px")).get(
+        "total_usd_at_25"
+    ) or 0.0
+    for row in ticks:
+        tot = row.get("total_usd_at_25")
+        row["vs_current_96_98_180s"] = None if not cur_total or tot is None else round(tot / cur_total, 2)
+
+    def take(xs, k=10, reverse=True):
+        return sorted(xs, key=lambda r: (r["total_usd_at_25"] is not None, r["total_usd_at_25"] or -9e9), reverse=reverse)[:k]
+
+    def strat(name: str, src: dict | None) -> dict | None:
+        if not src:
+            return None
+        usd = usd_fields(src.get("n"), src.get("pnl_per_share"), src.get("avg_px"))
+        tot = usd.get("total_usd_at_25")
+        return {
+            "name": name,
+            "band": src.get("band"),
+            "window": src.get("window"),
+            "n": src.get("n"),
+            "lose": src.get("lose"),
+            "reverse": src.get("reverse"),
+            "pnl_per_share": src.get("pnl_per_share"),
+            **usd,
+            "vs_current_96_98_180s": None if not cur_total or tot is None else round(tot / cur_total, 2),
+        }
+
+    by = ranks.get("best_window_by_tick") or {}
+    strategies = [
+        strat("current_bot 96-98 last180s", current),
+        strat("max_ev 90 last300s", (ranks.get("best_ev") or [None])[0]),
+        strat("safest 97 last180s", (ranks.get("safest") or [None])[0]),
+    ]
+    for t in ("0.90", "0.91", "0.92", "0.94", "0.95", "0.96", "0.97", "0.98", "0.99"):
+        if t in by:
+            strategies.append(strat(f"{t} best window", by[t]))
+    strategies = [s for s in strategies if s]
+    return {
+        "sizing": (
+            "Each fill uses $25 / avg_px shares, 7% Polymarket fee, hold to official resolve. "
+            "No daily circuit, no FOK misses, one fill per market."
+        ),
+        "notional_usd": NOTIONAL,
+        "days": DAYS,
+        "current_bot_total_usd_30d": cur_total,
+        "strategies": strategies,
+        "leaderboard_total_usd": take(ticks, 12),
+        "worst_total_usd": take(ticks, 8, reverse=False),
+        "last180s_by_tick": [r for r in ticks if r["window"] == 180],
+        "last300s_by_tick": [r for r in ticks if r["window"] == 300],
+        "honest": [
+            "Dollar totals assume every qualifying 5m book fills at $25. Live FOK, scan_limit, and a $50 circuit cut this a lot.",
+            "90¢ last 5m is ~5× the 96–98 last-3m dollar PnL and ~2× the blowups; the circuit will clip it.",
+        ],
     }
 
 
@@ -560,6 +657,7 @@ def main() -> None:
         "first_buy": finished_buy,
         "buy_table": compact_buy(finished_buy),
         "ranks": ranks,
+        "pnl_compare": build_pnl_compare(finished_buy, ranks),
         "steamrollers_hit_99_then_lost_in_5m": steam_uniq[:25],
         "steamroller_count_5m": len(steam_uniq),
         "snapshot_at_T": finish(snap),
@@ -608,6 +706,14 @@ def main() -> None:
         )
     print("\n== current 96-98 last180 ==", ranks.get("current_bot_96_98_last180s"), flush=True)
     print("== rec ==", rec.get("bot_settings_if_following_tape"), flush=True)
+    print("\n== PnL $25/fill 30d ==", flush=True)
+    for s in (out.get("pnl_compare") or {}).get("strategies") or []:
+        print(
+            f"  {s['name']}: 30d ${s['total_usd_at_25']:+.0f}  "
+            f"/day ${s['usd_per_day_at_25']:+.1f}  fill ${s['usd_per_fill_at_25']:+.3f}  "
+            f"vs_cur {s['vs_current_96_98_180s']}x  lose={s['lose']}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":
