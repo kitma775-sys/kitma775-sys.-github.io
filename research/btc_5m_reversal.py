@@ -21,6 +21,7 @@ WINDOWS = (30, 45, 60, 90, 120, 180, 240, 300)
 FEE = 0.07
 DAYS = 30
 NOTIONAL = 25.0
+CIRCUIT_USD = 50.0
 BANDS = [(lo, hi) for lo in TICKS for hi in TICKS if hi >= lo]
 
 
@@ -213,7 +214,146 @@ def add_stat(store: dict, key: str, won: bool, price: float, size: float) -> Non
     row["prices"].append(round(price, 4))
 
 
-def usd_fields(n, pnl_ps, avg_px) -> dict:
+def usd_fill(price: float, won: bool) -> float:
+    return pnl_per_share(price, won) * (NOTIONAL / max(price, 0.01))
+
+
+def circuit_backtest(events: list[tuple[int, float, bool]], limit: float = CIRCUIT_USD) -> dict:
+    """Settle in time order. After day PnL hits -limit, skip later fills that UTC day."""
+    if not events:
+        return {
+            "n_taken": 0,
+            "n_skipped_circuit": 0,
+            "lose_taken": 0,
+            "halt_days": 0,
+            "trade_days": 0,
+            "total_usd": 0.0,
+            "usd_per_day": 0.0,
+            "worst_day_usd": 0.0,
+            "best_day_usd": 0.0,
+        }
+    events = sorted(events, key=lambda e: e[0])
+    total = 0.0
+    day_pnl = 0.0
+    day_key = None
+    halted = False
+    taken = 0
+    skipped = 0
+    lose_taken = 0
+    halt_days = 0
+    day_pnls: list[float] = []
+
+    def close_day():
+        nonlocal halt_days
+        if day_key is None:
+            return
+        day_pnls.append(day_pnl)
+        if halted:
+            halt_days += 1
+
+    for ts, usd, lost in events:
+        d = datetime.fromtimestamp(ts, timezone.utc).date().isoformat()
+        if d != day_key:
+            close_day()
+            day_key = d
+            day_pnl = 0.0
+            halted = False
+        if halted:
+            skipped += 1
+            continue
+        day_pnl += usd
+        total += usd
+        taken += 1
+        lose_taken += int(lost)
+        if day_pnl <= -abs(limit):
+            halted = True
+    close_day()
+    n_days = max(len(day_pnls), 1)
+    return {
+        "n_taken": taken,
+        "n_skipped_circuit": skipped,
+        "lose_taken": lose_taken,
+        "halt_days": halt_days,
+        "trade_days": len(day_pnls),
+        "total_usd": round(total, 2),
+        "usd_per_day": round(total / n_days, 2),
+        "worst_day_usd": round(min(day_pnls), 2) if day_pnls else 0.0,
+        "best_day_usd": round(max(day_pnls), 2) if day_pnls else 0.0,
+    }
+
+
+def rank_no_water(band_events: dict, finished_band: dict) -> dict:
+    rows = []
+    for key, evs in band_events.items():
+        parsed = parse_band_key(key)
+        if not parsed:
+            continue
+        lo, hi, win = parsed
+        cell = finished_band.get(key) or {}
+        bt = circuit_backtest(evs)
+        unclip = usd_fields(cell.get("n"), cell.get("pnl_per_share"), cell.get("avg_px"))
+        rows.append(
+            {
+                "band": f"{lo:.2f}-{hi:.2f}",
+                "window": win,
+                "avg_px": cell.get("avg_px"),
+                "reverse": cell.get("reverse"),
+                "unclipped_n": cell.get("n"),
+                "unclipped_usd_30d": unclip.get("total_usd_at_25"),
+                **bt,
+            }
+        )
+    rows.sort(key=lambda r: (r["total_usd"], -r["lose_taken"]), reverse=True)
+    current = next(
+        (r for r in rows if r["band"] == "0.96-0.98" and r["window"] == 180),
+        None,
+    )
+    cur_usd = (current or {}).get("total_usd") or 0.0
+
+    def vs(r):
+        out = dict(r)
+        out["vs_current"] = None if not cur_usd else round(r["total_usd"] / cur_usd, 2)
+        return out
+
+    singles = [r for r in rows if r["band"][:4] == r["band"][5:]]  # 0.90-0.90
+    return {
+        "rule": (
+            "First BUY in band, $25 / price shares, 7% fee, hold to official resolve, "
+            "one fill per 5m market. UTC-day PnL; after -$50 skip later fills that day. "
+            "Still uses public prints (not live FOK), so fill rate remains optimistic."
+        ),
+        "circuit_usd": CIRCUIT_USD,
+        "notional_usd": NOTIONAL,
+        "current_bot_96_98_last180s": vs(current) if current else None,
+        "best": vs(rows[0]) if rows else None,
+        "top15": [vs(r) for r in rows[:15]],
+        "bottom8": [vs(r) for r in rows[-8:]],
+        "singles_best_window": [
+            vs(r)
+            for r in sorted(
+                [
+                    max((x for x in rows if x["band"] == f"{t:.2f}-{t:.2f}"), key=lambda z: z["total_usd"], default=None)
+                    for t in TICKS
+                ],
+                key=lambda r: r["total_usd"] if r else -9e9,
+                reverse=True,
+            )
+            if r
+        ],
+        "playbook": {
+            "best_no_water": vs(rows[0]) if rows else None,
+            "current": vs(current) if current else None,
+            "safest_low_halt": vs(
+                min(
+                    (r for r in rows if r["total_usd"] > 0 and r["window"] in (180, 240, 300)),
+                    key=lambda r: (r["halt_days"], -r["total_usd"]),
+                    default=rows[0] if rows else None,
+                )
+            )
+            if rows
+            else None,
+        },
+    }
     if not n or pnl_ps is None or not avg_px:
         return {"usd_per_fill_at_25": None, "total_usd_at_25": None, "usd_per_day_at_25": None}
     fill = pnl_ps * NOTIONAL / avg_px
@@ -565,6 +705,7 @@ def main() -> None:
     first_any: dict = {}
     first_buy: dict = {}
     band_buy: dict = {}
+    band_events: dict[str, list] = {}
     ever: dict = {}
     snap: dict = {}
     steam = []
@@ -586,13 +727,16 @@ def main() -> None:
                 if not cands:
                     continue
                 t = min(cands, key=lambda x: x["ts"])
+                won = t["outcome"] == winner
                 add_stat(
                     band_buy,
                     f"band_{lo:.2f}_{hi:.2f}_last{win}s",
-                    t["outcome"] == winner,
+                    won,
                     t["px"],
                     t["size"],
                 )
+                key = f"band_{lo:.2f}_{hi:.2f}_last{win}s"
+                band_events.setdefault(key, []).append((m["end"], usd_fill(t["px"], won), not won))
         for win in WINDOWS:
             mx = ever_max(trades, win)
             fav = "Up" if mx["Up"] >= mx["Down"] else "Down"
@@ -636,7 +780,23 @@ def main() -> None:
     finished_buy = finish(first_buy)
     finished_band = finish(band_buy)
     ranks = rank_bands(finished_band, min_n=500)
+    no_water = rank_no_water(band_events, finished_band)
     rec = make_recommendation(ranks)
+    if no_water.get("best"):
+        rec["best_no_water"] = {
+            "band": no_water["best"]["band"],
+            "window": no_water["best"]["window"],
+            "circuit_clipped_usd_30d": no_water["best"]["total_usd"],
+            "usd_per_day": no_water["best"]["usd_per_day"],
+            "halt_days": no_water["best"]["halt_days"],
+            "n_taken": no_water["best"]["n_taken"],
+            "lose_taken": no_water["best"]["lose_taken"],
+            "vs_current": no_water["best"].get("vs_current"),
+            "why": (
+                "Max 30d PnL after $50 UTC-day circuit, $25/fill, one fill per market, band first BUY. "
+                "Prints still optimistic vs live FOK."
+            ),
+        }
     out = {
         "researched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "asset": "btc",
@@ -659,6 +819,7 @@ def main() -> None:
         "buy_table": compact_buy(finished_buy),
         "ranks": ranks,
         "pnl_compare": build_pnl_compare(finished_buy, ranks),
+        "no_water": no_water,
         "steamrollers_hit_99_then_lost_in_5m": steam_uniq[:25],
         "steamroller_count_5m": len(steam_uniq),
         "snapshot_at_T": finish(snap),
@@ -707,14 +868,16 @@ def main() -> None:
         )
     print("\n== current 96-98 last180 ==", ranks.get("current_bot_96_98_last180s"), flush=True)
     print("== rec ==", rec.get("bot_settings_if_following_tape"), flush=True)
-    print("\n== PnL $25/fill 30d ==", flush=True)
-    for s in (out.get("pnl_compare") or {}).get("strategies") or []:
+    print("\n== NO-WATER $50 circuit 30d ==", flush=True)
+    for r in (no_water.get("top15") or [])[:10]:
         print(
-            f"  {s['name']}: 30d ${s['total_usd_at_25']:+.0f}  "
-            f"/day ${s['usd_per_day_at_25']:+.1f}  fill ${s['usd_per_fill_at_25']:+.3f}  "
-            f"vs_cur {s['vs_current_96_98_180s']}x  lose={s['lose']}",
+            f"  {r['band']} last{r['window']}s  30d ${r['total_usd']:+.0f}  "
+            f"/day ${r['usd_per_day']:+.1f}  taken={r['n_taken']} lose={r['lose_taken']} "
+            f"halt_days={r['halt_days']} skip={r['n_skipped_circuit']} vs_cur={r.get('vs_current')}",
             flush=True,
         )
+    print("  current", no_water.get("current_bot_96_98_last180s"), flush=True)
+    print("  BEST", no_water.get("best"), flush=True)
 
 
 if __name__ == "__main__":
