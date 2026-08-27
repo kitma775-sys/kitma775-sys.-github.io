@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BTC 5-minute Up/Down 95–99¢ reversal study (read-only public APIs)."""
+"""BTC 5-minute Up/Down 90–99¢ reversal + window/band study (read-only public APIs)."""
 
 from __future__ import annotations
 
@@ -8,19 +8,19 @@ import math
 import time
 import urllib.error
 import urllib.request
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
 GAMMA = "https://gamma-api.polymarket.com"
 DATA = "https://data-api.polymarket.com"
-UA = {"User-Agent": "surf-arb-research/1.1 (read-only; no trading)"}
+UA = {"User-Agent": "surf-arb-research/1.3 (read-only; no trading)"}
 OUT = Path(__file__).with_name("btc_5m_reversal.json")
-TICKS = (0.95, 0.96, 0.97, 0.98, 0.99)
-WINDOWS = (30, 45, 90, 180, 300, 900)
+TICKS = tuple(round(i / 100.0, 2) for i in range(90, 100))
+WINDOWS = (30, 45, 60, 90, 120, 180, 240, 300)
 FEE = 0.07
 DAYS = 30
+BANDS = [(lo, hi) for lo in TICKS for hi in TICKS if hi >= lo]
 
 
 def get_json(url: str, timeout: float = 25.0, tries: int = 4):
@@ -67,6 +67,12 @@ def pnl_per_share(price: float, won: bool) -> float:
     if won:
         return 1.0 - price - fee
     return -price - fee
+
+
+def breakeven_wr(price: float) -> float:
+    win = 1.0 - price - fee_on(price)
+    lose = -price - fee_on(price)
+    return -lose / (win - lose)
 
 
 def wilson(wins: int, n: int) -> tuple[float, float] | None:
@@ -161,6 +167,19 @@ def first_hits_in(trades: list[dict], left_max: float, *, buy_only: bool) -> dic
     return seen
 
 
+def first_in_band(trades: list[dict], left_max: float, lo: float, hi: float) -> dict | None:
+    """First BUY whose rounded price sits in [lo, hi] after the window opens."""
+    for t in trades:
+        if t["left"] < 0 or t["left"] > left_max:
+            continue
+        if t["side"] != "BUY":
+            continue
+        tick = round(t["px"], 2)
+        if lo <= tick <= hi:
+            return t
+    return None
+
+
 def ever_max(trades: list[dict], left_max: float) -> dict[str, float]:
     out = {"Up": 0.0, "Down": 0.0}
     for t in trades:
@@ -170,7 +189,6 @@ def ever_max(trades: list[dict], left_max: float) -> dict[str, float]:
 
 
 def snapshot_at(trades: list[dict], left: float) -> dict[str, float]:
-    """Last print of each side with seconds_left >= left (i.e. at that clock)."""
     last = {}
     for t in trades:
         if t["left"] >= left:
@@ -200,6 +218,7 @@ def finish(store: dict) -> dict:
         n = row["n"]
         wr = row["win"] / n if n else None
         ci = wilson(row["win"], n)
+        avg_px = round(sum(row["prices"]) / n, 4) if n else None
         out[key] = {
             "n": n,
             "win": row["win"],
@@ -209,10 +228,8 @@ def finish(store: dict) -> dict:
             "reverse": None if wr is None else round(1.0 - wr, 6),
             "pnl_per_share": round(row["pnl"] / n, 6) if n else None,
             "pnl_sizew_per_share": round(row["pnl_sizew"] / row["size"], 6) if row["size"] else None,
-            "need_wins_per_blowup": None
-            if not n or wr in (None, 1.0) or row["lose"] == 0
-            else round((row["win"] / row["lose"]) if row["lose"] else None, 2),
-            "avg_px": round(sum(row["prices"]) / n, 4) if n else None,
+            "total_pnl_unweighted": round(row["pnl"], 4) if n else None,
+            "avg_px": avg_px,
         }
     return out
 
@@ -232,114 +249,193 @@ def compact_buy(block: dict) -> dict:
                 "wr": cell["wr"],
                 "pnl_per_share": cell["pnl_per_share"],
                 "wr_ci95": cell["wr_ci95"],
+                "avg_px": cell.get("avg_px"),
             }
         out[f"{tick:.2f}"] = row
     return out
 
 
-def load_prior_14d() -> dict | None:
+def load_priors() -> tuple[dict | None, dict | None]:
     if not OUT.exists():
-        return None
+        return None, None
     old = json.loads(OUT.read_text())
-    if old.get("days") != 14 or not old.get("first_buy"):
-        return old.get("prior_14d")
+    prior_14d = old.get("prior_14d")
+    if old.get("days") == 14 and old.get("first_buy"):
+        prior_14d = {
+            "researched_at_utc": old.get("researched_at_utc"),
+            "markets_resolved": old.get("markets_resolved"),
+            "first_buy": compact_buy(old["first_buy"]),
+            "recommendation": old.get("recommendation"),
+        }
+    prior_30d = old.get("prior_30d_95_99")
+    ticks = set((old.get("buy_table") or {}).keys())
+    if old.get("days") == 30 and old.get("buy_table") and "0.90" not in ticks:
+        prior_30d = {
+            "researched_at_utc": old.get("researched_at_utc"),
+            "markets_resolved": old.get("markets_resolved"),
+            "markets_with_tape": old.get("markets_with_tape"),
+            "steamroller_count_5m": old.get("steamroller_count_5m"),
+            "buy_table": old.get("buy_table"),
+            "recommendation": old.get("recommendation"),
+        }
+    return prior_14d, prior_30d
+
+
+def math_table() -> dict:
+    rows = {}
+    for p in TICKS:
+        win = 1.0 - p - fee_on(p)
+        lose = -p - fee_on(p)
+        be = -lose / (win - lose)
+        rows[f"{p:.2f}"] = {
+            "fee": round(fee_on(p), 6),
+            "win_pnl": round(win, 6),
+            "lose_pnl": round(lose, 6),
+            "breakeven_wr": round(be, 6),
+            "breakeven_reverse": round(1.0 - be, 6),
+            "wins_to_offset_one_25usd_loss": round((-lose * 25) / (win * 25), 1),
+        }
+    return rows
+
+
+def annotate(cell: dict) -> dict:
+    avg = cell.get("avg_px") or 0.95
+    be = breakeven_wr(avg)
+    ci = cell.get("wr_ci95") or [0.0, 1.0]
+    pnl = cell.get("pnl_per_share") or 0.0
     return {
-        "researched_at_utc": old.get("researched_at_utc"),
-        "markets_resolved": old.get("markets_resolved"),
-        "markets_with_tape": old.get("markets_with_tape"),
-        "steamroller_count_5m": old.get("steamroller_count_5m"),
-        "first_buy": compact_buy(old["first_buy"]),
-        "recommendation": old.get("recommendation"),
+        **{k: cell[k] for k in cell if k != "total_pnl_unweighted"},
+        "be_wr_at_avg_px": round(be, 6),
+        "ci_clears": bool(pnl > 0 and ci[0] >= be),
+        "plus_ev": bool(pnl > 0),
+        "total_pnl_unweighted": cell.get("total_pnl_unweighted"),
     }
 
 
-def make_recommendation(first_buy: dict, math_rows: dict) -> dict:
-    def cell(tick: float, win: int):
-        return first_buy.get(f"buy_{tick:.2f}_last{win}s")
+def parse_band_key(key: str) -> tuple[float, float, int] | None:
+    # band_0.90_0.96_last180s
+    if not key.startswith("band_"):
+        return None
+    try:
+        rest = key[len("band_") :]
+        lo_s, hi_s, tail = rest.split("_", 2)
+        win = int(tail.replace("last", "").replace("s", ""))
+        return float(lo_s), float(hi_s), win
+    except (ValueError, IndexError):
+        return None
 
-    def clears(tick: float, win: int) -> bool:
-        row = cell(tick, win)
-        if not row or row["pnl_per_share"] is None or row["pnl_per_share"] <= 0:
-            return False
-        be = math_rows[f"{tick:.2f}"]["breakeven_wr"]
-        ci = row.get("wr_ci95") or [0, 0]
-        return ci[0] >= be
 
-    safest = None
-    for win in (180, 300, 90, 45, 30, 900):
-        for tick in (0.99, 0.98, 0.97, 0.96, 0.95):
-            row = cell(tick, win)
-            if not row or not clears(tick, win):
-                continue
-            key = (row["reverse"], -row["n"], tick, win)
-            if safest is None or key < safest[0]:
-                safest = (key, row)
-    best_ev = None
+def rank_bands(finished: dict, min_n: int = 500) -> dict:
+    rows = []
+    for key, cell in finished.items():
+        parsed = parse_band_key(key)
+        if not parsed:
+            continue
+        lo, hi, win = parsed
+        row = annotate(cell)
+        rows.append(
+            {
+                "min": lo,
+                "max": hi,
+                "window": win,
+                "band": f"{lo:.2f}-{hi:.2f}",
+                **row,
+            }
+        )
+
+    def slim(r: dict) -> dict:
+        return {
+            "band": r["band"],
+            "window": r["window"],
+            "n": r["n"],
+            "lose": r["lose"],
+            "avg_px": r["avg_px"],
+            "reverse": r["reverse"],
+            "wr": r["wr"],
+            "pnl_per_share": r["pnl_per_share"],
+            "total_pnl_unweighted": r["total_pnl_unweighted"],
+            "wr_ci95": r["wr_ci95"],
+            "ci_clears": r["ci_clears"],
+        }
+
+    clearing = [r for r in rows if r["ci_clears"] and r["n"] >= min_n]
+    plus = [r for r in rows if r["plus_ev"] and r["n"] >= min_n]
+
+    def top(xs, keyfn, k=10, reverse=True):
+        return [slim(r) for r in sorted(xs, key=keyfn, reverse=reverse)[:k]]
+
+    best_window_by_tick = {}
     for tick in TICKS:
-        for win in (180, 300, 90):
-            row = cell(tick, win)
-            if not row or row["n"] < 500 or row["pnl_per_share"] is None:
-                continue
-            cand = (row["pnl_per_share"], row["n"], tick, win, row)
-            if best_ev is None or cand[0] > best_ev[0]:
-                best_ev = cand
-    bal = cell(0.96, 180)
+        cands = [r for r in rows if abs(r["min"] - tick) < 1e-9 and abs(r["max"] - tick) < 1e-9]
+        if not cands:
+            continue
+        clear = [r for r in cands if r["ci_clears"]]
+        pool = clear or cands
+        best = max(pool, key=lambda r: (r["pnl_per_share"] or -9, r["n"]))
+        best_window_by_tick[f"{tick:.2f}"] = slim(best)
+
+    current = next(
+        (slim(r) for r in rows if abs(r["min"] - 0.96) < 1e-9 and abs(r["max"] - 0.98) < 1e-9 and r["window"] == 180),
+        None,
+    )
+    return {
+        "min_n": min_n,
+        "n_combos": len(rows),
+        "n_ci_clears": len(clearing),
+        "current_bot_96_98_last180s": current,
+        "best_ev": top(clearing, lambda r: r["pnl_per_share"] or -9),
+        "safest": top(clearing, lambda r: (r["reverse"] if r["reverse"] is not None else 9, -r["n"]), reverse=False),
+        "best_total_edge": top(clearing, lambda r: (r["total_pnl_unweighted"] or -9)),
+        "best_balance": top(
+            clearing,
+            lambda r: (r["pnl_per_share"] or 0) / max(r["reverse"] or 0.001, 0.001),
+        ),
+        "best_plus_ev_if_ci_thin": top(plus, lambda r: r["pnl_per_share"] or -9)[:5],
+        "best_window_by_tick": best_window_by_tick,
+        "avoid_windows": [30, 45],
+    }
+
+
+def make_recommendation(ranks: dict) -> dict:
+    current = ranks.get("current_bot_96_98_last180s")
+    best_ev = (ranks.get("best_ev") or [None])[0]
+    safest = (ranks.get("safest") or [None])[0]
+    best_bal = (ranks.get("best_balance") or [None])[0]
+    by_tick = ranks.get("best_window_by_tick") or {}
+    pick = best_bal or best_ev
     rec = {
-        "sample": "BTC 5m, 30d, first BUY print in window, 7% fee, hold to official resolve",
-        "bot_settings_if_following_tape": {
-            "favorite_min_price": 0.96,
-            "favorite_max_price": 0.98,
-            "favorite_window_seconds": 180,
-            "note": "Keep 96–98 last 3 minutes unless 30d tape flips 98 last 180s to −EV. Skip 99 as taker.",
-        },
+        "sample": "BTC 5m, 30d, first BUY in band after window opens, 7% fee, hold to official resolve",
+        "current_bot": current,
+        "best_ev_combo": best_ev,
+        "safest_combo": safest,
+        "best_balance_combo": best_bal,
+        "best_window_by_tick": by_tick,
+        "avoid": "Last 30–45s. Taker 99¢. 15m books. Full-hour 90–99¢.",
     }
-    if safest:
-        (_rev, _n, tick, win), row = safest
-        rec["safest_tick_if_you_can_fill"] = {
-            "tick": tick,
-            "window_seconds": win,
-            "n": row["n"],
-            "wr": row["wr"],
-            "reverse": row["reverse"],
-            "pnl_per_share": row["pnl_per_share"],
-            "why": "Lowest reverse among large-n taker combos whose 95% CI still clears fee breakeven.",
+    if pick:
+        rec["bot_settings_if_following_tape"] = {
+            "favorite_min_price": float(pick["band"].split("-")[0]),
+            "favorite_max_price": float(pick["band"].split("-")[1]),
+            "favorite_window_seconds": pick["window"],
+            "why": (
+                f"{pick['band']} last {pick['window']}s: reverse {pick['reverse']}, "
+                f"+{pick['pnl_per_share']} /share, n={pick['n']}, CI clears breakeven at avg fill."
+            ),
         }
-    if best_ev:
-        _pnl, _n, tick, win, row = best_ev
-        rec["best_ev_tick"] = {
-            "tick": tick,
-            "window_seconds": win,
-            "n": row["n"],
-            "wr": row["wr"],
-            "reverse": row["reverse"],
-            "pnl_per_share": row["pnl_per_share"],
-        }
-    if bal:
-        rec["best_balance"] = {
-            "tick": 0.96,
-            "window_seconds": 180,
-            "n": bal["n"],
-            "wr": bal["wr"],
-            "reverse": bal["reverse"],
-            "pnl_per_share": bal["pnl_per_share"],
-            "why": "96¢ last 3 minutes: more edge per share than 98, lower reverse than 95.",
-        }
-    rec["best_window"] = {
-        "seconds": 180,
-        "also_ok": 300,
-        "avoid": [30, 45],
-        "why": "180s ≈ full 5m. Last 30–45s is leftover size / adverse selection.",
-    }
     return rec
 
 
 def main() -> None:
-    prior_14d = load_prior_14d()
+    prior_14d, prior_30d = load_priors()
     now = int(time.time())
     last_closed = now - (now % 300) - 300
     days = DAYS
     starts = [last_closed - i * 300 for i in range(days * 24 * 12)]
-    print(f"fetch {len(starts)} btc 5m windows ending {datetime.fromtimestamp(last_closed, timezone.utc).isoformat()}", flush=True)
+    print(
+        f"fetch {len(starts)} btc 5m windows ending "
+        f"{datetime.fromtimestamp(last_closed, timezone.utc).isoformat()}",
+        flush=True,
+    )
     markets = []
     errors = 0
     skipped = 0
@@ -366,6 +462,7 @@ def main() -> None:
 
     first_any: dict = {}
     first_buy: dict = {}
+    band_buy: dict = {}
     ever: dict = {}
     snap: dict = {}
     steam = []
@@ -382,12 +479,24 @@ def main() -> None:
                 add_stat(first_any, f"first_{tick:.2f}_last{win}s", outcome == winner, t["px"], t["size"])
             for (tick, outcome), t in hits_buy.items():
                 add_stat(first_buy, f"buy_{tick:.2f}_last{win}s", outcome == winner, t["px"], t["size"])
+            for lo, hi in BANDS:
+                cands = [t for (tick, _o), t in hits_buy.items() if lo <= tick <= hi]
+                if not cands:
+                    continue
+                t = min(cands, key=lambda x: x["ts"])
+                add_stat(
+                    band_buy,
+                    f"band_{lo:.2f}_{hi:.2f}_last{win}s",
+                    t["outcome"] == winner,
+                    t["px"],
+                    t["size"],
+                )
         for win in WINDOWS:
             mx = ever_max(trades, win)
             fav = "Up" if mx["Up"] >= mx["Down"] else "Down"
             px = mx[fav]
             tick = bucket(px) or (0.99 if px >= 0.99 else None)
-            if tick is None or px < 0.945:
+            if tick is None or px < 0.895:
                 continue
             won = fav == winner
             add_stat(ever, f"max_{tick:.2f}_last{win}s", won, px if px <= 0.999 else 0.99, 25.0)
@@ -412,7 +521,6 @@ def main() -> None:
                 continue
             add_stat(snap, f"snap_{tick:.2f}_at{win}s", fav == winner, px, 25.0)
 
-    # unique steamroller events at 300s (full 5m)
     steam_full = [x for x in steam if x["window"] == 300]
     seen = set()
     steam_uniq = []
@@ -422,70 +530,80 @@ def main() -> None:
         seen.add(x["slug"])
         steam_uniq.append(x)
 
-    def math_table():
-        rows = {}
-        for p in TICKS:
-            win = 1.0 - p - fee_on(p)
-            lose = -p - fee_on(p)
-            be = -lose / (win - lose)
-            rows[f"{p:.2f}"] = {
-                "fee": round(fee_on(p), 6),
-                "win_pnl": round(win, 6),
-                "lose_pnl": round(lose, 6),
-                "breakeven_wr": round(be, 6),
-                "wins_to_offset_one_25usd_loss": round((-lose * 25) / (win * 25), 1),
-            }
-        return rows
-
     math_rows = math_table()
     finished_buy = finish(first_buy)
+    finished_band = finish(band_buy)
+    ranks = rank_bands(finished_band, min_n=500)
+    rec = make_recommendation(ranks)
     out = {
         "researched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "asset": "btc",
         "horizon": "5m",
         "days": days,
+        "ticks": [f"{t:.2f}" for t in TICKS],
+        "windows_s": list(WINDOWS),
         "markets_resolved": len(markets),
         "markets_with_tape": sum(1 for m in markets if m["trades"]),
         "errors": errors,
         "skipped": skipped,
         "fee_rate": FEE,
         "math": math_rows,
-        "rule_first_print_any_side": "First public print that rounds to 95–99¢, that outcome held to official resolve.",
-        "rule_first_buy": "First BUY print (lift ask) that rounds to 95–99¢.",
-        "rule_ever_max": "If a side’s max print in last T seconds rounds to that tick, hold that side to resolve.",
-        "rule_snapshot": "Richer last print at T seconds left, if it rounds into 95–99¢.",
-        "first_print": finish(first_any),
+        "rule_first_buy": "First BUY print (lift ask) that rounds to a tick, held to official resolve.",
+        "rule_band": (
+            "First BUY whose rounded price is inside [min, max] after the tail window opens. "
+            "This is what favorite_min/max + favorite_window_seconds does."
+        ),
         "first_buy": finished_buy,
-        "ever_max": finish(ever),
-        "snapshot_at_T": finish(snap),
         "buy_table": compact_buy(finished_buy),
+        "ranks": ranks,
         "steamrollers_hit_99_then_lost_in_5m": steam_uniq[:25],
         "steamroller_count_5m": len(steam_uniq),
+        "snapshot_at_T": finish(snap),
+        "ever_max": finish(ever),
         "prior_14d": prior_14d,
-        "recommendation": make_recommendation(finished_buy, math_rows),
+        "prior_30d_95_99": prior_30d,
+        "recommendation": rec,
         "honest": [
+            "A wide cheap band (90–99 last 5m) fills at the first 90¢ print, then has the whole window to get steamrolled.",
             "99¢ is not certain. One dump after you lift is −~99¢/share vs +~0.93¢ if you win.",
-            "Win rate at 99¢ can look 98–99% and still be −EV after fees if blowups are fat.",
-            "Prints that already traded are not your 250ms FAK fill. Live fill rate is lower.",
-            "5m books can trade before the BTC window; this study keeps last 900s only.",
+            "Prints that already traded are not a 250ms FAK fill. Live fill rate is lower.",
+            "5m books can trade before the BTC window; this study keeps last 900s of tape only.",
         ],
     }
     OUT.write_text(json.dumps(out, indent=2))
     print(f"wrote {OUT}", flush=True)
-    # compact stdout
-    for label, block in (("BUY", out["first_buy"]), ("MAX", out["ever_max"])):
-        print(f"\n== {label} ==")
-        for tick in TICKS:
-            for win in (30, 45, 90, 180, 300):
-                prefix = "buy" if label == "BUY" else "max"
-                key = f"{prefix}_{tick:.2f}_last{win}s"
-                row = block.get(key)
-                if not row:
-                    continue
-                print(
-                    f"  {tick:.2f} last{win:>3}s n={row['n']:>5} wr={row['wr']} reverse={row['reverse']} "
-                    f"pnl/sh={row['pnl_per_share']} ci={row['wr_ci95']}"
-                )
+
+    print("\n== BUY ticks ==", flush=True)
+    for tick in TICKS:
+        parts = []
+        for win in (60, 90, 120, 180, 300):
+            row = finished_buy.get(f"buy_{tick:.2f}_last{win}s")
+            if not row:
+                continue
+            parts.append(f"last{win}s n={row['n']} rev={row['reverse']} pnl={row['pnl_per_share']}")
+        print(f"  {tick:.2f}  " + " | ".join(parts), flush=True)
+
+    print("\n== TOP EV bands (CI clears, n>=500) ==", flush=True)
+    for r in ranks["best_ev"][:8]:
+        print(
+            f"  {r['band']} last{r['window']}s n={r['n']} rev={r['reverse']} "
+            f"pnl={r['pnl_per_share']} avg={r['avg_px']}",
+            flush=True,
+        )
+    print("\n== SAFEST bands ==", flush=True)
+    for r in ranks["safest"][:8]:
+        print(
+            f"  {r['band']} last{r['window']}s n={r['n']} rev={r['reverse']} pnl={r['pnl_per_share']}",
+            flush=True,
+        )
+    print("\n== BEST BALANCE ==", flush=True)
+    for r in ranks["best_balance"][:8]:
+        print(
+            f"  {r['band']} last{r['window']}s n={r['n']} rev={r['reverse']} pnl={r['pnl_per_share']}",
+            flush=True,
+        )
+    print("\n== current 96-98 last180 ==", ranks.get("current_bot_96_98_last180s"), flush=True)
+    print("== rec ==", rec.get("bot_settings_if_following_tape"), flush=True)
 
 
 if __name__ == "__main__":
