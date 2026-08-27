@@ -317,7 +317,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 14：大熱每盤最多單筆上限（唔再疊到 $50+）。熔斷會停新倉但仍掃盤。紙盤、停互補掛單。\n"
+        "Rev 15：大熱價帶 90–99¢。每盤最多單筆上限。熔斷停新倉但仍掃盤。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
