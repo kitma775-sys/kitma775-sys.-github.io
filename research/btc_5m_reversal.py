@@ -20,6 +20,7 @@ OUT = Path(__file__).with_name("btc_5m_reversal.json")
 TICKS = (0.95, 0.96, 0.97, 0.98, 0.99)
 WINDOWS = (30, 45, 90, 180, 300, 900)
 FEE = 0.07
+DAYS = 30
 
 
 def get_json(url: str, timeout: float = 25.0, tries: int = 4):
@@ -216,10 +217,127 @@ def finish(store: dict) -> dict:
     return out
 
 
+def compact_buy(block: dict) -> dict:
+    out = {}
+    for tick in TICKS:
+        row = {}
+        for win in WINDOWS:
+            cell = block.get(f"buy_{tick:.2f}_last{win}s")
+            if not cell:
+                continue
+            row[f"last{win}s"] = {
+                "n": cell["n"],
+                "lose": cell.get("lose"),
+                "reverse": cell["reverse"],
+                "wr": cell["wr"],
+                "pnl_per_share": cell["pnl_per_share"],
+                "wr_ci95": cell["wr_ci95"],
+            }
+        out[f"{tick:.2f}"] = row
+    return out
+
+
+def load_prior_14d() -> dict | None:
+    if not OUT.exists():
+        return None
+    old = json.loads(OUT.read_text())
+    if old.get("days") != 14 or not old.get("first_buy"):
+        return old.get("prior_14d")
+    return {
+        "researched_at_utc": old.get("researched_at_utc"),
+        "markets_resolved": old.get("markets_resolved"),
+        "markets_with_tape": old.get("markets_with_tape"),
+        "steamroller_count_5m": old.get("steamroller_count_5m"),
+        "first_buy": compact_buy(old["first_buy"]),
+        "recommendation": old.get("recommendation"),
+    }
+
+
+def make_recommendation(first_buy: dict, math_rows: dict) -> dict:
+    def cell(tick: float, win: int):
+        return first_buy.get(f"buy_{tick:.2f}_last{win}s")
+
+    def clears(tick: float, win: int) -> bool:
+        row = cell(tick, win)
+        if not row or row["pnl_per_share"] is None or row["pnl_per_share"] <= 0:
+            return False
+        be = math_rows[f"{tick:.2f}"]["breakeven_wr"]
+        ci = row.get("wr_ci95") or [0, 0]
+        return ci[0] >= be
+
+    safest = None
+    for win in (180, 300, 90, 45, 30, 900):
+        for tick in (0.99, 0.98, 0.97, 0.96, 0.95):
+            row = cell(tick, win)
+            if not row or not clears(tick, win):
+                continue
+            key = (row["reverse"], -row["n"], tick, win)
+            if safest is None or key < safest[0]:
+                safest = (key, row)
+    best_ev = None
+    for tick in TICKS:
+        for win in (180, 300, 90):
+            row = cell(tick, win)
+            if not row or row["n"] < 500 or row["pnl_per_share"] is None:
+                continue
+            cand = (row["pnl_per_share"], row["n"], tick, win, row)
+            if best_ev is None or cand[0] > best_ev[0]:
+                best_ev = cand
+    bal = cell(0.96, 180)
+    rec = {
+        "sample": "BTC 5m, 30d, first BUY print in window, 7% fee, hold to official resolve",
+        "bot_settings_if_following_tape": {
+            "favorite_min_price": 0.96,
+            "favorite_max_price": 0.98,
+            "favorite_window_seconds": 180,
+            "note": "Keep 96–98 last 3 minutes unless 30d tape flips 98 last 180s to −EV. Skip 99 as taker.",
+        },
+    }
+    if safest:
+        (_rev, _n, tick, win), row = safest
+        rec["safest_tick_if_you_can_fill"] = {
+            "tick": tick,
+            "window_seconds": win,
+            "n": row["n"],
+            "wr": row["wr"],
+            "reverse": row["reverse"],
+            "pnl_per_share": row["pnl_per_share"],
+            "why": "Lowest reverse among large-n taker combos whose 95% CI still clears fee breakeven.",
+        }
+    if best_ev:
+        _pnl, _n, tick, win, row = best_ev
+        rec["best_ev_tick"] = {
+            "tick": tick,
+            "window_seconds": win,
+            "n": row["n"],
+            "wr": row["wr"],
+            "reverse": row["reverse"],
+            "pnl_per_share": row["pnl_per_share"],
+        }
+    if bal:
+        rec["best_balance"] = {
+            "tick": 0.96,
+            "window_seconds": 180,
+            "n": bal["n"],
+            "wr": bal["wr"],
+            "reverse": bal["reverse"],
+            "pnl_per_share": bal["pnl_per_share"],
+            "why": "96¢ last 3 minutes: more edge per share than 98, lower reverse than 95.",
+        }
+    rec["best_window"] = {
+        "seconds": 180,
+        "also_ok": 300,
+        "avoid": [30, 45],
+        "why": "180s ≈ full 5m. Last 30–45s is leftover size / adverse selection.",
+    }
+    return rec
+
+
 def main() -> None:
+    prior_14d = load_prior_14d()
     now = int(time.time())
     last_closed = now - (now % 300) - 300
-    days = 14
+    days = DAYS
     starts = [last_closed - i * 300 for i in range(days * 24 * 12)]
     print(f"fetch {len(starts)} btc 5m windows ending {datetime.fromtimestamp(last_closed, timezone.utc).isoformat()}", flush=True)
     markets = []
@@ -319,6 +437,8 @@ def main() -> None:
             }
         return rows
 
+    math_rows = math_table()
+    finished_buy = finish(first_buy)
     out = {
         "researched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "asset": "btc",
@@ -329,17 +449,20 @@ def main() -> None:
         "errors": errors,
         "skipped": skipped,
         "fee_rate": FEE,
-        "math": math_table(),
+        "math": math_rows,
         "rule_first_print_any_side": "First public print that rounds to 95–99¢, that outcome held to official resolve.",
         "rule_first_buy": "First BUY print (lift ask) that rounds to 95–99¢.",
         "rule_ever_max": "If a side’s max print in last T seconds rounds to that tick, hold that side to resolve.",
         "rule_snapshot": "Richer last print at T seconds left, if it rounds into 95–99¢.",
         "first_print": finish(first_any),
-        "first_buy": finish(first_buy),
+        "first_buy": finished_buy,
         "ever_max": finish(ever),
         "snapshot_at_T": finish(snap),
+        "buy_table": compact_buy(finished_buy),
         "steamrollers_hit_99_then_lost_in_5m": steam_uniq[:25],
         "steamroller_count_5m": len(steam_uniq),
+        "prior_14d": prior_14d,
+        "recommendation": make_recommendation(finished_buy, math_rows),
         "honest": [
             "99¢ is not certain. One dump after you lift is −~99¢/share vs +~0.93¢ if you win.",
             "Win rate at 99¢ can look 98–99% and still be −EV after fees if blowups are fat.",
@@ -353,14 +476,14 @@ def main() -> None:
     for label, block in (("BUY", out["first_buy"]), ("MAX", out["ever_max"])):
         print(f"\n== {label} ==")
         for tick in TICKS:
-            for win in (30, 45, 90, 300):
+            for win in (30, 45, 90, 180, 300):
                 prefix = "buy" if label == "BUY" else "max"
                 key = f"{prefix}_{tick:.2f}_last{win}s"
                 row = block.get(key)
                 if not row:
                     continue
                 print(
-                    f"  {tick:.2f} last{win:>3}s n={row['n']:>4} wr={row['wr']} reverse={row['reverse']} "
+                    f"  {tick:.2f} last{win:>3}s n={row['n']:>5} wr={row['wr']} reverse={row['reverse']} "
                     f"pnl/sh={row['pnl_per_share']} ci={row['wr_ci95']}"
                 )
 
