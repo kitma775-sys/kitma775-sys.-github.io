@@ -38,6 +38,8 @@ def create_app(rt: Runtime) -> FastAPI:
             "favorite_min_price": s.get("favorite_min_price"),
             "favorite_max_price": s.get("favorite_max_price"),
             "favorite_maker": bool(s.get("favorite_maker")),
+            "favorite_dir": s.get("favorite_dir") or "auto",
+            "favorite_window_seconds": s.get("favorite_window_seconds"),
         }
 
     @app.get("/", response_class=HTMLResponse)

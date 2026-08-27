@@ -10,7 +10,7 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
-from app.hunter import book_quote, hunt, is_favorite_setup, summarize_quotes
+from app.hunter import book_quote, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import parse_outcome_prices, plan_rescue
@@ -419,6 +419,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
                 favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
                 favorite_maker=bool(s.get("favorite_maker")),
+                favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
             )
         except Exception as exc:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
@@ -469,6 +470,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
             favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
             favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+            favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
         )
         payload = {
             "title": setup.title,
@@ -568,6 +570,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
                 favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+                favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
             )
             if not resized.ok:
                 fok_kills += 1
@@ -689,6 +692,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.95)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.99)
     tape["favorite_window"] = setting_num(s, "favorite_window_seconds", 30.0)
+    tape["favorite_dir"] = parse_favorite_dir(s.get("favorite_dir"))
     rt.last_loop.update(
         {
             "signals": signals,
@@ -792,6 +796,7 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
         favorite_max_price=max_px,
         favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
         favorite_maker=False,
+        favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
     )
     if requote is None or requote.kind != "taker" or requote.net <= 0:
         return fill

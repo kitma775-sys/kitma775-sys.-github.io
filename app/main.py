@@ -18,7 +18,7 @@ from app.telegram_ui import run_telegram
 
 
 def apply_strategy_rev(store: Store) -> int:
-    """Patch live sqlite up to rev 12. Does not reset the paper ledger."""
+    """Patch live sqlite up to rev 13. Does not reset the paper ledger."""
     rev = int(store.settings().get("strategy_rev") or 0)
     n = 0
     if rev < 6:
@@ -103,6 +103,21 @@ def apply_strategy_rev(store: Store) -> int:
         store.add_event(
             "info",
             "rev12 favorite 97¢ rest no longer blocks lifting 97-99¢; WS checks trade-through; no last-2min HTTP spam",
+        )
+    if rev < 13:
+        store.patch_settings(
+            strategy_rev=13,
+            maker_first=False,
+            maker_window_seconds=0.0,
+            taker_fok=True,
+            favorite_dir="auto",
+            favorite_min_price=0.95,
+            favorite_max_price=0.99,
+            favorite_window_seconds=0,
+        )
+        store.add_event(
+            "info",
+            "rev13 try full-session 95-99¢ favorite; dir auto/up/down; Telegram 尾窗 cycle includes 全段",
         )
     return n
 

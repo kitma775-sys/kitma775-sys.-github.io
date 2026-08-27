@@ -33,20 +33,21 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 12,
+    "strategy_rev": 13,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 11: strategy_mode complement|favorite|auto. Favorite is last-30s
-    # 95–99¢ one-leg hold-to-settle. Complement two-sided maker stays off.
+    # Rev 13: favorite 95–99¢ one-leg hold-to-settle. window<=0 = whole book
+    # until 3s before end. dir auto|up|down. Complement two-sided maker off.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
     "strategy_mode": "auto",
     "favorite_min_price": 0.95,
     "favorite_max_price": 0.99,
-    "favorite_window_seconds": 30.0,
+    "favorite_window_seconds": 0.0,
     "favorite_maker": True,
+    "favorite_dir": "auto",
 }
 
 
@@ -68,7 +69,7 @@ SETTING_STEPS = {
     "scan_limit": (1.0, 8.0, 32.0),
     "favorite_min_price": (0.01, 0.90, 0.98),
     "favorite_max_price": (0.01, 0.91, 0.99),
-    "favorite_window_seconds": (5.0, 15.0, 45.0),
+    "favorite_window_seconds": (30.0, 0.0, 3600.0),
 }
 
 

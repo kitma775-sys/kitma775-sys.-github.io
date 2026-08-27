@@ -19,11 +19,36 @@ STRATEGY_ZH = {
     "complement": "只做互補 YES+NO",
     "favorite": "只買大熱 95–99¢",
 }
+FAVORITE_DIRS = ("auto", "up", "down")
+FAVORITE_DIR_ZH = {
+    "auto": "方向：自動（95–99¢ 邊邊買邊邊）",
+    "up": "方向：只買 Up",
+    "down": "方向：只買 Down",
+}
+# 0 = whole book until 3s before end
+FAVORITE_WINDOWS = (30, 45, 90, 180, 300, 900, 0)
 
 
 def _strategy_mode(s: dict) -> str:
     mode = str(s.get("strategy_mode") or "auto").lower()
     return mode if mode in STRATEGY_ZH else "auto"
+
+
+def _favorite_dir(s: dict) -> str:
+    from app.hunter import parse_favorite_dir
+
+    return parse_favorite_dir(s.get("favorite_dir"))
+
+
+def _favorite_window_label(s: dict) -> str:
+    raw = s.get("favorite_window_seconds")
+    try:
+        win = float(raw)
+    except (TypeError, ValueError):
+        win = 30.0
+    if win <= 0:
+        return "全段（完場前3秒）"
+    return f"尾 {win:.0f}s"
 
 
 NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
@@ -47,7 +72,7 @@ TOGGLES = {
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
     "taker_fok": ("FOK 確認", "250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote。殺單 0.4s 可再試"),
-    "favorite_maker": ("大熱定價掛單", "最後30秒喺下限（預設95¢）掛買單，0 手續費；被人砸中先成交，唔對沖"),
+    "favorite_maker": ("大熱定價掛單", "喺下限掛買單，0 手續費；被人砸中先成交，唔對沖"),
 }
 
 
@@ -181,13 +206,17 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
     mode = _strategy_mode(s)
     rows = [
         [InlineKeyboardButton(f"策略：{STRATEGY_ZH[mode]}", callback_data="smode")],
+        [InlineKeyboardButton(f"大熱尾窗：{_favorite_window_label(s)}", callback_data="fwin")],
+        [InlineKeyboardButton(FAVORITE_DIR_ZH[_favorite_dir(s)], callback_data="fdir")],
     ]
     for key, (label, _hint) in TOGGLES.items():
         on = bool(s.get(key))
         rows.append([InlineKeyboardButton(f"{'✅' if on else '⬜️'} {label}", callback_data=f"tog:{key}")])
     for key, (_step, _lo, _hi) in SETTING_STEPS.items():
         val = s.get(key)
-        if isinstance(val, float):
+        if key == "favorite_window_seconds":
+            shown = "全段" if float(val or 0) <= 0 else f"{int(float(val))}s"
+        elif isinstance(val, float):
             shown = f"{val:.3g}"
         else:
             shown = str(val)
@@ -284,7 +313,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 12：掛 97¢ 唔再擋住抬 97–99¢。自動＝互補優先，否則尾窗買大熱。紙盤、停互補掛單。\n"
+        "Rev 13：大熱尾窗可全段，方向可調 Up／Down／自動。全段 95–99 翻盤風險大。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -350,7 +379,7 @@ def _status_text(rt: Runtime) -> str:
         + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status}\n"
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"策略 {_strategy_mode(s)} · 大熱 {float(s.get('favorite_min_price') or 0.95):.2f}–{float(s.get('favorite_max_price') or 0.99):.2f} · 尾窗 {float(s.get('favorite_window_seconds') or 30):.0f}s\n"
+        + f"策略 {_strategy_mode(s)} · 大熱 {float(s.get('favorite_min_price') or 0.95):.2f}–{float(s.get('favorite_max_price') or 0.99):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
         + f"幣：{assets or '全部'}"
@@ -566,6 +595,22 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         rt.store.patch_settings(strategy_mode=nxt)
         await q.answer(STRATEGY_ZH[nxt])
         await _safe_edit(q, f"策略已轉：{STRATEGY_ZH[nxt]}", reply_markup=settings_kb(rt))
+        return
+    if data == "fwin":
+        cur = int(float(s.get("favorite_window_seconds") or 0))
+        if cur not in FAVORITE_WINDOWS:
+            cur = 45 if cur > 0 else 0
+        nxt = FAVORITE_WINDOWS[(FAVORITE_WINDOWS.index(cur) + 1) % len(FAVORITE_WINDOWS)]
+        rt.store.patch_settings(favorite_window_seconds=nxt)
+        await q.answer(_favorite_window_label(rt.settings()))
+        await _safe_edit(q, f"大熱尾窗：{_favorite_window_label(rt.settings())}", reply_markup=settings_kb(rt))
+        return
+    if data == "fdir":
+        cur = _favorite_dir(s)
+        nxt = FAVORITE_DIRS[(FAVORITE_DIRS.index(cur) + 1) % len(FAVORITE_DIRS)]
+        rt.store.patch_settings(favorite_dir=nxt)
+        await q.answer(FAVORITE_DIR_ZH[nxt])
+        await _safe_edit(q, f"已轉：{FAVORITE_DIR_ZH[nxt]}", reply_markup=settings_kb(rt))
         return
     if data == "assets":
         await q.answer()

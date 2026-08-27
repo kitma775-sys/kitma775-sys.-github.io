@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.hunter import Setup, is_favorite_setup
+from app.hunter import Setup, in_favorite_window, is_favorite_setup, parse_favorite_dir
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,7 @@ def approve(
     favorite_min_price: float = 0.95,
     favorite_max_price: float = 0.99,
     favorite_window_seconds: float = 30.0,
+    favorite_dir: str = "auto",
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")
@@ -61,9 +62,12 @@ def approve(
         band_lo = lo - 0.01 if setup.kind == "maker" else lo
         if rich + 1e-12 < band_lo or rich - 1e-12 > hi:
             return RiskDecision(False, "favorite_out_of_band")
-        win = float(favorite_window_seconds or 30)
-        if seconds_left is None or seconds_left > win or seconds_left < 3:
+        if not in_favorite_window(seconds_left, favorite_window_seconds):
             return RiskDecision(False, "favorite_too_early")
+        want = parse_favorite_dir(favorite_dir)
+        leg = str((setup.extra or {}).get("leg") or "")
+        if want != "auto" and leg and leg != want:
+            return RiskDecision(False, "favorite_wrong_dir")
         if setup.kind == "maker" and unmatched_shares > 0.5:
             return RiskDecision(False, "unmatched_book")
     else:

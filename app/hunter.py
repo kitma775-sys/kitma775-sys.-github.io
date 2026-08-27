@@ -94,6 +94,21 @@ def is_tail(up: float, down: float, confirm: float) -> bool:
     return hi >= confirm and lo <= (1.0 - confirm + 0.02)
 
 
+def parse_favorite_dir(raw) -> str:
+    d = str(raw or "auto").strip().lower()
+    return d if d in {"auto", "up", "down"} else "auto"
+
+
+def in_favorite_window(seconds_left: float | None, window: float | None) -> bool:
+    """window<=0 means the whole book (until 3s before end)."""
+    if seconds_left is None or float(seconds_left) < 3:
+        return False
+    win = 30.0 if window is None else float(window)
+    if win <= 0:
+        return True
+    return float(seconds_left) <= win + 1e-9
+
+
 def hunt(
     *,
     slug: str,
@@ -123,6 +138,7 @@ def hunt(
     favorite_max_price: float = 0.99,
     favorite_window_seconds: float = 30.0,
     favorite_maker: bool = False,
+    favorite_dir: str = "auto",
 ) -> Setup | None:
     mode = (strategy_mode or "complement").strip().lower()
     if mode not in {"complement", "favorite", "auto"}:
@@ -191,6 +207,7 @@ def hunt(
             max_px=favorite_max_price,
             window=favorite_window_seconds,
             allow_maker=bool(favorite_maker),
+            dir=parse_favorite_dir(favorite_dir),
         )
         if fav:
             return fav
@@ -218,14 +235,14 @@ def _band_asks(asks: list[Level], min_px: float, max_px: float) -> list[Level]:
 
 def _favorite_setup(**kw) -> Setup | None:
     left = _seconds_left(kw.get("end"), kw.get("now"))
-    window = float(kw.get("window") or 30)
-    if left is None or left > window or left < 3:
+    if not in_favorite_window(left, kw.get("window")):
         return None
     min_px = min(float(kw["min_px"]), float(kw["max_px"]))
     max_px = max(float(kw["min_px"]), float(kw["max_px"]))
     kw = dict(kw)
     kw["min_px"] = min_px
     kw["max_px"] = max_px
+    kw["dir"] = parse_favorite_dir(kw.get("dir"))
     taker = _favorite_taker_leg(**kw)
     if taker:
         return taker
@@ -234,12 +251,19 @@ def _favorite_setup(**kw) -> Setup | None:
     return None
 
 
+def _favorite_leg_candidates(kw) -> list[tuple[str, list[Level], list[Level]]]:
+    d = parse_favorite_dir(kw.get("dir"))
+    out: list[tuple[str, list[Level], list[Level]]] = []
+    if d in {"auto", "up"}:
+        out.append(("up", _band_asks(kw["up_asks"], float(kw["min_px"]), float(kw["max_px"])), kw["up_bids"]))
+    if d in {"auto", "down"}:
+        out.append(("down", _band_asks(kw["down_asks"], float(kw["min_px"]), float(kw["max_px"])), kw["down_bids"]))
+    return out
+
+
 def _favorite_taker_leg(**kw) -> Setup | None:
     min_px, max_px = float(kw["min_px"]), float(kw["max_px"])
-    candidates: list[tuple[str, list[Level], list[Level]]] = [
-        ("up", _band_asks(kw["up_asks"], min_px, max_px), kw["up_bids"]),
-        ("down", _band_asks(kw["down_asks"], min_px, max_px), kw["down_bids"]),
-    ]
+    candidates = _favorite_leg_candidates(kw)
     best: Setup | None = None
     for leg, asks, bids in candidates:
         if not asks:
@@ -297,10 +321,12 @@ def _favorite_maker_leg(**kw) -> Setup | None:
     """
     min_px, max_px = float(kw["min_px"]), float(kw["max_px"])
     tick = 0.01
-    legs = (
-        ("up", kw["up_asks"], kw["up_bids"]),
-        ("down", kw["down_asks"], kw["down_bids"]),
-    )
+    d = parse_favorite_dir(kw.get("dir"))
+    legs = []
+    if d in {"auto", "up"}:
+        legs.append(("up", kw["up_asks"], kw["up_bids"]))
+    if d in {"auto", "down"}:
+        legs.append(("down", kw["down_asks"], kw["down_bids"]))
     best_leg = None
     best_rich = 0.0
     for leg, asks, bids in legs:

@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 12" in text
+    assert "Rev 13" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1064,6 +1064,138 @@ def test_favorite_skips_outside_window():
     assert setup is None
 
 
+def test_in_favorite_window_zero_is_full_session():
+    from app.config import setting_num
+    from app.hunter import in_favorite_window, parse_favorite_dir
+
+    assert in_favorite_window(200, 0) is True
+    assert in_favorite_window(200, 0.0) is True
+    assert in_favorite_window(90, 45) is False
+    assert in_favorite_window(20, 45) is True
+    assert in_favorite_window(2, 0) is False
+    assert in_favorite_window(None, 0) is False
+    assert parse_favorite_dir("UP") == "up"
+    assert parse_favorite_dir("Down") == "down"
+    assert parse_favorite_dir("nope") == "auto"
+    assert setting_num({"favorite_window_seconds": 0}, "favorite_window_seconds", 30.0) == 0.0
+    from app.telegram_ui import FAVORITE_WINDOWS, _favorite_window_label
+
+    assert 0 in FAVORITE_WINDOWS
+    assert _favorite_window_label({"favorite_window_seconds": 0}) == "全段（完場前3秒）"
+    assert _favorite_window_label({"favorite_window_seconds": 45}) == "尾 45s"
+
+
+def test_favorite_full_session_lifts_mid_book():
+    from app.hunter import is_favorite_setup
+
+    setup = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(200),
+        strategy_mode="favorite",
+        favorite_window_seconds=0,
+        favorite_maker=False,
+    )
+    assert setup is not None
+    assert is_favorite_setup(setup)
+    assert setup.extra["leg"] == "up"
+    too_late = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(2),
+        strategy_mode="favorite",
+        favorite_window_seconds=0,
+        favorite_maker=False,
+    )
+    assert too_late is None
+
+
+def test_favorite_dir_up_ignores_richer_down():
+    from app.hunter import is_favorite_setup
+
+    kw = dict(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.99, 40)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.98, 20)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_window_seconds=30,
+        favorite_maker=False,
+    )
+    auto = hunt(**kw, favorite_dir="auto")
+    assert is_favorite_setup(auto)
+    assert auto.extra["leg"] == "down"
+    assert 0.989 <= auto.down_price <= 0.991
+    up_only = hunt(**kw, favorite_dir="up")
+    assert is_favorite_setup(up_only)
+    assert up_only.extra["leg"] == "up"
+    assert 0.969 <= up_only.up_price <= 0.971
+    down_only_on_up_book = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_dir="down",
+        favorite_maker=False,
+    )
+    assert down_only_on_up_book is None or not is_favorite_setup(down_only_on_up_book)
+
+
 def test_auto_prefers_complement_when_both_asks():
     from app.hunter import is_favorite_setup
 
@@ -1169,6 +1301,49 @@ def test_favorite_approve_allows_naked_and_rescue_skips(tmp_path):
         favorite_window_seconds=30,
     )
     assert ok.ok is True
+    wrong = approve(
+        setup,
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=0,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=0,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+        seconds_left=200,
+        favorite_min_price=0.95,
+        favorite_max_price=0.99,
+        favorite_window_seconds=0,
+        favorite_dir="down",
+    )
+    assert wrong.ok is False
+    assert wrong.reason == "favorite_wrong_dir"
+    full = approve(
+        setup,
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=0,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=0,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+        seconds_left=200,
+        favorite_min_price=0.95,
+        favorite_max_price=0.99,
+        favorite_window_seconds=0,
+        favorite_dir="up",
+    )
+    assert full.ok is True
     st = Store(tmp_path / "fav.sqlite")
     st.ensure_paper(500)
     st.add_inventory("c1", "eth", 10, 0, kind="favorite", cost=9.72)
@@ -1780,9 +1955,12 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 12
+    assert s["strategy_rev"] == 13
     assert s.get("strategy_mode") == "auto"
     assert float(s["favorite_min_price"]) == 0.95
+    assert float(s["favorite_max_price"]) == 0.99
+    assert float(s["favorite_window_seconds"]) == 0.0
+    assert s.get("favorite_dir") == "auto"
     assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["max_book_age_ms"]) == 60000.0
     assert s["tags"] == ["5M", "15M", "1H"]
@@ -1794,6 +1972,36 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     assert after["starting"] == 500
     assert st.inventory_one("c1")["up"] == 5
     assert apply_strategy_rev(st) == 0
+
+
+def test_rev13_widens_window_without_paper_reset(tmp_path):
+    from app.main import apply_strategy_rev
+
+    st = Store(tmp_path / "rev13.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(80)
+    st.patch_settings(
+        strategy_rev=12,
+        favorite_window_seconds=45,
+        favorite_min_price=0.97,
+        favorite_max_price=0.99,
+        favorite_dir="auto",
+        live_trading=False,
+    )
+    before = st.paper_state()
+    n = apply_strategy_rev(st)
+    assert n == 0
+    s = st.settings()
+    assert s["strategy_rev"] == 13
+    assert float(s["favorite_window_seconds"]) == 0
+    assert float(s["favorite_min_price"]) == 0.95
+    assert float(s["favorite_max_price"]) == 0.99
+    assert s["favorite_dir"] == "auto"
+    assert s["live_trading"] is False
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert after["starting"] == 500
+    assert after["total_pnl"] == before["total_pnl"]
 
 
 def test_health_reports_rev_and_ws(tmp_path):
@@ -1812,13 +2020,15 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 12
+    assert body["strategy_rev"] == 13
     assert body.get("strategy_mode") == "auto"
     assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
     assert float(body["maker_window_seconds"]) == 0.0
     assert body.get("favorite_maker") is True
+    assert body.get("favorite_dir") == "auto"
+    assert float(body.get("favorite_window_seconds") or 0) == 0.0
     state = client.get("/api/state?t=tok").json()
     assert state["ws_status"] == "connected"
     assert "ws_status" in state
