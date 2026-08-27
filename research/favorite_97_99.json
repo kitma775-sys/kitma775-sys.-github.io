@@ -48,14 +48,21 @@
     "strategy_mode": "complement (default) | favorite | auto",
     "favorite_gates": [
       "seconds_left in (3, 30]",
-      "best ask in [0.97, 0.99]",
+      "best ask in [favorite_min, favorite_max] default [0.95, 0.99]",
       "same-token bid not ≤0.05 while ask ≥0.97 (skip 0.99/0.01 zec ghosts)",
       "depth ≥ min_shares after 250ms FAK on that one leg",
       "not zec; still skip *-above-on-*",
-      "FORCE_PAPER; mark inventory at 0 until official resolve; never merge a naked favorite",
+      "FORCE_PAPER; mark favorite inventory at cost until official resolve; never merge or hedge a naked favorite",
       "daily loss cap counts a 0.99 blowup as ~full stake"
     ],
     "auto": "complement first if two-ask net>0 after fees and min_edge; else favorite gates",
+    "maker_limit": {
+      "question": "Does a 95¢ rest capture more than lifting 97–99¢?",
+      "yes_if_filled": "Maker fee 0. A 95¢ fill vs lifting 99¢ is ~4¢/share extra, and vs 97¢ taker also skips the p(1-p) fee.",
+      "no_free_lunch": "Last-second dumps trade through that bid (steamroller). Paper never assume-fills; fill only on ask <= bid. Never hedge the other leg; hold to official settle.",
+      "payoff": "Win at 95¢ ≈ +$1.25/share on $25; lose ≈ −$23.75. One blowup still needs many 95–99¢ wins. Toggle favorite_maker off to only lift asks.",
+      "default": "ON in Rev 11, Telegram 大熱定價掛單. Complement two-sided maker stays off (maker_window=0)."
+    },
     "do_not": [
       "lower complement min_edge",
       "re-enable last-window maker",

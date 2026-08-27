@@ -34,6 +34,10 @@ def create_app(rt: Runtime) -> FastAPI:
             "maker_window_seconds": s.get("maker_window_seconds"),
             "max_book_age_ms": s.get("max_book_age_ms"),
             "taker_fok": bool(s.get("taker_fok", True)),
+            "strategy_mode": s.get("strategy_mode") or "auto",
+            "favorite_min_price": s.get("favorite_min_price"),
+            "favorite_max_price": s.get("favorite_max_price"),
+            "favorite_maker": bool(s.get("favorite_maker")),
         }
 
     @app.get("/", response_class=HTMLResponse)

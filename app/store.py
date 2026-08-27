@@ -85,7 +85,16 @@ class Store:
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
         self._conn.commit()
+        self._migrate()
         self._ensure_settings()
+
+    def _migrate(self) -> None:
+        cols = {str(r[1]) for r in self._conn.execute("PRAGMA table_info(inventory)").fetchall()}
+        if "kind" not in cols:
+            self._conn.execute("ALTER TABLE inventory ADD COLUMN kind TEXT NOT NULL DEFAULT 'pair'")
+        if "cost" not in cols:
+            self._conn.execute("ALTER TABLE inventory ADD COLUMN cost REAL NOT NULL DEFAULT 0")
+        self._conn.commit()
 
     def _ensure_settings(self) -> None:
         cur = self._get("settings")
@@ -188,26 +197,50 @@ class Store:
         row = self._conn.execute("SELECT * FROM inventory WHERE condition_id=?", (condition_id,)).fetchone()
         if row:
             return dict(row)
-        return {"condition_id": condition_id, "slug": "", "up": 0.0, "down": 0.0}
+        return {"condition_id": condition_id, "slug": "", "up": 0.0, "down": 0.0, "kind": "pair", "cost": 0.0}
 
-    def add_inventory(self, condition_id: str, slug: str, up: float, down: float) -> dict:
+    def add_inventory(
+        self,
+        condition_id: str,
+        slug: str,
+        up: float,
+        down: float,
+        *,
+        kind: str | None = None,
+        cost: float = 0.0,
+    ) -> dict:
         with self._lock:
-            return self._add_inventory_unlocked(condition_id, slug, up, down)
+            return self._add_inventory_unlocked(condition_id, slug, up, down, kind=kind, cost=cost)
 
     def merge_inventory(self, condition_id: str, shares: float) -> dict:
         with self._lock:
             return self._merge_inventory_unlocked(condition_id, shares)
 
-    def _add_inventory_unlocked(self, condition_id: str, slug: str, up: float, down: float) -> dict:
+    def _add_inventory_unlocked(
+        self,
+        condition_id: str,
+        slug: str,
+        up: float,
+        down: float,
+        *,
+        kind: str | None = None,
+        cost: float = 0.0,
+    ) -> dict:
         cur = self.inventory_one(condition_id)
         nu, nd = float(cur["up"]) + float(up), float(cur["down"]) + float(down)
-        return self._write_inventory_unlocked(condition_id, slug or cur.get("slug") or "", nu, nd)
+        new_kind = kind or cur.get("kind") or "pair"
+        if (cur.get("kind") or "pair") == "favorite" or kind == "favorite":
+            new_kind = "favorite"
+        new_cost = round(float(cur.get("cost") or 0) + float(cost or 0), 6)
+        return self._write_inventory_unlocked(condition_id, slug or cur.get("slug") or "", nu, nd, kind=new_kind, cost=new_cost)
 
     def _merge_inventory_unlocked(self, condition_id: str, shares: float) -> dict:
         cur = self.inventory_one(condition_id)
         take = min(shares, cur["up"], cur["down"])
         nu, nd = float(cur["up"]) - take, float(cur["down"]) - take
-        written = self._write_inventory_unlocked(condition_id, cur.get("slug") or "", nu, nd)
+        written = self._write_inventory_unlocked(
+            condition_id, cur.get("slug") or "", nu, nd, kind=cur.get("kind") or "pair", cost=float(cur.get("cost") or 0)
+        )
         return {"condition_id": condition_id, "merged": take, "up": written["up"], "down": written["down"]}
 
     def take_inventory(self, condition_id: str, up: float = 0.0, down: float = 0.0) -> dict:
@@ -216,21 +249,35 @@ class Store:
             take_up = min(max(float(up), 0.0), float(cur["up"]))
             take_dn = min(max(float(down), 0.0), float(cur["down"]))
             nu, nd = float(cur["up"]) - take_up, float(cur["down"]) - take_dn
-            written = self._write_inventory_unlocked(condition_id, cur.get("slug") or "", nu, nd)
+            written = self._write_inventory_unlocked(condition_id, cur.get("slug") or "", nu, nd, kind=cur.get("kind"), cost=float(cur.get("cost") or 0))
             return {"condition_id": condition_id, "up": written["up"], "down": written["down"], "took_up": take_up, "took_down": take_dn}
 
-    def _write_inventory_unlocked(self, condition_id: str, slug: str, up: float, down: float) -> dict:
+    def _write_inventory_unlocked(
+        self,
+        condition_id: str,
+        slug: str,
+        up: float,
+        down: float,
+        *,
+        kind: str | None = "pair",
+        cost: float = 0.0,
+    ) -> dict:
         up, down = float(up), float(down)
+        kind = str(kind or "pair")
+        cost = round(float(cost or 0), 6)
         if up <= 0.01 and down <= 0.01:
             self._conn.execute("DELETE FROM inventory WHERE condition_id=?", (condition_id,))
             self._conn.commit()
-            return {"condition_id": condition_id, "slug": slug, "up": 0.0, "down": 0.0}
+            return {"condition_id": condition_id, "slug": slug, "up": 0.0, "down": 0.0, "kind": "pair", "cost": 0.0}
         self._conn.execute(
-            "INSERT INTO inventory(condition_id,slug,up,down,updated) VALUES(?,?,?,?,?) ON CONFLICT(condition_id) DO UPDATE SET slug=excluded.slug, up=excluded.up, down=excluded.down, updated=excluded.updated",
-            (condition_id, slug, up, down, time.time()),
+            """INSERT INTO inventory(condition_id,slug,up,down,updated,kind,cost) VALUES(?,?,?,?,?,?,?)
+               ON CONFLICT(condition_id) DO UPDATE SET
+                 slug=excluded.slug, up=excluded.up, down=excluded.down,
+                 updated=excluded.updated, kind=excluded.kind, cost=excluded.cost""",
+            (condition_id, slug, up, down, time.time(), kind, cost),
         )
         self._conn.commit()
-        return {"condition_id": condition_id, "slug": slug, "up": up, "down": down}
+        return {"condition_id": condition_id, "slug": slug, "up": up, "down": down, "kind": kind, "cost": cost}
 
     def unmatched_shares(self) -> float:
         total = 0.0
@@ -278,12 +325,18 @@ class Store:
 
     def _inventory_matched_usd(self) -> float:
         row = self._conn.execute(
-            "SELECT COALESCE(SUM(CASE WHEN up < down THEN up ELSE down END), 0) AS v FROM inventory"
+            "SELECT COALESCE(SUM(CASE WHEN up < down THEN up ELSE down END), 0) AS v FROM inventory WHERE kind!='favorite' OR kind IS NULL"
+        ).fetchone()
+        return float(row["v"] or 0.0)
+
+    def _inventory_favorite_usd(self) -> float:
+        row = self._conn.execute(
+            "SELECT COALESCE(SUM(cost), 0) AS v FROM inventory WHERE kind='favorite'"
         ).fetchone()
         return float(row["v"] or 0.0)
 
     def _paper_view(self, data: dict) -> dict:
-        inv = round(self._inventory_matched_usd(), 6)
+        inv = round(self._inventory_matched_usd() + self._inventory_favorite_usd(), 6)
         cash = round(float(data.get("cash") or 0), 6)
         reserved = round(float(data.get("reserved") or 0), 6)
         starting = round(float(data.get("starting") or 0), 6)
@@ -524,13 +577,32 @@ class Store:
             self._paper_consume_reserve_unlocked(take)
             up_add = float(cur["shares"]) if side == "up" else 0.0
             down_add = float(cur["shares"]) if side == "down" else 0.0
-            self._add_inventory_unlocked(cur["condition_id"], cur["slug"], up_add, down_add)
+            inv_kind = "favorite" if (cur.get("payload") or {}).get("strategy") == "favorite" else "pair"
+            self._add_inventory_unlocked(cur["condition_id"], cur["slug"], up_add, down_add, kind=inv_kind, cost=take)
             both = (side == "up" and cur["down_filled"]) or (side == "down" and cur["up_filled"])
             status = "filled" if both else "open"
             leftover = round(float(cur["reserved"]) - take, 6)
             self._conn.execute(
                 f"UPDATE resting SET {flag}=1, {reserved_key}=0, reserved=?, status=? WHERE id=?",
                 (max(leftover, 0.0), status, rid),
+            )
+            self._conn.commit()
+            return self._decode_resting(self._conn.execute("SELECT * FROM resting WHERE id=?", (rid,)).fetchone())
+
+    def complete_resting(self, rid: int, reason: str) -> dict:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM resting WHERE id=?", (rid,)).fetchone()
+            if row is None:
+                raise ValueError("missing_resting")
+            cur = self._decode_resting(row)
+            leftover = round(float(cur.get("reserved") or 0), 6)
+            if leftover > 0:
+                self._paper_release_unlocked(leftover)
+            payload = dict(cur.get("payload") or {})
+            payload["complete_reason"] = reason
+            self._conn.execute(
+                "UPDATE resting SET status=?, reserved=0, reserved_up=0, reserved_down=0, payload=? WHERE id=?",
+                ("filled", json.dumps(payload), rid),
             )
             self._conn.commit()
             return self._decode_resting(self._conn.execute("SELECT * FROM resting WHERE id=?", (rid,)).fetchone())

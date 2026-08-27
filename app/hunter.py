@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from app.fees import gross_edge, pair_taker_fee, taker_net
+from app.fees import gross_edge, pair_taker_fee, taker_fee, taker_net
 
 MAKER_MIN_LEG = 0.22
 MAKER_MAX_SKEW = 0.28
@@ -118,26 +118,36 @@ def hunt(
     maker_window_seconds: float = MAKER_WINDOW_SECONDS,
     maker_min_edge: float | None = None,
     now: datetime | None = None,
+    strategy_mode: str = "complement",
+    favorite_min_price: float = 0.95,
+    favorite_max_price: float = 0.99,
+    favorite_window_seconds: float = 30.0,
+    favorite_maker: bool = False,
 ) -> Setup | None:
-    taker = _taker_setup(
-        slug=slug,
-        title=title,
-        condition_id=condition_id,
-        up_token=up_token,
-        down_token=down_token,
-        up_asks=up_asks,
-        down_asks=down_asks,
-        max_usd=max_usd,
-        min_shares=min_shares,
-        min_edge=min_edge,
-        fee_rate=fee_rate,
-        tail_confirm=tail_confirm,
-        end=end,
-    )
+    mode = (strategy_mode or "complement").strip().lower()
+    if mode not in {"complement", "favorite", "auto"}:
+        mode = "complement"
+    taker = None
+    if mode in {"complement", "auto"}:
+        taker = _taker_setup(
+            slug=slug,
+            title=title,
+            condition_id=condition_id,
+            up_token=up_token,
+            down_token=down_token,
+            up_asks=up_asks,
+            down_asks=down_asks,
+            max_usd=max_usd,
+            min_shares=min_shares,
+            min_edge=min_edge,
+            fee_rate=fee_rate,
+            tail_confirm=tail_confirm,
+            end=end,
+        )
     maker_edge = min_edge if maker_min_edge is None else float(maker_min_edge)
     window = float(maker_window_seconds or 0)
     maker = None
-    if window >= 3:
+    if mode == "complement" and window >= 3:
         maker = _maker_setup(
             slug=slug,
             title=title,
@@ -156,16 +166,196 @@ def hunt(
             maker_max_skew=maker_max_skew,
             maker_window_seconds=window,
         )
-    # Certain two-ask arb always beats hoping both bids get hit.
+    # Two-ask complement always beats buying only the favorite.
     if prefer_tail and taker and taker.tail:
         return taker
     if taker and taker.net > 0:
         return taker
-    # Resting maker is off unless the window is explicitly ≥ 3s. Rev 6 default
-    # is 0: last-window bids were −EV one-sided fills on the 6h tape.
+    if mode in {"favorite", "auto"}:
+        fav = _favorite_setup(
+            slug=slug,
+            title=title,
+            condition_id=condition_id,
+            up_token=up_token,
+            down_token=down_token,
+            up_asks=up_asks,
+            down_asks=down_asks,
+            up_bids=up_bids,
+            down_bids=down_bids,
+            max_usd=max_usd,
+            min_shares=min_shares,
+            fee_rate=fee_rate,
+            end=end,
+            now=now,
+            min_px=favorite_min_price,
+            max_px=favorite_max_price,
+            window=favorite_window_seconds,
+            allow_maker=bool(favorite_maker),
+        )
+        if fav:
+            return fav
     if maker:
         return maker
     return taker
+
+
+def is_favorite_setup(setup: Setup | None) -> bool:
+    return bool(setup and (setup.extra or {}).get("strategy") == "favorite")
+
+
+def is_ghost_favorite(ask: float | None, bid: float | None) -> bool:
+    """ZEC-style 0.99/0.01 locked books are not a 99¢ favorite you can lift."""
+    if ask is None:
+        return True
+    if bid is None:
+        return True
+    return float(bid) < 0.50 or (float(ask) - float(bid)) >= 0.15
+
+
+def _band_asks(asks: list[Level], min_px: float, max_px: float) -> list[Level]:
+    return [lv for lv in _sorted_asks(asks) if min_px - 1e-12 <= lv.price <= max_px + 1e-12]
+
+
+def _favorite_setup(**kw) -> Setup | None:
+    left = _seconds_left(kw.get("end"), kw.get("now"))
+    window = float(kw.get("window") or 30)
+    if left is None or left > window or left < 3:
+        return None
+    min_px = min(float(kw["min_px"]), float(kw["max_px"]))
+    max_px = max(float(kw["min_px"]), float(kw["max_px"]))
+    kw = dict(kw)
+    kw["min_px"] = min_px
+    kw["max_px"] = max_px
+    taker = _favorite_taker_leg(**kw)
+    if taker:
+        return taker
+    if kw.get("allow_maker"):
+        return _favorite_maker_leg(**kw)
+    return None
+
+
+def _favorite_taker_leg(**kw) -> Setup | None:
+    min_px, max_px = float(kw["min_px"]), float(kw["max_px"])
+    candidates: list[tuple[str, list[Level], list[Level]]] = [
+        ("up", _band_asks(kw["up_asks"], min_px, max_px), kw["up_bids"]),
+        ("down", _band_asks(kw["down_asks"], min_px, max_px), kw["down_bids"]),
+    ]
+    best: Setup | None = None
+    for leg, asks, bids in candidates:
+        if not asks:
+            continue
+        if is_ghost_favorite(asks[0].price, _top(bids, asks=False)):
+            continue
+        top = asks[0].price
+        shares = _size_from_depth(asks, asks, kw["max_usd"], kw["min_shares"], max(top, 0.5))
+        if shares < kw["min_shares"]:
+            continue
+        filled, vwap = walk(asks, shares, asks=True)
+        if filled < kw["min_shares"]:
+            continue
+        if not (min_px - 1e-12 <= vwap <= max_px + 1e-12):
+            continue
+        fees = taker_fee(filled, vwap, kw["fee_rate"])
+        net = round(filled * (1.0 - vwap) - fees, 5)
+        if net <= 0:
+            continue
+        up_px = round(vwap, 4) if leg == "up" else 0.0
+        dn_px = round(vwap, 4) if leg == "down" else 0.0
+        setup = Setup(
+            slug=kw["slug"],
+            title=kw["title"],
+            condition_id=kw["condition_id"],
+            up_token=kw["up_token"],
+            down_token=kw["down_token"],
+            kind="taker",
+            up_price=up_px,
+            down_price=dn_px,
+            shares=round(filled, 4),
+            fillable=round(filled, 4),
+            gross=round(1.0 - vwap, 4),
+            fees=round(fees, 5),
+            net=net,
+            tail=True,
+            end=kw.get("end"),
+            extra={
+                "fee_rate": float(kw["fee_rate"]),
+                "strategy": "favorite",
+                "leg": leg,
+                "favorite_px": round(vwap, 4),
+            },
+        )
+        if best is None or vwap > float((best.extra or {}).get("favorite_px") or 0):
+            best = setup
+    return best
+
+
+def _favorite_maker_leg(**kw) -> Setup | None:
+    """Rest a buy at favorite_min on the rich leg. Fill only on trade-through.
+
+    Pays 0 maker fee so a 95¢ fill beats lifting 99¢, but last-second dumps
+    hit this bid — that is the steamroller. Paper never assume-fills.
+    """
+    min_px, max_px = float(kw["min_px"]), float(kw["max_px"])
+    tick = 0.01
+    legs = (
+        ("up", kw["up_asks"], kw["up_bids"]),
+        ("down", kw["down_asks"], kw["down_bids"]),
+    )
+    best_leg = None
+    best_rich = 0.0
+    for leg, asks, bids in legs:
+        ask = _top(asks, asks=True)
+        bid = _top(bids, asks=False)
+        rich = ask if ask is not None else bid
+        if rich is None:
+            continue
+        if not (min_px - 1e-12 <= float(rich) <= max_px + 1e-12):
+            continue
+        if is_ghost_favorite(ask if ask is not None else rich, bid):
+            continue
+        if float(rich) >= best_rich:
+            best_rich = float(rich)
+            best_leg = (leg, ask, bid)
+    if best_leg is None:
+        return None
+    leg, ask, bid = best_leg
+    quote = round(min_px, 4)
+    # Post-only: if the min already touches the ask, step one tick under.
+    if ask is not None and quote + 1e-12 >= float(ask):
+        quote = round(float(ask) - tick, 4)
+    if quote < 0.89 or quote > max_px:
+        return None
+    if ask is not None and quote + 1e-12 >= float(ask):
+        return None
+    shares = float(kw["max_usd"]) / max(quote, 0.01)
+    if shares < kw["min_shares"]:
+        return None
+    net = round(shares * (1.0 - quote), 5)
+    up_px = quote if leg == "up" else 0.0
+    dn_px = quote if leg == "down" else 0.0
+    return Setup(
+        slug=kw["slug"],
+        title=kw["title"],
+        condition_id=kw["condition_id"],
+        up_token=kw["up_token"],
+        down_token=kw["down_token"],
+        kind="maker",
+        up_price=up_px,
+        down_price=dn_px,
+        shares=round(shares, 4),
+        fillable=round(shares, 4),
+        gross=round(1.0 - quote, 4),
+        fees=0.0,
+        net=net,
+        tail=True,
+        end=kw.get("end"),
+        extra={
+            "fee_rate": 0.0,
+            "strategy": "favorite",
+            "leg": leg,
+            "favorite_px": quote,
+        },
+    )
 
 
 def _top(levels: list[Level], *, asks: bool) -> float | None:

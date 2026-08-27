@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from app.fees import pair_taker_fee, taker_net
-from app.hunter import Level, Setup, hunt, plus_ev_fill, total_size, walk
+from app.fees import pair_taker_fee, taker_fee, taker_net
+from app.hunter import Level, Setup, hunt, is_favorite_setup, plus_ev_fill, total_size, walk
 
 TICK = 0.01
 
@@ -42,6 +42,23 @@ def simulate_taker(
 ) -> TakerSim:
     rate = float(fee_rate if fee_rate is not None else setup.extra.get("fee_rate") or 0.07)
     slip = max(0, int(slip_ticks)) * float(tick)
+    if is_favorite_setup(setup):
+        leg = str((setup.extra or {}).get("leg") or ("up" if setup.up_price >= setup.down_price else "down"))
+        raw = setup.up_price if leg == "up" else setup.down_price
+        px = min(0.99, round(float(raw) + slip, 4))
+        fees = taker_fee(setup.shares, px, rate)
+        net = round(float(setup.shares) * (1.0 - px) - fees, 5)
+        cost = round(float(setup.shares) * px + fees, 6)
+        up = px if leg == "up" else 0.0
+        down = px if leg == "down" else 0.0
+        slipped = slip > 1e-12
+        if net <= 0:
+            return TakerSim(
+                False, up, down, net, cost, fees, slipped,
+                "slip_killed_edge" if slipped else "non_positive_net",
+                setup.shares,
+            )
+        return TakerSim(True, up, down, net, cost, fees, slipped, "filled", setup.shares)
     up = min(0.99, round(float(setup.up_price) + slip, 4))
     down = min(0.99, round(float(setup.down_price) + slip, 4))
     fees = pair_taker_fee(setup.shares, up, down, rate)
@@ -133,6 +150,39 @@ def fak_pair(
     cost = round(sz - net, 6)
     reason = "fok_fak" if sz + 1e-9 < need else "fok_filled"
     return TakerSim(True, round(up_vwap, 4), round(dn_vwap, 4), round(net, 5), cost, fees, False, reason, sz)
+
+
+def fak_one(
+    *,
+    asks: list[Level],
+    shares: float,
+    limit: float,
+    min_shares: float,
+    min_px: float,
+    max_px: float,
+    fee_rate: float,
+) -> TakerSim:
+    """One-leg FAK inside the favorite band at or better than the limit."""
+    need = float(shares)
+    floor = float(min_shares)
+    cap = [
+        lv
+        for lv in asks
+        if lv.price <= float(limit) + 1e-12 and float(min_px) - 1e-12 <= lv.price <= float(max_px) + 1e-12
+    ]
+    available = min(total_size(cap), need)
+    if available + 1e-9 < floor:
+        return TakerSim(False, 0.0, 0.0, 0.0, 0.0, 0.0, False, "fok_short")
+    filled, vwap = walk(cap, available, asks=True)
+    if filled + 1e-9 < floor:
+        return TakerSim(False, vwap, 0.0, 0.0, 0.0, 0.0, False, "fok_short")
+    fees = taker_fee(filled, vwap, fee_rate)
+    net = round(filled * (1.0 - vwap) - fees, 5)
+    if net <= 0:
+        return TakerSim(False, round(vwap, 4), 0.0, net, 0.0, fees, False, "fok_net")
+    cost = round(filled - net, 6)
+    reason = "fok_fak" if filled + 1e-9 < need else "fok_filled"
+    return TakerSim(True, round(vwap, 4), 0.0, net, cost, fees, False, reason, filled)
 
 
 def confirm_pair(

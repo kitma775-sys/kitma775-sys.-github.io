@@ -33,16 +33,20 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 10,
+    "strategy_rev": 11,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 10: wait taker delay, FAK leftover +EV size at snapshot limits,
-    # else hunt the delayed book (requote). Strict full-size FOK is too
-    # tight vs live FAK. Maker stays off.
+    # Rev 11: strategy_mode complement|favorite|auto. Favorite is last-30s
+    # 95–99¢ one-leg hold-to-settle. Complement two-sided maker stays off.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
+    "strategy_mode": "auto",
+    "favorite_min_price": 0.95,
+    "favorite_max_price": 0.99,
+    "favorite_window_seconds": 30.0,
+    "favorite_maker": True,
 }
 
 
@@ -62,6 +66,9 @@ SETTING_STEPS = {
     "paper_slip_ticks": (1.0, 0.0, 3.0),
     "paper_starting_cash": (100.0, 50.0, 100000.0),
     "scan_limit": (1.0, 8.0, 32.0),
+    "favorite_min_price": (0.01, 0.90, 0.98),
+    "favorite_max_price": (0.01, 0.91, 0.99),
+    "favorite_window_seconds": (5.0, 15.0, 45.0),
 }
 
 

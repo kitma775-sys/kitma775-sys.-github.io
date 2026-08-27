@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 10" in text
+    assert "Rev 11" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -976,6 +976,295 @@ def _late_end(seconds: float) -> str:
     from datetime import datetime, timedelta, timezone
 
     return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+
+
+def test_favorite_skips_ghost_99_01_book():
+    from app.hunter import is_favorite_setup
+
+    setup = hunt(
+        slug="zec",
+        title="zec",
+        condition_id="0xzec",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.99, 80)),
+        down_asks=_L((0.01, 80)),
+        up_bids=_L((0.01, 80)),
+        down_bids=_L((0.01, 80)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_maker=False,
+    )
+    assert setup is None or not is_favorite_setup(setup)
+
+
+def test_favorite_lifts_97_ask_in_last_30s():
+    from app.hunter import is_favorite_setup
+
+    setup = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_maker=False,
+    )
+    assert setup is not None
+    assert is_favorite_setup(setup)
+    assert setup.kind == "taker"
+    assert setup.extra["leg"] == "up"
+    assert 0.969 <= setup.up_price <= 0.971
+    assert setup.down_price == 0.0
+    assert setup.net > 0
+
+
+def test_favorite_skips_outside_window():
+    setup = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(90),
+        strategy_mode="favorite",
+        favorite_window_seconds=30,
+        favorite_maker=False,
+    )
+    assert setup is None
+
+
+def test_auto_prefers_complement_when_both_asks():
+    from app.hunter import is_favorite_setup
+
+    setup = hunt(
+        slug="sol",
+        title="sol",
+        condition_id="0xsol",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 80)),
+        down_asks=_L((0.01, 80)),
+        up_bids=_L((0.96, 10)),
+        down_bids=_L((0.005, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="auto",
+        favorite_maker=True,
+    )
+    assert setup is not None
+    assert setup.kind == "taker"
+    assert not is_favorite_setup(setup)
+    assert setup.down_price > 0
+
+
+def test_favorite_maker_rests_at_min_when_ask_pulled():
+    from app.hunter import is_favorite_setup
+
+    setup = hunt(
+        slug="btc",
+        title="btc",
+        condition_id="0xbtc",
+        up_token="u",
+        down_token="d",
+        up_asks=[],
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.97, 40)),
+        down_bids=_L((0.02, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_min_price=0.95,
+        favorite_max_price=0.99,
+        favorite_maker=True,
+    )
+    assert setup is not None
+    assert is_favorite_setup(setup)
+    assert setup.kind == "maker"
+    assert setup.extra["leg"] == "up"
+    assert abs(setup.up_price - 0.95) < 1e-9
+
+
+def test_favorite_approve_allows_naked_and_rescue_skips(tmp_path):
+    from app.hunter import Setup, is_favorite_setup
+    from app.risk import approve
+
+    setup = Setup(
+        slug="eth",
+        title="eth",
+        condition_id="c1",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.97,
+        down_price=0.0,
+        shares=10,
+        fillable=10,
+        gross=0.03,
+        fees=0.02,
+        net=0.28,
+        tail=True,
+        extra={"strategy": "favorite", "leg": "up", "fee_rate": 0.07},
+    )
+    assert is_favorite_setup(setup)
+    ok = approve(
+        setup,
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=0,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=0,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+        seconds_left=20,
+        favorite_min_price=0.95,
+        favorite_max_price=0.99,
+        favorite_window_seconds=30,
+    )
+    assert ok.ok is True
+    st = Store(tmp_path / "fav.sqlite")
+    st.ensure_paper(500)
+    st.add_inventory("c1", "eth", 10, 0, kind="favorite", cost=9.72)
+    paper = st.paper_state()
+    assert paper["inventory_value"] == 9.72
+    assert st.inventory_one("c1")["kind"] == "favorite"
+
+
+def test_fak_one_clips_band():
+    from app.paper_sim import fak_one
+
+    got = fak_one(
+        asks=[Level(0.97, 8), Level(0.99, 40)],
+        shares=25,
+        limit=0.97,
+        min_shares=5,
+        min_px=0.95,
+        max_px=0.99,
+        fee_rate=0.07,
+    )
+    assert got.ok is True
+    assert 7.9 <= got.shares <= 8.01
+    assert got.up_price <= 0.9701
+
+
+def test_paper_execute_favorite_is_one_leg():
+    from app.broker import paper_execute
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="eth",
+        title="eth",
+        condition_id="c1",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.97,
+        down_price=0.0,
+        shares=10,
+        fillable=10,
+        gross=0.03,
+        fees=0.02,
+        net=0.28,
+        tail=True,
+        extra={"strategy": "favorite", "leg": "up", "fee_rate": 0.07},
+    )
+    result = paper_execute(setup)
+    assert result.ok is True
+    assert result.status == "paper_filled"
+    assert result.payload["down_price"] == 0.0
+    assert result.payload["up_price"] == 0.97
+    # Cost is 10*0.97 + taker fee, not a free 0¢ down leg.
+    assert 9.70 < float(result.payload["cost"]) < 9.85
+
+
+def test_favorite_maker_consume_then_complete_does_not_double_release(tmp_path):
+    st = Store(tmp_path / "favrest.sqlite")
+    st.ensure_paper(500)
+    row = st.add_resting(
+        slug="btc",
+        condition_id="c1",
+        title="btc",
+        up_token="u",
+        down_token="d",
+        shares=10,
+        up_price=0.95,
+        down_price=0.0,
+        net=0.50,
+        payload={"strategy": "favorite", "leg": "up"},
+    )
+    after_rest = st.paper_state()
+    assert abs(after_rest["reserved"] - 9.5) < 1e-9
+    assert abs(after_rest["cash"] - 490.5) < 1e-9
+    filled = st.fill_resting_leg(row["id"], "up")
+    assert filled["up_filled"] == 1
+    st.complete_resting(row["id"], "favorite_hit")
+    paper = st.paper_state()
+    assert paper["reserved"] == 0
+    assert abs(paper["cash"] - 490.5) < 1e-9
+    assert abs(paper["inventory_value"] - 9.5) < 1e-9
+    assert abs(paper["equity"] - 500) < 1e-9
+    inv = st.inventory_one("c1")
+    assert inv["kind"] == "favorite"
+    assert inv["up"] == 10
+    assert inv["down"] == 0
+
+
+def test_telegram_clip_uses_tg_max():
+    from app.telegram_ui import TG_MAX, _clip
+
+    assert TG_MAX >= 1000
+    assert _clip("ok") == "ok"
+    long = "x" * (TG_MAX + 50)
+    clipped = _clip(long)
+    assert len(clipped) <= TG_MAX
+    assert "過長" in clipped
 
 
 def test_hunt_late_maker_when_taker_first():
@@ -1436,7 +1725,9 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 10
+    assert s["strategy_rev"] == 11
+    assert s.get("strategy_mode") == "auto"
+    assert float(s["favorite_min_price"]) == 0.95
     assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["max_book_age_ms"]) == 60000.0
     assert s["tags"] == ["5M", "15M", "1H"]
@@ -1466,11 +1757,13 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 10
+    assert body["strategy_rev"] == 11
+    assert body.get("strategy_mode") == "auto"
     assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
     assert float(body["maker_window_seconds"]) == 0.0
+    assert body.get("favorite_maker") is True
     state = client.get("/api/state?t=tok").json()
     assert state["ws_status"] == "connected"
     assert "ws_status" in state

@@ -13,6 +13,19 @@ from app.runtime import Runtime
 from app.universe import DEFAULT_ASSETS
 
 TG_MAX = 3900
+STRATEGY_MODES = ("auto", "complement", "favorite")
+STRATEGY_ZH = {
+    "auto": "自動（互補優先，否則大熱）",
+    "complement": "只做互補 YES+NO",
+    "favorite": "只買大熱 95–99¢",
+}
+
+
+def _strategy_mode(s: dict) -> str:
+    mode = str(s.get("strategy_mode") or "auto").lower()
+    return mode if mode in STRATEGY_ZH else "auto"
+
+
 NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
 STATUS_ZH = {
     "paper_filled": "紙盤成交",
@@ -34,6 +47,7 @@ TOGGLES = {
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
     "taker_fok": ("FOK 確認", "250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote。殺單 0.4s 可再試"),
+    "favorite_maker": ("大熱定價掛單", "最後30秒喺下限（預設95¢）掛買單，0 手續費；被人砸中先成交，唔對沖"),
 }
 
 
@@ -164,7 +178,10 @@ def bank_text(rt: Runtime) -> str:
 
 def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
-    rows = []
+    mode = _strategy_mode(s)
+    rows = [
+        [InlineKeyboardButton(f"策略：{STRATEGY_ZH[mode]}", callback_data="smode")],
+    ]
     for key, (label, _hint) in TOGGLES.items():
         on = bool(s.get(key))
         rows.append([InlineKeyboardButton(f"{'✅' if on else '⬜️'} {label}", callback_data=f"tog:{key}")])
@@ -233,6 +250,9 @@ def _label(key: str) -> str:
         "paper_slip_ticks": "紙盤滑點tick",
         "paper_starting_cash": "紙盤本金$",
         "scan_limit": "每圈最多盤",
+        "favorite_min_price": "大熱最低價",
+        "favorite_max_price": "大熱最高價",
+        "favorite_window_seconds": "大熱尾窗s",
     }.get(key, key)
 
 
@@ -264,7 +284,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 10：250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote（唔再等一次 delay）。殺單 0.4s 可再試。預設停掛單。\n"
+        "Rev 11：自動＝互補優先，否則最後30秒買 95–99¢ 大熱（可改）。定價掛單預設 95¢，0費但爆倉風險大。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -330,7 +350,8 @@ def _status_text(rt: Runtime) -> str:
         + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status}\n"
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 掛單尾窗 {win_txt}\n"
+        + f"策略 {_strategy_mode(s)} · 大熱 {float(s.get('favorite_min_price') or 0.95):.2f}–{float(s.get('favorite_max_price') or 0.99):.2f} · 尾窗 {float(s.get('favorite_window_seconds') or 30):.0f}s\n"
+        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
         + f"幣：{assets or '全部'}"
     )
@@ -353,7 +374,13 @@ def _pos_text(rt: Runtime) -> str:
         lines.append("而家無倉、無掛單。0/0 空列已清。Rev 6 預設只做 taker。")
         return "\n".join(lines)
     for row in inv[:15]:
-        lines.append(f"{row['slug'] or row['condition_id'][:8]}\n  Up {row['up']:.1f} · Down {row['down']:.1f}")
+        kind = str(row.get("kind") or "pair")
+        tag = " 大熱" if kind == "favorite" else ""
+        cost = float(row.get("cost") or 0)
+        cost_txt = f" · 成本 ${cost:.2f}" if kind == "favorite" and cost > 0 else ""
+        lines.append(
+            f"{row['slug'] or row['condition_id'][:8]}{tag}\n  Up {row['up']:.1f} · Down {row['down']:.1f}{cost_txt}"
+        )
     return "\n".join(lines)
 
 
@@ -533,6 +560,13 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, "高階設定。撳開關或者加減。預設已經係全自動紙盤。", reply_markup=settings_kb(rt))
         return
+    if data == "smode":
+        cur = _strategy_mode(s)
+        nxt = STRATEGY_MODES[(STRATEGY_MODES.index(cur) + 1) % len(STRATEGY_MODES)]
+        rt.store.patch_settings(strategy_mode=nxt)
+        await q.answer(STRATEGY_ZH[nxt])
+        await _safe_edit(q, f"策略已轉：{STRATEGY_ZH[nxt]}", reply_markup=settings_kb(rt))
+        return
     if data == "assets":
         await q.answer()
         await _safe_edit(q, "揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
@@ -585,10 +619,20 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         cur = float(s.get(key) or 0)
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
-        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash", "scan_limit", "maker_window_seconds"}:
+        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash", "scan_limit", "maker_window_seconds", "favorite_window_seconds"}:
             rt.store.patch_settings(**{key: int(round(nxt))})
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})
+        if key in {"favorite_min_price", "favorite_max_price"}:
+            ss = rt.settings()
+            lo = round(float(ss.get("favorite_min_price") or 0.95), 2)
+            hi = round(float(ss.get("favorite_max_price") or 0.99), 2)
+            if lo >= hi:
+                if key == "favorite_min_price":
+                    hi = min(0.99, round(lo + 0.01, 2))
+                else:
+                    lo = max(0.90, round(hi - 0.01, 2))
+                rt.store.patch_settings(favorite_min_price=lo, favorite_max_price=hi)
         await q.answer()
         await _safe_edit(q, "高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
         return

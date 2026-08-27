@@ -10,9 +10,9 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
-from app.hunter import book_quote, hunt, summarize_quotes
+from app.hunter import book_quote, hunt, is_favorite_setup, summarize_quotes
 from app.markets import MarketData
-from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, market_expired, seconds_left
+from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import parse_outcome_prices, plan_rescue
 from app.risk import approve
 from app.store import Store
@@ -397,13 +397,18 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
                 maker_window_seconds=window,
                 maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
+                strategy_mode=str(s.get("strategy_mode") or "auto"),
+                favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
+                favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
+                favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+                favorite_maker=bool(s.get("favorite_maker")),
             )
         except Exception as exc:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
             continue
         if not setup:
             continue
-        if setup.kind == "maker" and window < 3:
+        if setup.kind == "maker" and window < 3 and not is_favorite_setup(setup):
             continue
         if paper_mode and rt.store.has_open_resting(setup.slug):
             continue
@@ -436,6 +441,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             maker_window=window,
             maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
             maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
+            favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
+            favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
+            favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
         )
         payload = {
             "title": setup.title,
@@ -530,6 +538,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_window=window,
                 maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
+                favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
+                favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
+                favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
             )
             if not resized.ok:
                 fok_kills += 1
@@ -546,7 +557,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             shares=setup.shares,
             up_price=setup.up_price,
             down_price=setup.down_price,
-            net=(result.payload or {}).get("net", setup.net) if result.ok and result.status in {"filled", "paper_filled"} else 0.0,
+            net=(result.payload or {}).get("net", setup.net) if result.ok and result.status in {"filled", "paper_filled"} and not is_favorite_setup(setup) else 0.0,
             mode=result.mode,
             status=result.status,
             payload={"detail": result.detail, **(result.payload or {})},
@@ -565,14 +576,22 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 except ValueError:
                     rt.store.add_event("warn", f"paper cash race {setup.slug}")
                     continue
-            rt.store.add_inventory(setup.condition_id, setup.slug, setup.shares, setup.shares)
-            if s.get("auto_merge"):
-                merged = rt.store.merge_inventory(setup.condition_id, setup.shares)
-                take = float(merged["merged"] or 0)
-                if take > 0 and paper_mode:
-                    net_part = fill_net * (take / setup.shares) if setup.shares else 0.0
-                    rt.store.paper_apply_merge(take, net_part)
-                await broker.merge(setup.condition_id, take)
+            if is_favorite_setup(setup):
+                leg = str((setup.extra or {}).get("leg") or "up")
+                up_sh = setup.shares if leg == "up" else 0.0
+                dn_sh = setup.shares if leg == "down" else 0.0
+                rt.store.add_inventory(
+                    setup.condition_id, setup.slug, up_sh, dn_sh, kind="favorite", cost=fill_cost
+                )
+            else:
+                rt.store.add_inventory(setup.condition_id, setup.slug, setup.shares, setup.shares)
+                if s.get("auto_merge"):
+                    merged = rt.store.merge_inventory(setup.condition_id, setup.shares)
+                    take = float(merged["merged"] or 0)
+                    if take > 0 and paper_mode:
+                        net_part = fill_net * (take / setup.shares) if setup.shares else 0.0
+                        rt.store.paper_apply_merge(take, net_part)
+                    await broker.merge(setup.condition_id, take)
             paper = rt.store.paper_state() if paper_mode else None
             if s.get("notify_signals"):
                 flag = "🧪紙盤" if result.mode == "paper" else "🔴實盤"
@@ -584,13 +603,13 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                         f"\n累計 PnL {sign}${paper['total_pnl']:.2f} · 今日 ${paper['today_pnl']:.2f}"
                     )
                 await rt.notify(
-                    f"{flag} 成交 {setup.kind}\n{setup.title}\n"
+                    f"{flag} 成交 {'大熱' if is_favorite_setup(setup) else setup.kind}\n{setup.title}\n"
                     f"Up {fill_up} + Down {fill_down} × {setup.shares:.1f}\n"
-                    f"淨利 ${fill_net:.2f}{book}",
+                    f"{'未結算期望' if is_favorite_setup(setup) else '淨利'} ${fill_net:.2f}{book}",
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
-            if window < 3:
+            if window < 3 and not is_favorite_setup(setup):
                 rt.store.add_event("info", f"skip rest {setup.slug}: maker window off")
                 continue
             if paper_mode:
@@ -606,7 +625,11 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                         down_price=setup.down_price,
                         net=setup.net,
                         end=setup.end,
-                        payload={"detail": result.detail},
+                        payload={
+                            "detail": result.detail,
+                            "strategy": (setup.extra or {}).get("strategy"),
+                            "leg": (setup.extra or {}).get("leg"),
+                        },
                     )
                 except ValueError as exc:
                     rt.store.add_event("warn", f"paper rest skip {setup.slug}: {exc}")
@@ -633,6 +656,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["snapshot_signals"] = snapshot_signals
     tape["fok_kills"] = fok_kills
     tape["fok_fills"] = fok_fills
+    tape["strategy_mode"] = str(s.get("strategy_mode") or "auto")
+    tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.95)
+    tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.99)
     rt.last_loop.update(
         {
             "signals": signals,
@@ -666,6 +692,8 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "fok_http")
     fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
     paper = rt.store.paper_state() if rt.mode() == "paper" else None
+    if is_favorite_setup(setup):
+        return _confirm_favorite(rt, ev, setup, up_book, dn_book, s, fee_rate, paper)
     return confirm_pair(
         setup=setup,
         up_asks=up_book.get("asks") or [],
@@ -678,6 +706,76 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
         tail_confirm=float(s["tail_confirm"]),
         max_usd=_trade_budget(s, paper),
         prefer_tail=bool(s["prefer_tail"]),
+    )
+
+
+def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
+    leg = str((setup.extra or {}).get("leg") or "up")
+    asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
+    min_px = setting_num(s, "favorite_min_price", 0.95)
+    max_px = setting_num(s, "favorite_max_price", 0.99)
+    limit = setup.up_price if leg == "up" else setup.down_price
+    min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
+    fill = fak_one(
+        asks=asks,
+        shares=setup.shares,
+        limit=limit,
+        min_shares=min_shares,
+        min_px=min_px,
+        max_px=max_px,
+        fee_rate=fee_rate,
+    )
+    if fill.ok:
+        px = fill.up_price
+        return TakerSim(
+            True,
+            px if leg == "up" else 0.0,
+            px if leg == "down" else 0.0,
+            fill.net,
+            fill.cost,
+            fill.fees,
+            False,
+            fill.reason,
+            fill.shares,
+        )
+    requote = hunt(
+        slug=ev["slug"],
+        title=ev.get("title") or setup.title,
+        condition_id=ev["condition_id"],
+        up_token=ev["up_token"],
+        down_token=ev["down_token"],
+        up_asks=up_book.get("asks") or [],
+        down_asks=dn_book.get("asks") or [],
+        up_bids=up_book.get("bids") or [],
+        down_bids=dn_book.get("bids") or [],
+        max_usd=_trade_budget(s, paper),
+        min_shares=min_shares,
+        min_edge=float(s["min_edge"]),
+        fee_rate=fee_rate,
+        prefer_tail=bool(s["prefer_tail"]),
+        tail_confirm=float(s["tail_confirm"]),
+        maker_first=False,
+        end=ev.get("end") or setup.end,
+        maker_window_seconds=0.0,
+        strategy_mode="favorite",
+        favorite_min_price=min_px,
+        favorite_max_price=max_px,
+        favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+        favorite_maker=False,
+    )
+    if requote is None or requote.kind != "taker" or requote.net <= 0:
+        return fill
+    setup.extra["leg"] = (requote.extra or {}).get("leg") or leg
+    return TakerSim(
+        True,
+        requote.up_price,
+        requote.down_price,
+        requote.net,
+        requote.cost,
+        requote.fees,
+        False,
+        "fok_requote",
+        requote.shares,
     )
 
 
@@ -721,6 +819,8 @@ async def _process_resting(rt: Runtime) -> int:
     s = rt.settings()
     fills = 0
     for row in list(rt.store.resting_open()):
+        payload = row.get("payload") or {}
+        favorite = payload.get("strategy") == "favorite"
         if market_expired(row.get("end")):
             one_sided = bool(row["up_filled"]) != bool(row["down_filled"])
             rt.store.cancel_resting(row["id"], "expired")
@@ -736,6 +836,34 @@ async def _process_resting(rt: Runtime) -> int:
             )
         except Exception as exc:
             rt.store.add_event("warn", f"rest book {row['slug']}: {exc}"[:200])
+            continue
+        if favorite:
+            leg = str(payload.get("leg") or ("up" if float(row["up_price"]) >= float(row["down_price"]) else "down"))
+            book = up_book if leg == "up" else dn_book
+            px = float(row["up_price"] if leg == "up" else row["down_price"])
+            already = bool(row["up_filled"] if leg == "up" else row["down_filled"])
+            if not already and asks_cross_bid(book.get("asks") or [], px, float(row["shares"])):
+                row = rt.store.fill_resting_leg(row["id"], leg)
+                rt.store.complete_resting(row["id"], "favorite_hit")
+                fills += 1
+                paper = rt.store.paper_state()
+                rt.store.add_trade(
+                    slug=row["slug"],
+                    kind="maker",
+                    shares=row["shares"],
+                    up_price=row["up_price"],
+                    down_price=row["down_price"],
+                    net=0.0,
+                    mode="paper",
+                    status="paper_filled",
+                    payload={"detail": f"favorite bid hit {leg} @{px}", "resting_id": row["id"], "strategy": "favorite"},
+                )
+                if s.get("notify_signals"):
+                    await rt.notify(
+                        f"📌大熱掛單碰到（未結算）\n{row.get('title') or row['slug']}\n"
+                        f"{leg} @{px} × {row['shares']:.1f} · 權益 ${paper['equity']:.2f}",
+                        important=True,
+                    )
             continue
         filled_now = []
         if not row["up_filled"] and asks_cross_bid(up_book["asks"], float(row["up_price"]), float(row["shares"])):
@@ -921,6 +1049,8 @@ async def _rescue_naked(rt: Runtime, events: list[dict]) -> int:
             continue
         if up < 0.01 and down < 0.01:
             continue
+        if str(inv.get("kind") or "") == "favorite":
+            continue
         cid = inv["condition_id"]
         ev = live.get(cid)
         if ev is None:
@@ -984,24 +1114,28 @@ async def _settle_inventory(rt: Runtime) -> int:
             continue
         up_p, dn_p = prices
         payout = round(up * up_p + down * dn_p, 6)
+        cost = float(inv.get("cost") or 0)
+        fav = str(inv.get("kind") or "") == "favorite"
         rt.store.take_inventory(inv["condition_id"], up=up, down=down)
         if payout > 0:
             rt.store.paper_apply_credit(payout)
+        settle_net = round(payout - cost, 6) if fav else payout
         rt.store.add_trade(
             slug=slug,
             kind="settle",
             shares=max(up, down),
             up_price=up_p,
             down_price=dn_p,
-            net=payout,
+            net=settle_net,
             mode="paper",
             status="paper_settled",
-            payload={"up": up, "down": down, "payout": payout},
+            payload={"up": up, "down": down, "payout": payout, "cost": cost, "strategy": "favorite" if fav else "pair"},
         )
         rt.store.add_event("info", f"paper settled {slug} up={up:.1f}@{up_p} down={down:.1f}@{dn_p} payout=${payout:.2f}")
         n += 1
         if rt.settings().get("notify_signals"):
-            await rt.notify(f"⚖️ 結算 {slug}\nUp {up:.1f}×{up_p} + Down {down:.1f}×{dn_p} = ${payout:.2f}")
+            extra = f" · 淨 ${settle_net:.2f}" if fav else ""
+            await rt.notify(f"⚖️ 結算 {slug}\nUp {up:.1f}×{up_p} + Down {down:.1f}×{dn_p} = ${payout:.2f}{extra}")
     return n
 
 

@@ -116,6 +116,8 @@
         tile(s.taker_fok===false ? "關" : "開", "延遲確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
+        tile({"auto":"自動","complement":"互補","favorite":"大熱"}[s.strategy_mode] || (s.strategy_mode || "—"), "策略模式"),
+        tile(((Number(s.favorite_min_price||0.95)*100).toFixed(0)) + "–" + ((Number(s.favorite_max_price||0.99)*100).toFixed(0)) + "¢", "大熱區間"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
         tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),
@@ -146,7 +148,7 @@
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+x.up_price+"+"+x.down_price+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
       ).join("") || "<tr><td colspan=6>暫無（Rev 6 預設停掛單）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
-        "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
+        "<tr><td>"+esc(x.slug||x.condition_id)+(x.kind==="favorite"?" · 大熱":"")+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
       ).join("") || "<tr><td colspan=3>暫無倉位（0/0 空列已清）</td></tr>";
       document.getElementById("events").textContent = (d.events||[]).map(e => e.level + " " + e.message).join("\n") || "—";
     }

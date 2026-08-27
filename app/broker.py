@@ -101,7 +101,14 @@ class LiveBroker:
         client = await self._client_ready()
         results = []
         try:
-            for token, price in ((setup.up_token, setup.up_price), (setup.down_token, setup.down_price)):
+            legs = [
+                (token, price)
+                for token, price in ((setup.up_token, setup.up_price), (setup.down_token, setup.down_price))
+                if float(price) >= 0.01
+            ]
+            if not legs:
+                return FillResult(False, "rejected", "live", "no priced legs", {"legs": []})
+            for token, price in legs:
                 kwargs = dict(
                     token_id=token,
                     side="BUY",
