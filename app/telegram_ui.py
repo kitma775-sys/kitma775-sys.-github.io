@@ -33,7 +33,7 @@ TOGGLES = {
     "auto_merge": ("自動 merge", "兩邊齊就換返現金"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
-    "taker_fok": ("FOK 確認", "250ms 後重拉兩邊簿，掃不滿就整單取消（舊紙盤會當成交）"),
+    "taker_fok": ("FOK 確認", "250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote。殺單 0.4s 可再試"),
 }
 
 
@@ -264,7 +264,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 9：taker 用 FOK。等 250ms 再拉兩邊真簿，掃不滿就殺單（舊紙盤會當成交）。預設停掛單。\n"
+        "Rev 10：250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote（唔再等一次 delay）。殺單 0.4s 可再試。預設停掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 

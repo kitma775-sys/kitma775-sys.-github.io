@@ -39,5 +39,6 @@
     }
   ],
   "expected_going_forward": "Dashboard 影/成/殺: snapshot_signals counts setups the old paper would have booked; fok_fills credit cash; fok_kills are the difference. Many 5m last-minute 6¢ holes will show as 殺單. A FOK fill is the subset that survived 250ms with full two-ask size still on the book.",
+  "rev10_supersedes": "Full-size pair FOK killed leftover +EV size and 1-tick-worse books. See research/rev10_fak_requote.json. min_edge, maker off, FORCE_PAPER unchanged.",
   "still": "maker_window=0, min_edge=0.02, FORCE_PAPER, no live, no paper reset"
 }

@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
 from app.hunter import book_quote, hunt, summarize_quotes
 from app.markets import MarketData
-from app.paper_sim import TakerSim, asks_cross_bid, fok_pair, market_expired, seconds_left
+from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, market_expired, seconds_left
 from app.rescue import parse_outcome_prices, plan_rescue
 from app.risk import approve
 from app.store import Store
@@ -409,9 +409,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             continue
         if paper_mode:
             setup.extra["paper_slip_ticks"] = int(s.get("paper_slip_ticks") or 0)
-        cool = setting_num(s, "quote_cooldown_seconds", 5.0)
-        last = rt.cooldown.get(setup.slug, 0)
-        if time.time() - last < cool:
+        if rt.cooldown.get(setup.slug, 0.0) > time.time():
             continue
         signals += 1
         if paper_mode:
@@ -469,7 +467,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             payload["snapshot_net"] = setup.net
             if not confirm.ok:
                 fok_kills += 1
-                rt.cooldown[setup.slug] = time.time()
+                rt.cooldown[setup.slug] = time.time() + 0.4
                 rt.store.add_scan(setup.slug, "taker", {**payload, "reason": confirm.reason})
                 rt.store.add_trade(
                     slug=setup.slug,
@@ -495,18 +493,53 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                         f"確認後：{confirm.reason}",
                     )
                 continue
+            if confirm.shares > 0:
+                setup.shares = round(float(confirm.shares), 4)
+                setup.fillable = setup.shares
             setup.up_price = confirm.up_price
             setup.down_price = confirm.down_price
             setup.net = confirm.net
             setup.fees = confirm.fees
             setup.gross = round(1.0 - (confirm.up_price + confirm.down_price), 4)
+            setup.extra["fok"] = confirm.reason
             payload["up"] = confirm.up_price
             payload["down"] = confirm.down_price
             payload["net"] = confirm.net
-            payload["reason"] = "fok_filled"
+            payload["shares"] = setup.shares
+            payload["reason"] = confirm.reason
+            if paper_mode:
+                paper = rt.store.paper_state()
+            resized = approve(
+                setup,
+                stale_leg=float(s["stale_leg"]),
+                tail_confirm=float(s["tail_confirm"]),
+                max_imbalance=float(s["max_imbalance_shares"]),
+                inventory_up=float(inv["up"]),
+                inventory_down=float(inv["down"]),
+                daily_pnl=paper["today_pnl"] if paper else rt.store.today_pnl(),
+                daily_loss_limit=float(s["daily_loss_limit_usd"]),
+                open_markets=rt.store.stats()["open_markets"],
+                max_open_markets=int(s["max_open_markets"]),
+                killed=bool(s["killed"]),
+                engine_running=bool(s["engine_running"]),
+                auto_execute=bool(s["auto_execute"]),
+                cash=paper["cash"] if paper else None,
+                cost=setup.cost if paper else None,
+                unmatched_shares=rt.store.unmatched_shares(),
+                seconds_left=seconds_left(ev.get("end")),
+                maker_window=window,
+                maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
+                maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
+            )
+            if not resized.ok:
+                fok_kills += 1
+                rt.cooldown[setup.slug] = time.time() + 0.4
+                rt.store.add_scan(setup.slug, "taker", {**payload, "reason": f"fok_{resized.reason}"})
+                continue
             rt.store.add_scan(setup.slug, "taker", payload)
         result: FillResult = await broker.execute_pair(setup)
-        rt.cooldown[setup.slug] = time.time()
+        cool = setting_num(s, "quote_cooldown_seconds", 5.0)
+        rt.cooldown[setup.slug] = time.time() + cool
         rt.store.add_trade(
             slug=setup.slug,
             kind=setup.kind,
@@ -616,7 +649,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
 
 
 async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
-    """Re-read both CLOB books after the official 250ms taker delay, then pair-FOK."""
+    """Wait the official 250ms taker delay, then FAK leftover size or requote."""
     s = rt.settings()
     delay_ms = setting_num(s, "fok_delay_ms", 250.0)
     if delay_ms > 0:
@@ -632,13 +665,19 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
         rt.store.add_event("warn", f"fok book {ev.get('slug')}: {fmt_exc(exc)}")
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "fok_http")
     fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
-    return fok_pair(
+    paper = rt.store.paper_state() if rt.mode() == "paper" else None
+    return confirm_pair(
+        setup=setup,
         up_asks=up_book.get("asks") or [],
         down_asks=dn_book.get("asks") or [],
-        shares=setup.shares,
-        up_limit=setup.up_price,
-        down_limit=setup.down_price,
+        up_bids=up_book.get("bids") or [],
+        down_bids=dn_book.get("bids") or [],
+        min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
+        min_edge=float(s["min_edge"]),
         fee_rate=fee_rate,
+        tail_confirm=float(s["tail_confirm"]),
+        max_usd=_trade_budget(s, paper),
+        prefer_tail=bool(s["prefer_tail"]),
     )
 
 

@@ -57,7 +57,8 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
-- **Rev 9**：taker **pair FOK**。Hunt 仍然用當刻盤口找信號；成交前等 250ms（crypto up/down `itode` delay）再 HTTP 重拉兩邊簿。兩邊都要喺限價內掃滿原數量，否則 **整單取消、唔入紙盤 PnL**。Dashboard 會分開「snapshot 會成」同「FOK 殺單」。掛單仍然關。`min_edge` 維持 0.02。紙盤未重置、未開實盤。詳情 `research/fok_vs_snapshot.json`
+- **Rev 10**：taker 仍然等 250ms（crypto up/down `itode`），但確認改成 **FAK 剩餘 +EV 量**（26 股縮到 8 仍然 +EV 就食 8），限價被抬走就 **用延遲後嘅真簿 requote**（例如 0.82→0.83 只要 0.83+另一邊仲 +EV）。唔會再等第二次 250ms。殺單 cooldown **0.4s** 而唔係 5s，尾盤可以再試。Hunt 會 clip 最大仍 +EV 嘅前綴，唔好將垃圾檔位混入 VWAP 之後整單否決。掛單仍然關。`min_edge` 維持 0.02。紙盤未重置、未開實盤。詳情 `research/rev10_fak_requote.json`
+- **Rev 9**：taker **pair FOK**。Hunt 仍然用當刻盤口找信號；成交前等 250ms 再 HTTP 重拉兩邊簿。兩邊都要喺限價內掃滿原數量，否則 **整單取消、唔入紙盤 PnL**。全量 FOK 對 sticky 洞太死（剩餘量同 1 tick 變價都會殺）。Dashboard 會分開「snapshot 會成」同「確認殺單」。
 - **Rev 8**：掃 **5M＋15M＋1H**（5 分鐘窗每小時完場次數係 15m 的 3 倍）。每圈 24 盤；最後 3 分鐘優先，中段單邊 1 分盤唔好佔晒位。`best_ask=0` 會清 WS 賣盤，避免抽走後仲當有單。
 - **Rev 7**：WS 盤口 hold 60 秒——一邊 ask 郁可以用另一邊最後簿去配。尾盤 ≤120s 每秒補一次 HTTP。Gamma `bestAsk≥0.99` 喺最後 3 分鐘唔再當空盤丟掉。
 - **Rev 6 教訓**：要求兩邊都 <2s 新鮮會跳過 MM requote；尾盤贏家 ask 被抽走就做唔到互補。HTTP 式尾盤掛單 6 小時 −$4.79、0 次兩邊成交。

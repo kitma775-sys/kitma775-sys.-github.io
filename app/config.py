@@ -33,12 +33,13 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 9,
+    "strategy_rev": 10,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 9: pair FOK — wait taker delay, re-fetch both books, fill both
-    # fully at the snapshot limits or credit nothing. Maker stays off.
+    # Rev 10: wait taker delay, FAK leftover +EV size at snapshot limits,
+    # else hunt the delayed book (requote). Strict full-size FOK is too
+    # tight vs live FAK. Maker stays off.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,

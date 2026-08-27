@@ -107,7 +107,7 @@ class LiveBroker:
                     side="BUY",
                     price=f"{price:.4f}",
                     size=f"{setup.shares:.2f}",
-                    order_type="FOK",
+                    order_type="FAK",  # live default taker; unused while FORCE_PAPER
                 )
                 if setup.kind == "maker":
                     kwargs.pop("order_type", None)

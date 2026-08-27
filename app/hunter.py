@@ -246,6 +246,65 @@ def _size_from_depth(up: list[Level], down: list[Level], max_usd: float, min_sha
     return max(0.0, min(depth, cap))
 
 
+def plus_ev_fill(
+    up_asks: list[Level],
+    down_asks: list[Level],
+    max_shares: float,
+    min_shares: float,
+    min_edge: float,
+    fee_rate: float,
+    tail_confirm: float,
+) -> tuple[float, float, float, float, float, bool] | None:
+    """Largest size in [min_shares, max_shares] that is still +EV after fees.
+
+    Taking the full USD cap can mix in worse levels and kill a real 5–10 share
+    tail. Binary-search the prefix instead of all-or-nothing at max size.
+    """
+    up_asks = _sorted_asks(up_asks)
+    down_asks = _sorted_asks(down_asks)
+    hi = float(max_shares)
+    lo = float(min_shares)
+    if hi + 1e-9 < lo:
+        return None
+
+    def try_size(sz: float) -> tuple[float, float, float, float, float, bool] | None:
+        sz = round(float(sz), 4)
+        if sz + 1e-9 < lo:
+            return None
+        filled_up, up_vwap = walk(up_asks, sz, asks=True)
+        filled_dn, dn_vwap = walk(down_asks, sz, asks=True)
+        got = min(filled_up, filled_dn)
+        if got + 1e-9 < sz:
+            return None
+        gross = gross_edge(up_vwap, dn_vwap)
+        net = taker_net(sz, up_vwap, dn_vwap, fee_rate)
+        tail = is_tail(up_vwap, dn_vwap, tail_confirm)
+        if net <= 0:
+            return None
+        if gross < min_edge and not tail:
+            return None
+        return sz, up_vwap, dn_vwap, gross, net, tail
+
+    best = try_size(hi)
+    if best:
+        return best
+    best = try_size(lo)
+    if not best:
+        return None
+    left, right = lo, hi
+    for _ in range(20):
+        if right - left < 0.05:
+            break
+        mid = (left + right) / 2
+        got = try_size(mid)
+        if got:
+            best = got
+            left = mid
+        else:
+            right = mid
+    return best
+
+
 def _taker_setup(**kw) -> Setup | None:
     up_asks: list[Level] = _sorted_asks(kw["up_asks"])
     down_asks: list[Level] = _sorted_asks(kw["down_asks"])
@@ -255,22 +314,19 @@ def _taker_setup(**kw) -> Setup | None:
     shares = _size_from_depth(up_asks, down_asks, kw["max_usd"], kw["min_shares"], max(top_pair, 0.5))
     if shares < kw["min_shares"]:
         return None
-    filled_up, up_vwap = walk(up_asks, shares, asks=True)
-    filled_dn, dn_vwap = walk(down_asks, shares, asks=True)
-    filled = min(filled_up, filled_dn)
-    if filled < kw["min_shares"]:
+    clipped = plus_ev_fill(
+        up_asks,
+        down_asks,
+        shares,
+        kw["min_shares"],
+        kw["min_edge"],
+        kw["fee_rate"],
+        kw["tail_confirm"],
+    )
+    if not clipped:
         return None
-    if filled < shares:
-        filled_up, up_vwap = walk(up_asks, filled, asks=True)
-        filled_dn, dn_vwap = walk(down_asks, filled, asks=True)
-        filled = min(filled_up, filled_dn)
-    gross = gross_edge(up_vwap, dn_vwap)
+    filled, up_vwap, dn_vwap, gross, net, tail = clipped
     fees = pair_taker_fee(filled, up_vwap, dn_vwap, kw["fee_rate"])
-    net = taker_net(filled, up_vwap, dn_vwap, kw["fee_rate"])
-    tail = is_tail(up_vwap, dn_vwap, kw["tail_confirm"])
-    if net <= 0 or gross < kw["min_edge"]:
-        if not (tail and net > 0):
-            return None
     return Setup(
         slug=kw["slug"],
         title=kw["title"],

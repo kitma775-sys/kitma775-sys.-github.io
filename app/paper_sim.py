@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.fees import pair_taker_fee, taker_net
-from app.hunter import Level, Setup, walk
+from app.hunter import Level, Setup, hunt, plus_ev_fill, total_size, walk
 
 TICK = 0.01
 
@@ -30,6 +30,7 @@ class TakerSim:
     fees: float
     slipped: bool
     reason: str
+    shares: float = 0.0
 
 
 def simulate_taker(
@@ -48,8 +49,12 @@ def simulate_taker(
     cost = round(float(setup.shares) - net, 6)
     slipped = slip > 1e-12
     if net <= 0:
-        return TakerSim(False, up, down, net, cost, fees, slipped, "slip_killed_edge" if slipped else "non_positive_net")
-    return TakerSim(True, up, down, net, cost, fees, slipped, "filled")
+        return TakerSim(
+            False, up, down, net, cost, fees, slipped,
+            "slip_killed_edge" if slipped else "non_positive_net",
+            setup.shares,
+        )
+    return TakerSim(True, up, down, net, cost, fees, slipped, "filled", setup.shares)
 
 
 def fok_pair(
@@ -82,7 +87,7 @@ def fok_pair(
     net = taker_net(need, up_vwap, dn_vwap, fee_rate)
     cost = round(need - net, 6)
     if net <= 0:
-        return TakerSim(False, round(up_vwap, 4), round(dn_vwap, 4), net, cost, fees, False, "fok_net")
+        return TakerSim(False, round(up_vwap, 4), round(dn_vwap, 4), net, cost, fees, False, "fok_net", 0.0)
     return TakerSim(
         True,
         round(up_vwap, 4),
@@ -92,6 +97,111 @@ def fok_pair(
         fees,
         False,
         "fok_filled",
+        need,
+    )
+
+
+def fak_pair(
+    *,
+    up_asks: list[Level],
+    down_asks: list[Level],
+    shares: float,
+    up_limit: float,
+    down_limit: float,
+    min_shares: float,
+    min_edge: float,
+    fee_rate: float,
+    tail_confirm: float,
+) -> TakerSim:
+    """Fill-and-kill at the original limits: take whatever +EV size remains, or nothing.
+
+    Strict FOK of the snapshot size dies when 26 shares shrink to 8. Live FAK
+    (and a requote loop) would still lift the remaining 8 if they are +EV.
+    """
+    need = float(shares)
+    floor = float(min_shares)
+    up_cap = [lv for lv in up_asks if lv.price <= float(up_limit) + 1e-12]
+    dn_cap = [lv for lv in down_asks if lv.price <= float(down_limit) + 1e-12]
+    available = min(total_size(up_cap), total_size(dn_cap), need)
+    if available + 1e-9 < floor:
+        return TakerSim(False, 0.0, 0.0, 0.0, 0.0, 0.0, False, "fok_short")
+    clipped = plus_ev_fill(up_cap, dn_cap, available, floor, min_edge, fee_rate, tail_confirm)
+    if not clipped:
+        return TakerSim(False, 0.0, 0.0, 0.0, 0.0, 0.0, False, "fok_net")
+    sz, up_vwap, dn_vwap, _gross, net, _tail = clipped
+    fees = pair_taker_fee(sz, up_vwap, dn_vwap, fee_rate)
+    cost = round(sz - net, 6)
+    reason = "fok_fak" if sz + 1e-9 < need else "fok_filled"
+    return TakerSim(True, round(up_vwap, 4), round(dn_vwap, 4), round(net, 5), cost, fees, False, reason, sz)
+
+
+def confirm_pair(
+    *,
+    setup: Setup,
+    up_asks: list[Level],
+    down_asks: list[Level],
+    up_bids: list[Level] | None = None,
+    down_bids: list[Level] | None = None,
+    min_shares: float,
+    min_edge: float,
+    fee_rate: float,
+    tail_confirm: float,
+    max_usd: float,
+    prefer_tail: bool = True,
+) -> TakerSim:
+    """After the 250ms taker delay: FAK leftover +EV size at the snapshot
+    limits, else hunt the delayed book (requote, no second delay).
+
+    Live crypto up/down holds the first order 250ms (`itode`). A second wait
+    would model requote+itode and miss holes that only last ~300–400ms.
+    Requote-at-delayed-book is the honest fill of a sticky hole, not a ghost
+    snapshot.
+    """
+    fill = fak_pair(
+        up_asks=up_asks,
+        down_asks=down_asks,
+        shares=setup.shares,
+        up_limit=setup.up_price,
+        down_limit=setup.down_price,
+        min_shares=min_shares,
+        min_edge=min_edge,
+        fee_rate=fee_rate,
+        tail_confirm=tail_confirm,
+    )
+    if fill.ok:
+        return fill
+    requote = hunt(
+        slug=setup.slug,
+        title=setup.title,
+        condition_id=setup.condition_id,
+        up_token=setup.up_token,
+        down_token=setup.down_token,
+        up_asks=up_asks,
+        down_asks=down_asks,
+        up_bids=up_bids or [],
+        down_bids=down_bids or [],
+        max_usd=max_usd,
+        min_shares=min_shares,
+        min_edge=min_edge,
+        fee_rate=fee_rate,
+        prefer_tail=prefer_tail,
+        tail_confirm=tail_confirm,
+        maker_first=False,
+        end=setup.end,
+        maker_window_seconds=0.0,
+    )
+    if requote is None or requote.kind != "taker" or requote.net <= 0:
+        return fill
+    return TakerSim(
+        True,
+        requote.up_price,
+        requote.down_price,
+        requote.net,
+        requote.cost,
+        requote.fees,
+        False,
+        "fok_requote",
+        requote.shares,
     )
 
 

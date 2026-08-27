@@ -432,6 +432,166 @@ def test_fok_pair_kills_short_size_and_worse_ask():
     assert moved.reason == "fok_up_short"
 
 
+def test_fak_pair_fills_remaining_plus_ev_size():
+    from app.paper_sim import fak_pair
+
+    got = fak_pair(
+        up_asks=[Level(0.82, 10)],
+        down_asks=[Level(0.12, 40)],
+        shares=26.6,
+        up_limit=0.82,
+        down_limit=0.12,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        tail_confirm=0.90,
+    )
+    assert got.ok is True
+    assert got.reason == "fok_fak"
+    assert 9.9 <= got.shares <= 10.01
+    assert got.net > 0
+
+
+def test_fak_pair_kills_below_min_shares_and_price_through():
+    from app.paper_sim import fak_pair
+
+    short = fak_pair(
+        up_asks=[Level(0.82, 3)],
+        down_asks=[Level(0.12, 40)],
+        shares=26.6,
+        up_limit=0.82,
+        down_limit=0.12,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        tail_confirm=0.90,
+    )
+    assert short.ok is False
+    assert short.reason == "fok_short"
+    moved = fak_pair(
+        up_asks=[Level(0.91, 40)],
+        down_asks=[Level(0.12, 40)],
+        shares=26.6,
+        up_limit=0.82,
+        down_limit=0.12,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        tail_confirm=0.90,
+    )
+    assert moved.ok is False
+    assert moved.reason == "fok_short"
+
+
+def test_confirm_pair_requotes_one_tick_worse_if_still_plus_ev():
+    from app.hunter import Setup
+    from app.paper_sim import confirm_pair
+
+    setup = Setup(
+        slug="sol",
+        title="sol",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.82,
+        down_price=0.12,
+        shares=26.6,
+        fillable=26.6,
+        gross=0.06,
+        fees=0.0,
+        net=1.12,
+        tail=False,
+    )
+    got = confirm_pair(
+        setup=setup,
+        up_asks=[Level(0.83, 40)],
+        down_asks=[Level(0.12, 40)],
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        tail_confirm=0.90,
+        max_usd=25,
+    )
+    assert got.ok is True
+    assert got.reason == "fok_requote"
+    assert got.up_price <= 0.8301
+    assert got.down_price <= 0.1201
+    assert got.net > 0
+    assert got.shares >= 5
+
+
+def test_confirm_pair_kills_minus_ev_delayed_book():
+    from app.hunter import Setup
+    from app.paper_sim import confirm_pair
+
+    setup = Setup(
+        slug="sol",
+        title="sol",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.82,
+        down_price=0.12,
+        shares=26.6,
+        fillable=26.6,
+        gross=0.06,
+        fees=0.0,
+        net=1.12,
+        tail=False,
+    )
+    got = confirm_pair(
+        setup=setup,
+        up_asks=[Level(0.91, 40)],
+        down_asks=[Level(0.12, 40)],
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        tail_confirm=0.90,
+        max_usd=25,
+    )
+    assert got.ok is False
+
+
+def test_hunt_clips_plus_ev_prefix_instead_of_mixing_junk():
+    from app.fees import taker_net
+    from app.hunter import plus_ev_fill, walk
+
+    up = _L((0.82, 10), (0.90, 200))
+    down = _L((0.12, 10), (0.20, 200))
+    filled_up, up_vwap = walk(up, 26.6, asks=True)
+    filled_dn, dn_vwap = walk(down, 26.6, asks=True)
+    assert min(filled_up, filled_dn) >= 26.6
+    assert taker_net(26.6, up_vwap, dn_vwap, 0.07) <= 0
+    clipped = plus_ev_fill(up, down, 26.6, 5, 0.02, 0.07, 0.90)
+    assert clipped is not None
+    assert clipped[0] < 20
+    assert clipped[4] > 0
+    setup = hunt(
+        slug="sol",
+        title="sol",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        up_asks=up,
+        down_asks=down,
+        up_bids=_L((0.80, 10)),
+        down_bids=_L((0.10, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+    )
+    assert setup is not None
+    assert setup.kind == "taker"
+    assert setup.shares < 20
+    assert setup.net > 0
+
+
 def test_home_text_shows_fok_kill_tape(tmp_path):
     from app.config import Env
     from app.runtime import Runtime
@@ -463,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 9" in text
+    assert "Rev 10" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1276,7 +1436,7 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 9
+    assert s["strategy_rev"] == 10
     assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["max_book_age_ms"]) == 60000.0
     assert s["tags"] == ["5M", "15M", "1H"]
@@ -1306,7 +1466,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 9
+    assert body["strategy_rev"] == 10
     assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
