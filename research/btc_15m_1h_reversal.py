@@ -432,6 +432,45 @@ def _rev(cell: dict | None) -> dict | None:
     }
 
 
+def recommendation(buy_15: dict, buy_1h: dict) -> dict:
+    five = {}
+    if FIVE_M.exists():
+        five = json.loads(FIVE_M.read_text()).get("first_buy") or {}
+
+    def r(block: dict, tick: float, win: int):
+        return (block or {}).get(f"buy_{tick:.2f}_last{win}s")
+
+    def ratio(tick: float, win: int, other: dict):
+        a = r(five, tick, win)
+        b = r(other, tick, win)
+        if not a or not b or not a.get("reverse"):
+            return None
+        return round(b["reverse"] / a["reverse"], 2)
+
+    return {
+        "question": "Is BTC 15m / 1h 90–99¢ reverse lower than BTC 5m?",
+        "short": (
+            "15m: no — reverse is higher, ~1.6–2.5× the 5m rate at 95–98¢, and 95–99¢ taker is −EV. "
+            "1h last 3–10 min at 94–96¢: yes on the point estimate (calmer, +EV) but the sample is thin. "
+            "1h 97–99¢ and full-hour 90–99¢: not safer; 99¢ full hour reverse 2.2% is −EV."
+        ),
+        "keep_bot_on": "btc 5m 96–98¢ last 180s. Do not switch favorite to 15m.",
+        "last180s_reverse_vs_5m": {
+            f"{t:.2f}": {
+                "15m_x": ratio(t, 180, buy_15),
+                "1h_x": ratio(t, 180, buy_1h),
+            }
+            for t in (0.95, 0.96, 0.97, 0.98, 0.99)
+        },
+        "notes": [
+            "Same 7% fee math: 99¢ needs reverse <0.93%. 15m 99¢ first BUY is ~1.3%; 1h full-hour 99¢ is 2.2%.",
+            "Snapshot “still 99 with 3 min left” almost never reverses on 15m/1h. That is not a first-lift fill.",
+            "15m last-3-min is not 5m last-3-min: a 15m book still at 95–98 with 3 min left is a slower, more reversible favorite.",
+            "1h 94–96 last 5–10 min looks +EV (few blowups) but n≈120–320 over 28d. Do not retarget live until asked.",
+        ],
+    }
+
+
 def main() -> None:
     days_15 = 14
     days_1h = 28
@@ -485,6 +524,7 @@ def main() -> None:
             "buy_table": compact_table(a1h["first_buy"], "buy", WINDOWS_1H),
         },
         "vs_5m_first_buy": compare_vs_5m(a15["first_buy"], a1h["first_buy"]),
+        "recommendation": recommendation(a15["first_buy"], a1h["first_buy"]),
     }
     OUT.write_text(json.dumps(out, indent=2))
     print(f"wrote {OUT}", flush=True)
