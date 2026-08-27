@@ -1799,10 +1799,53 @@
     }
   ],
   "steamroller_count_5m": 17,
+  "recommendation": {
+    "sample": "BTC 5m, 14d, 4007 resolved, first BUY print in window, 7% fee, hold to official resolve",
+    "safest_tick_if_you_can_fill": {
+      "tick": 0.98,
+      "window_seconds": 180,
+      "why": "Lowest reverse rate among taker combos whose 95% CI still clears fee breakeven. Reverse 1.43%, wr 98.57%, +0.44¢/share. 98¢ last 30/45s is −EV. 99¢ never clears breakeven as a taker BUY.",
+      "n": 3910,
+      "wr": 0.985678,
+      "reverse": 0.014322,
+      "pnl_per_share": 0.00436
+    },
+    "best_ev_tick": {
+      "tick": 0.95,
+      "window_seconds": 300,
+      "why": "Highest pnl/share among large-n BUY rows. Reverse 2.55% but win pays ~4.7¢ vs 99¢ paying 0.93¢.",
+      "n": 3959,
+      "wr": 0.974489,
+      "reverse": 0.025511,
+      "pnl_per_share": 0.021265
+    },
+    "best_balance": {
+      "tick": 0.96,
+      "window_seconds": 180,
+      "why": "96¢ last 3 minutes: reverse ~2.0% (better than 95), EV +1.75¢/share (4× 98¢). CI clears breakeven cleanly. 25.8 wins offset one $25 blowup vs 53 at 98 and 106 at 99.",
+      "n": 3821,
+      "wr": 0.98011,
+      "reverse": 0.01989,
+      "pnl_per_share": 0.017503
+    },
+    "best_window": {
+      "seconds": 180,
+      "also_ok": 300,
+      "avoid": [30, 45],
+      "why": "180s and full 5m (300s) are almost the same tape. 900s adds nothing. Last 30–45s is adverse selection: 97/98/99 go −EV; 96 stays barely +EV; 95@30s is flat."
+    },
+    "bot_settings_if_following_tape": {
+      "favorite_min_price": 0.96,
+      "favorite_max_price": 0.98,
+      "favorite_window_seconds": 180,
+      "note": "Band 96–98, last 3 minutes. Skip 99 as taker. Do not stack. Snapshot-99 with 30s left is safer (0.11% reverse) but that ask is usually gone after itode."
+    }
+  },
   "honest": [
-    "99\u00a2 is not certain. One dump after you lift is \u2212~99\u00a2/share vs +~0.93\u00a2 if you win.",
-    "Win rate at 99\u00a2 can look 98\u201399% and still be \u2212EV after fees if blowups are fat.",
+    "99¢ is not certain. One dump after you lift is −~99¢/share vs +~0.93¢ if you win.",
+    "Win rate at 99¢ can look 98–99% and still be −EV after fees if blowups are fat.",
     "Prints that already traded are not your 250ms FAK fill. Live fill rate is lower.",
-    "5m books can trade before the BTC window; this study keeps last 900s only."
+    "5m books can trade before the BTC window; this study keeps last 900s only.",
+    "96/98: taker 96¢ is +EV from 30s through 5m. Taker 98¢ needs ≥90s and only last 180–300s has CI above breakeven; 98¢ last 30/45s is −EV."
   ]
 }
