@@ -34,19 +34,19 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 17,
+    "strategy_rev": 18,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 13: favorite 95–99¢ one-leg hold-to-settle. window<=0 = whole book
-    # until 3s before end. dir auto|up|down. Complement two-sided maker off.
+    # Rev 13: favorite one-leg hold-to-settle. window<=0 = whole book
+    # until 3s before end. Rev 18 pins 180s to match the live paper bot.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
     "strategy_mode": "favorite",
     "favorite_min_price": 0.90,
     "favorite_max_price": 0.98,
-    "favorite_window_seconds": 0.0,
+    "favorite_window_seconds": 180.0,
     "favorite_maker": True,
     "favorite_dir": "auto",
 }
@@ -70,7 +70,6 @@ SETTING_STEPS = {
     "scan_limit": (1.0, 8.0, 32.0),
     "favorite_min_price": (0.01, 0.90, 0.98),
     "favorite_max_price": (0.01, 0.91, 0.99),
-    "favorite_window_seconds": (30.0, 0.0, 3600.0),
 }
 
 
@@ -83,6 +82,45 @@ def setting_num(s: dict, key: str, default: float) -> float:
     if v is None or v == "":
         return float(default)
     return float(v)
+
+
+def favorite_window_of(s: dict | None) -> float:
+    """Seconds left to allow a favorite fill. Missing → default 180. 0 = whole book."""
+    if not s:
+        return float(DEFAULT_SETTINGS["favorite_window_seconds"])
+    return setting_num(s, "favorite_window_seconds", float(DEFAULT_SETTINGS["favorite_window_seconds"]))
+
+
+def favorite_window_label(seconds) -> str:
+    try:
+        win = float(seconds)
+    except (TypeError, ValueError):
+        win = float(DEFAULT_SETTINGS["favorite_window_seconds"])
+    if win <= 0:
+        return "全段（完場前3秒）"
+    return f"尾 {win:.0f}s"
+
+
+def format_leg_prices(up, down, *, leg: str | None = None) -> str:
+    """One-leg favorite is `Up 0.90`, not `0.90+0.0`."""
+    try:
+        up_px = float(up or 0)
+    except (TypeError, ValueError):
+        up_px = 0.0
+    try:
+        dn_px = float(down or 0)
+    except (TypeError, ValueError):
+        dn_px = 0.0
+    side = str(leg or "").strip().lower()
+    if side == "up" or (dn_px < 0.01 and up_px >= 0.01):
+        return f"Up {up_px}"
+    if side == "down" or (up_px < 0.01 and dn_px >= 0.01):
+        return f"Down {dn_px}"
+    return f"{up_px}+{dn_px}"
+
+
+def is_favorite_inventory(kind) -> bool:
+    return str(kind or "").startswith("favorite")
 
 
 @dataclass

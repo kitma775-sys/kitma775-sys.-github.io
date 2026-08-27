@@ -100,6 +100,9 @@ class PaperBroker:
     async def list_redeemable(self) -> list[dict]:
         return []
 
+    async def cancel_open_orders(self) -> int:
+        return 0
+
 
 class LiveBroker:
     mode = "live"
@@ -120,7 +123,7 @@ class LiveBroker:
 
     async def execute_pair(self, setup: Setup) -> FillResult:
         client = await self._client_ready()
-        results = []
+        results: list[dict] = []
         try:
             legs = [
                 (token, price)
@@ -130,29 +133,68 @@ class LiveBroker:
             if not legs:
                 return FillResult(False, "rejected", "live", "no priced legs", {"legs": []})
             for token, price in legs:
-                kwargs = dict(
-                    token_id=token,
-                    side="BUY",
-                    price=f"{price:.4f}",
-                    size=f"{setup.shares:.2f}",
-                    order_type="FAK",  # live default taker; unused while FORCE_PAPER
-                )
                 if setup.kind == "maker":
-                    kwargs.pop("order_type", None)
-                    kwargs["post_only"] = True
-                try:
-                    resp = await client.place_limit_order(**kwargs)
-                except TypeError:
-                    kwargs.pop("order_type", None)
-                    resp = await client.place_limit_order(**kwargs)
+                    resp = await client.place_limit_order(
+                        token_id=token,
+                        side="BUY",
+                        price=f"{price:.4f}",
+                        size=f"{setup.shares:.2f}",
+                        post_only=True,
+                    )
+                else:
+                    # place_limit_order cannot FAK; a TypeError fallback used to leave a GTC bid.
+                    resp = await client.place_market_order(
+                        token_id=token,
+                        side="BUY",
+                        shares=f"{setup.shares:.2f}",
+                        max_price=f"{price:.4f}",
+                        order_type="FAK",
+                    )
                 ok = bool(getattr(resp, "ok", False))
-                status = str(getattr(resp, "status", "") or "").lower()
-                results.append({"token": token, "ok": ok, "status": getattr(resp, "status", None), "id": getattr(resp, "order_id", None)})
-                if not ok or (setup.kind == "taker" and status in {"live", "unmatched", "delayed"}):
-                    return FillResult(False, "rejected", "live", str(getattr(resp, "message", status or "order rejected")), {"legs": results})
+                status = str(getattr(resp, "status", "") or getattr(resp, "code", "") or "").lower()
+                order_id = getattr(resp, "order_id", None)
+                results.append(
+                    {
+                        "token": token,
+                        "ok": ok,
+                        "status": getattr(resp, "status", None) or getattr(resp, "code", None),
+                        "id": order_id,
+                        "message": str(getattr(resp, "message", "") or ""),
+                    }
+                )
+                if not ok:
+                    return FillResult(
+                        False,
+                        "rejected",
+                        "live",
+                        str(getattr(resp, "message", status or "order rejected")),
+                        {"legs": results},
+                    )
+                if setup.kind == "taker" and status != "matched":
+                    if status == "live" and order_id:
+                        try:
+                            await client.cancel_order(order_id=str(order_id))
+                        except Exception:
+                            try:
+                                await client.cancel_all()
+                            except Exception:
+                                pass
+                    return FillResult(
+                        False,
+                        "rejected",
+                        "live",
+                        f"taker FAK not matched ({status})",
+                        {"legs": results},
+                    )
         except Exception as exc:
             return FillResult(False, "error", "live", str(exc)[:300], {"legs": results})
-        return FillResult(True, "filled" if setup.kind == "taker" else "resting", "live", "兩邊已提交", {"legs": results})
+        return FillResult(
+            True,
+            "filled" if setup.kind == "taker" else "resting",
+            "live",
+            "已提交",
+            {"legs": results},
+        )
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:
         client = await self._client_ready()
@@ -205,3 +247,12 @@ class LiveBroker:
             return list(found.values())
         except Exception:
             return []
+
+    async def cancel_open_orders(self) -> int:
+        try:
+            client = await self._client_ready()
+            resp = await client.cancel_all()
+            canceled = getattr(resp, "canceled", ()) or ()
+            return len(tuple(canceled))
+        except Exception:
+            return 0

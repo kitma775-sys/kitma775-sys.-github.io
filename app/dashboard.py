@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from app.config import clamp_paper_cash
+from app.config import clamp_paper_cash, favorite_window_label, favorite_window_of, live_keys_ready
 from app.runtime import Runtime
 
 PAGE = Path(__file__).with_name("dashboard.html")
@@ -26,12 +26,17 @@ def create_app(rt: Runtime) -> FastAPI:
     async def health():
         s = rt.settings()
         paper = rt.store.paper_state() if rt.mode() == "paper" else None
+        win = favorite_window_of(s)
         return {
             "ok": True,
             "mode": rt.mode(),
             "strategy_rev": s.get("strategy_rev"),
             "ws_status": rt.ws_status,
             "live_trading": bool(s.get("live_trading")),
+            "force_paper": bool(rt.env.force_paper),
+            "keys_ready": live_keys_ready(rt.env),
+            "engine_running": bool(s.get("engine_running")),
+            "killed": bool(s.get("killed")),
             "maker_window_seconds": s.get("maker_window_seconds"),
             "max_book_age_ms": s.get("max_book_age_ms"),
             "taker_fok": bool(s.get("taker_fok", True)),
@@ -41,7 +46,8 @@ def create_app(rt: Runtime) -> FastAPI:
             "favorite_max_price": s.get("favorite_max_price"),
             "favorite_maker": bool(s.get("favorite_maker")),
             "favorite_dir": s.get("favorite_dir") or "auto",
-            "favorite_window_seconds": s.get("favorite_window_seconds"),
+            "favorite_window_seconds": win,
+            "favorite_window_label": favorite_window_label(win),
             "auto_redeem": bool(s.get("auto_redeem", True)),
             "circuit": rt.circuit_tripped(),
             "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(),
@@ -81,7 +87,12 @@ def create_app(rt: Runtime) -> FastAPI:
         elif name == "kill":
             rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
             n = rt.store.cancel_all_resting("kill")
-            rt.store.add_event("warn", f"dashboard kill cancelled_resting={n}")
+            live_n = 0
+            try:
+                live_n = await rt.broker().cancel_open_orders()
+            except Exception as exc:
+                rt.store.add_event("warn", f"dashboard kill cancel_live {type(exc).__name__}: {exc}"[:180])
+            rt.store.add_event("warn", f"dashboard kill cancelled_resting={n} live={live_n}")
         elif name == "paper":
             rt.store.patch_settings(live_trading=False)
         elif name == "set_paper_cash":

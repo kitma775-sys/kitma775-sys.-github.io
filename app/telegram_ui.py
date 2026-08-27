@@ -7,7 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import SETTING_STEPS, live_keys_ready, setting_num
+from app.config import SETTING_STEPS, favorite_window_label, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num
 from app.geo import telegram_line
 from app.runtime import Runtime
 from app.universe import DEFAULT_ASSETS
@@ -17,7 +17,7 @@ STRATEGY_MODES = ("auto", "complement", "favorite")
 STRATEGY_ZH = {
     "auto": "自動（互補優先，否則大熱）",
     "complement": "只做互補 YES+NO",
-    "favorite": "只買大熱 90–98¢",
+    "favorite": "只買大熱",
 }
 FAVORITE_DIRS = ("auto", "up", "down")
 FAVORITE_DIR_ZH = {
@@ -41,14 +41,16 @@ def _favorite_dir(s: dict) -> str:
 
 
 def _favorite_window_label(s: dict) -> str:
-    raw = s.get("favorite_window_seconds")
-    try:
-        win = float(raw)
-    except (TypeError, ValueError):
-        win = 30.0
-    if win <= 0:
-        return "全段（完場前3秒）"
-    return f"尾 {win:.0f}s"
+    return favorite_window_label(favorite_window_of(s))
+
+
+def _strategy_label(s: dict) -> str:
+    mode = _strategy_mode(s)
+    if mode != "favorite":
+        return STRATEGY_ZH[mode]
+    lo = float(s.get("favorite_min_price") or 0.90)
+    hi = float(s.get("favorite_max_price") or 0.98)
+    return f"只買大熱 {lo:.2f}–{hi:.2f}"
 
 
 NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
@@ -209,9 +211,8 @@ def bank_text(rt: Runtime) -> str:
 
 def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
-    mode = _strategy_mode(s)
     rows = [
-        [InlineKeyboardButton(f"策略：{STRATEGY_ZH[mode]}", callback_data="smode")],
+        [InlineKeyboardButton(f"策略：{_strategy_label(s)}", callback_data="smode")],
         [InlineKeyboardButton(f"大熱尾窗：{_favorite_window_label(s)}", callback_data="fwin")],
         [InlineKeyboardButton(FAVORITE_DIR_ZH[_favorite_dir(s)], callback_data="fdir")],
     ]
@@ -220,9 +221,7 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton(f"{'✅' if on else '⬜️'} {label}", callback_data=f"tog:{key}")])
     for key, (_step, _lo, _hi) in SETTING_STEPS.items():
         val = s.get(key)
-        if key == "favorite_window_seconds":
-            shown = "全段" if float(val or 0) <= 0 else f"{int(float(val))}s"
-        elif isinstance(val, float):
+        if isinstance(val, float):
             shown = f"{val:.3g}"
         else:
             shown = str(val)
@@ -306,6 +305,8 @@ def home_text(rt: Runtime) -> str:
         state = "🟢 全自動運行中" if s.get("auto_execute") else "🟡 只掃描，唔落單"
     mode = "🧪 紙盤" if rt.mode() == "paper" else "🔴 實盤"
     keys = "匙已備" if live_keys_ready(rt.env) else "未交實盤匙"
+    if rt.env.force_paper:
+        keys = "FORCE_PAPER 鎖住實盤"
     geo_line = telegram_line(rt.geo)
     last = rt.last_loop or {}
     return (
@@ -319,8 +320,8 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 17：只做大熱 90–98¢，$5/注。停雙邊差價（互補）。完場自動 redeem。紙盤、停互補掛單。\n"
-        "未交匙之前永遠紙盤。真金要撳兩次確認。"
+        "Rev 18：只做大熱 90–98¢，$5/注，尾 180s。停雙邊差價（互補）。完場自動 redeem。紙盤。真 live 前 Telegram／Dashboard／health 同一套狀態。\n"
+        "未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
     )
 
 
@@ -385,7 +386,7 @@ def _status_text(rt: Runtime) -> str:
         + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status}\n"
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"策略 {STRATEGY_ZH[_strategy_mode(s)]} · 大熱 {float(s.get('favorite_min_price') or 0.90):.2f}–{float(s.get('favorite_max_price') or 0.98):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
+        + f"策略 {_strategy_label(s)} · 大熱 {float(s.get('favorite_min_price') or 0.90):.2f}–{float(s.get('favorite_max_price') or 0.98):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
         + f"自動 merge {'開' if s.get('auto_merge', True) else '關'} · 自動 redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
@@ -403,7 +404,7 @@ def _pos_text(rt: Runtime) -> str:
             up_f = "✓" if row.get("up_filled") else "…"
             dn_f = "✓" if row.get("down_filled") else "…"
             lines.append(
-                f"{row.get('slug') or row['condition_id'][:8]}  {row['up_price']}+{row['down_price']} × {row['shares']:.1f}"
+                f"{row.get('slug') or row['condition_id'][:8]}  {format_leg_prices(row['up_price'], row['down_price'], leg=(row.get('payload') or {}).get('leg'))} × {row['shares']:.1f}"
                 f"\n  Up {up_f} · Down {dn_f} · 鎖 ${float(row.get('reserved') or 0):.2f}"
             )
     if not inv and not rest:
@@ -411,7 +412,7 @@ def _pos_text(rt: Runtime) -> str:
         return "\n".join(lines)
     for row in inv[:15]:
         kind = str(row.get("kind") or "pair")
-        tag = " 大熱" if kind == "favorite" else ""
+        tag = " 大熱" if is_favorite_inventory(kind) else ""
         cost = float(row.get("cost") or 0)
         cost_txt = f" · 成本 ${cost:.2f}" if kind == "favorite" and cost > 0 else ""
         lines.append(
@@ -434,7 +435,7 @@ def _log_text(rt: Runtime) -> str:
         lines.append(
             f"{stamp} {status} · {kind}\n"
             f"{t['slug']}\n"
-            f"{t['up_price']}+{t['down_price']} × {t['shares']}  {sign}${net:.2f}"
+            f"{format_leg_prices(t['up_price'], t['down_price'], leg=(t.get('payload') or {}).get('leg'))} × {t['shares']}  {sign}${net:.2f}"
         )
     return "\n".join(lines)
 
@@ -536,7 +537,12 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
     if data == "kill2":
         rt.store.patch_settings(killed=True, engine_running=False, live_trading=False)
         n = rt.store.cancel_all_resting("kill")
-        rt.store.add_event("warn", f"kill switch cancelled_resting={n}")
+        live_n = 0
+        try:
+            live_n = await rt.broker().cancel_open_orders()
+        except Exception as exc:
+            rt.store.add_event("warn", f"tg kill cancel_live {type(exc).__name__}: {exc}"[:180])
+        rt.store.add_event("warn", f"kill switch cancelled_resting={n} live={live_n}")
         await q.answer("已停機")
         await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
@@ -615,6 +621,13 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         )
         return
     if data == "live2":
+        if rt.env.force_paper:
+            await q.answer("FORCE_PAPER 開緊，未轉實盤", show_alert=True)
+            await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
+            return
+        if not live_keys_ready(rt.env):
+            await q.answer("未設定 POLYMARKET_PRIVATE_KEY", show_alert=True)
+            return
         rt.store.patch_settings(live_trading=True, killed=False, engine_running=True)
         rt.store.add_event("warn", "live trading enabled")
         await q.answer("已轉實盤")
@@ -628,14 +641,20 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         cur = _strategy_mode(s)
         nxt = STRATEGY_MODES[(STRATEGY_MODES.index(cur) + 1) % len(STRATEGY_MODES)]
         rt.store.patch_settings(strategy_mode=nxt)
-        await q.answer(STRATEGY_ZH[nxt])
-        await _safe_edit(q, f"策略已轉：{STRATEGY_ZH[nxt]}", reply_markup=settings_kb(rt))
+        await q.answer(_strategy_label(rt.settings()))
+        await _safe_edit(q, f"策略已轉：{_strategy_label(rt.settings())}", reply_markup=settings_kb(rt))
         return
     if data == "fwin":
-        cur = int(float(s.get("favorite_window_seconds") or 0))
-        if cur not in FAVORITE_WINDOWS:
-            cur = 45 if cur > 0 else 0
-        nxt = FAVORITE_WINDOWS[(FAVORITE_WINDOWS.index(cur) + 1) % len(FAVORITE_WINDOWS)]
+        cur = favorite_window_of(s)
+        windows = list(FAVORITE_WINDOWS)
+        if int(cur) in windows:
+            idx = windows.index(int(cur))
+        elif cur <= 0:
+            idx = windows.index(0)
+        else:
+            nearest = min((w for w in windows if w > 0), key=lambda w: abs(w - cur))
+            idx = windows.index(nearest)
+        nxt = windows[(idx + 1) % len(windows)]
         rt.store.patch_settings(favorite_window_seconds=nxt)
         await q.answer(_favorite_window_label(rt.settings()))
         await _safe_edit(q, f"大熱尾窗：{_favorite_window_label(rt.settings())}", reply_markup=settings_kb(rt))

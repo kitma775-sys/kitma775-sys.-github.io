@@ -229,8 +229,8 @@ class Store:
         cur = self.inventory_one(condition_id)
         nu, nd = float(cur["up"]) + float(up), float(cur["down"]) + float(down)
         new_kind = kind or cur.get("kind") or "pair"
-        if (cur.get("kind") or "pair") == "favorite" or kind == "favorite":
-            new_kind = "favorite"
+        if str(cur.get("kind") or "").startswith("favorite") or str(kind or "").startswith("favorite"):
+            new_kind = kind or cur.get("kind") or "favorite"
         new_cost = round(float(cur.get("cost") or 0) + float(cost or 0), 6)
         return self._write_inventory_unlocked(condition_id, slug or cur.get("slug") or "", nu, nd, kind=new_kind, cost=new_cost)
 
@@ -296,7 +296,7 @@ class Store:
         """UTC-day sum of recorded trade nets. Prefer paper_state()['today_pnl'] for the cash book."""
         start = time.time() - (time.time() % 86400)
         row = self._conn.execute(
-            "SELECT COALESCE(SUM(net),0) AS s FROM trades WHERE ts>=? AND status IN ('filled','paper_filled','merged')",
+            "SELECT COALESCE(SUM(net),0) AS s FROM trades WHERE ts>=? AND status IN ('filled','paper_filled','merged','paper_settled','redeemed')",
             (start,),
         ).fetchone()
         return float(row["s"] if row else 0.0)

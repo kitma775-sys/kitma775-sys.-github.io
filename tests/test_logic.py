@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 17" in text
+    assert "Rev 18" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1140,6 +1140,7 @@ def test_in_favorite_window_zero_is_full_session():
     assert 0 in FAVORITE_WINDOWS
     assert _favorite_window_label({"favorite_window_seconds": 0}) == "全段（完場前3秒）"
     assert _favorite_window_label({"favorite_window_seconds": 45}) == "尾 45s"
+    assert _favorite_window_label({}) == "尾 180s"
 
 
 def test_favorite_full_session_lifts_mid_book():
@@ -2046,13 +2047,13 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 17
+    assert s["strategy_rev"] == 18
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
-    assert float(s["favorite_window_seconds"]) == 0.0
+    assert float(s["favorite_window_seconds"]) == 180.0
     assert s.get("favorite_dir") == "auto"
     assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["max_book_age_ms"]) == 60000.0
@@ -2085,10 +2086,10 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 17
+    assert s["strategy_rev"] == 18
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
-    assert float(s["favorite_window_seconds"]) == 0
+    assert float(s["favorite_window_seconds"]) == 180
     assert float(s["favorite_min_price"]) == 0.90
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2117,7 +2118,7 @@ def test_rev15_opens_90_99_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 17
+    assert s["strategy_rev"] == 18
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
@@ -2148,7 +2149,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 17
+    assert body["strategy_rev"] == 18
     assert body.get("auto_redeem") is True
     assert body.get("strategy_mode") == "favorite"
     assert float(body.get("max_usd_per_trade") or 0) == 5.0
@@ -2159,7 +2160,10 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert float(body["maker_window_seconds"]) == 0.0
     assert body.get("favorite_maker") is True
     assert body.get("favorite_dir") == "auto"
-    assert float(body.get("favorite_window_seconds") or 0) == 0.0
+    assert float(body.get("favorite_window_seconds") or 0) == 180.0
+    assert body.get("force_paper") is False
+    assert body.get("favorite_window_label") == "尾 180s"
+    assert "engine_running" in body
     assert body.get("circuit") is False
     state = client.get("/api/state?t=tok").json()
     assert state["ws_status"] == "connected"
@@ -2467,7 +2471,7 @@ def test_rev16_enables_auto_redeem_keeps_band_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 17
+    assert s["strategy_rev"] == 18
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
@@ -2501,7 +2505,7 @@ def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 17
+    assert s["strategy_rev"] == 18
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
     assert float(s["favorite_max_price"]) == 0.98
@@ -2514,6 +2518,191 @@ def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
     assert after["starting"] == 500
     assert after["total_pnl"] == before["total_pnl"]
     assert apply_strategy_rev(st) == 0
+
+
+def test_rev18_pins_180s_window_keeps_paper(tmp_path):
+    from app.main import apply_strategy_rev
+
+    st = Store(tmp_path / "rev18.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(40)
+    st.patch_settings(
+        strategy_rev=17,
+        strategy_mode="favorite",
+        favorite_min_price=0.90,
+        favorite_max_price=0.98,
+        favorite_window_seconds=0,
+        max_usd_per_trade=5.0,
+        live_trading=False,
+    )
+    before = st.paper_state()
+    n = apply_strategy_rev(st)
+    assert n == 0
+    s = st.settings()
+    assert s["strategy_rev"] == 18
+    assert float(s["favorite_window_seconds"]) == 180
+    assert float(s["max_usd_per_trade"]) == 5.0
+    assert s["live_trading"] is False
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert after["total_pnl"] == before["total_pnl"]
+    assert apply_strategy_rev(st) == 0
+
+
+def test_format_leg_prices_one_leg():
+    from app.config import format_leg_prices
+
+    assert format_leg_prices(0.9, 0.0, leg="up") == "Up 0.9"
+    assert format_leg_prices(0.0, 0.96, leg="down") == "Down 0.96"
+    assert format_leg_prices(0.5, 0.49) == "0.5+0.49"
+
+
+def test_live_favorite_inventory_does_not_inflate_paper(tmp_path):
+    st = Store(tmp_path / "live-inv.sqlite")
+    st.ensure_paper(500)
+    before = st.paper_state()["equity"]
+    st.add_inventory("c1", "btc-updown", 5.0, 0.0, kind="favorite_live", cost=4.5)
+    after = st.paper_state()
+    assert after["equity"] == before
+    assert after["inventory_value"] == 0
+    assert st.inventory_open()[0]["kind"] == "favorite_live"
+
+
+def test_today_pnl_includes_redeemed_and_settled(tmp_path):
+    st = Store(tmp_path / "pnl.sqlite")
+    st.add_trade(slug="a", kind="settle", shares=5, up_price=1, down_price=0, net=-4.5, mode="live", status="redeemed")
+    st.add_trade(slug="b", kind="settle", shares=5, up_price=1, down_price=0, net=0.5, mode="paper", status="paper_settled")
+    assert abs(st.today_pnl() - (-4.0)) < 1e-9
+
+
+class SimpleOrder:
+    def __init__(self, *, ok, status, order_id=None, message="", code=None):
+        self.ok = ok
+        self.status = status
+        self.order_id = order_id
+        self.message = message
+        self.code = code
+
+
+class SimpleCancel:
+    canceled = ()
+
+
+class FakeQuery:
+    def __init__(self):
+        self.answered = None
+        self.message = None
+
+    async def answer(self, *args, **kwargs):
+        self.answered = {"args": args, "kwargs": kwargs}
+
+    async def edit_message_text(self, *args, **kwargs):
+        return None
+
+
+def test_live_taker_uses_market_fak_not_limit():
+    import asyncio
+
+    from app.broker import LiveBroker
+    from app.hunter import Setup
+
+    calls = []
+
+    class FakeClient:
+        async def place_market_order(self, **kw):
+            calls.append(("market", kw))
+            return SimpleOrder(ok=True, status="matched", order_id="o1")
+
+        async def place_limit_order(self, **kw):
+            calls.append(("limit", kw))
+            raise AssertionError("taker must not rest a GTC bid")
+
+    setup = Setup(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.9,
+        down_price=0.0,
+        shares=5.5,
+        fillable=5.5,
+        gross=0.1,
+        fees=0.006,
+        net=0.5,
+        tail=True,
+        extra={"strategy": "favorite", "leg": "up"},
+    )
+    broker = LiveBroker("0xabc")
+    broker._client = FakeClient()
+    result = asyncio.run(broker.execute_pair(setup))
+    assert result.ok is True
+    assert result.status == "filled"
+    assert calls[0][0] == "market"
+    assert calls[0][1]["order_type"] == "FAK"
+    assert "limit" not in [c[0] for c in calls]
+
+
+def test_live_taker_unmatched_live_is_cancelled():
+    import asyncio
+
+    from app.broker import LiveBroker
+    from app.hunter import Setup
+
+    calls = []
+
+    class FakeClient:
+        async def place_market_order(self, **kw):
+            calls.append(("market", kw))
+            return SimpleOrder(ok=True, status="live", order_id="resting-1")
+
+        async def cancel_order(self, **kw):
+            calls.append(("cancel", kw))
+            return SimpleOrder(ok=True, status="cancelled", order_id=kw.get("order_id"))
+
+        async def cancel_all(self):
+            calls.append(("cancel_all", {}))
+            return SimpleCancel()
+
+    setup = Setup(
+        slug="btc",
+        title="btc",
+        condition_id="0x1",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.9,
+        down_price=0.0,
+        shares=5.5,
+        fillable=5.5,
+        gross=0.1,
+        fees=0.006,
+        net=0.5,
+        tail=True,
+        extra={"strategy": "favorite", "leg": "up"},
+    )
+    broker = LiveBroker("0xabc")
+    broker._client = FakeClient()
+    result = asyncio.run(broker.execute_pair(setup))
+    assert result.ok is False
+    assert any(c[0] == "cancel" for c in calls)
+
+
+def test_live2_blocked_when_force_paper(tmp_path):
+    import asyncio
+
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import _handle_callback
+
+    st = Store(tmp_path / "live2.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env(force_paper=True, private_key="0xabc"))
+    q = FakeQuery()
+    asyncio.run(_handle_callback(rt, q, "live2"))
+    assert st.settings()["live_trading"] is False
+    assert q.answered
 
 
 

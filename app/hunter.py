@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from app.fees import gross_edge, pair_taker_fee, taker_fee, taker_net
+from app.config import DEFAULT_SETTINGS
 
 MAKER_MIN_LEG = 0.22
 MAKER_MAX_SKEW = 0.28
@@ -100,10 +101,10 @@ def parse_favorite_dir(raw) -> str:
 
 
 def in_favorite_window(seconds_left: float | None, window: float | None) -> bool:
-    """window<=0 means the whole book (until 3s before end)."""
+    """window<=0 means the whole book (until 3s before end). None → default 180s."""
     if seconds_left is None or float(seconds_left) < 3:
         return False
-    win = 30.0 if window is None else float(window)
+    win = float(DEFAULT_SETTINGS["favorite_window_seconds"]) if window is None else float(window)
     if win <= 0:
         return True
     return float(seconds_left) <= win + 1e-9
@@ -136,7 +137,7 @@ def hunt(
     strategy_mode: str = "complement",
     favorite_min_price: float = 0.95,
     favorite_max_price: float = 0.99,
-    favorite_window_seconds: float = 30.0,
+    favorite_window_seconds: float = 180.0,
     favorite_maker: bool = False,
     favorite_dir: str = "auto",
 ) -> Setup | None:

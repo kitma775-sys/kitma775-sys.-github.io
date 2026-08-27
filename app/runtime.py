@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
-from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
+from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num
 from app.hunter import book_quote, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -187,8 +187,13 @@ async def _refresh_universe(rt: Runtime) -> None:
     s = rt.settings()
     if s.get("killed"):
         n = rt.store.cancel_all_resting("kill")
-        if n:
-            await rt.notify(f"🛑 已撤 {n} 張紙盤掛單")
+        live_n = 0
+        try:
+            live_n = await rt.broker().cancel_open_orders()
+        except Exception as exc:
+            rt.store.add_event("warn", f"kill cancel_live {fmt_exc(exc)}")
+        if n or live_n:
+            await rt.notify(f"🛑 已撤 紙盤掛單 {n} · 實盤掛單 {live_n}")
     redeemed = 0
     try:
         redeemed = await _redeem_resolved(rt)
@@ -226,6 +231,11 @@ async def _refresh_universe(rt: Runtime) -> None:
     rescued = await _rescue_naked(rt, events)
     if rt.circuit_tripped():
         n = rt.store.cancel_all_resting("circuit")
+        live_n = 0
+        try:
+            live_n = await rt.broker().cancel_open_orders()
+        except Exception as exc:
+            rt.store.add_event("warn", f"circuit cancel_live {fmt_exc(exc)}")
         paper = rt.store.paper_state() if rt.mode() == "paper" else None
         limit = setting_num(s, "daily_loss_limit_usd", 0)
         rt.last_loop = {
@@ -244,7 +254,7 @@ async def _refresh_universe(rt: Runtime) -> None:
         if not rt._circuit_latch:
             rt._circuit_latch = True
             pnl = paper["today_pnl"] if paper else rt.store.today_pnl()
-            rt.store.add_event("warn", f"circuit breaker pnl={pnl:.2f} limit={limit:.2f} cancelled_resting={n}")
+            rt.store.add_event("warn", f"circuit breaker pnl={pnl:.2f} limit={limit:.2f} cancelled_resting={n} live={live_n}")
             await rt.notify(
                 f"🧊 日虧熔斷：今日 PnL ${pnl:.2f} 已穿 −${limit:.0f}。\n"
                 "停開新倉，掛單已撤。想繼續今日：Telegram 撳「解除今日熔斷」（今日 PnL 由 0 再計，現金／倉唔清）。"
@@ -455,7 +465,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 strategy_mode=str(s.get("strategy_mode") or "favorite"),
                 favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
-                favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+                favorite_window_seconds=favorite_window_of(s),
                 favorite_maker=bool(s.get("favorite_maker")),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
             )
@@ -507,7 +517,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
             favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
             favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
-            favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+            favorite_window_seconds=favorite_window_of(s),
             favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
             max_usd_per_trade=trade_cap,
             favorite_spent=float(inv.get("cost") or 0),
@@ -609,7 +619,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
                 favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
-                favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+                favorite_window_seconds=favorite_window_of(s),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
                 max_usd_per_trade=trade_cap,
                 favorite_spent=float(inv.get("cost") or 0),
@@ -655,7 +665,12 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 up_sh = setup.shares if leg == "up" else 0.0
                 dn_sh = setup.shares if leg == "down" else 0.0
                 rt.store.add_inventory(
-                    setup.condition_id, setup.slug, up_sh, dn_sh, kind="favorite", cost=fill_cost
+                    setup.condition_id,
+                    setup.slug,
+                    up_sh,
+                    dn_sh,
+                    kind="favorite" if paper_mode else "favorite_live",
+                    cost=fill_cost,
                 )
             else:
                 rt.store.add_inventory(setup.condition_id, setup.slug, setup.shares, setup.shares)
@@ -678,7 +693,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     )
                 await rt.notify(
                     f"{flag} 成交 {'大熱' if is_favorite_setup(setup) else setup.kind}\n{setup.title}\n"
-                    f"Up {fill_up} + Down {fill_down} × {setup.shares:.1f}\n"
+                    f"{format_leg_prices(fill_up, fill_down, leg=(setup.extra or {}).get('leg'))} × {setup.shares:.1f}\n"
                     f"{'未結算期望' if is_favorite_setup(setup) else '淨利'} ${fill_net:.2f}{book}",
                     important=True,
                 )
@@ -712,7 +727,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 paper = rt.store.paper_state() if paper_mode else None
                 lock = f" · 鎖 ${paper['reserved']:.2f}" if paper else ""
                 await rt.notify(
-                    f"📌 紙盤掛單 {setup.title}\n{setup.up_price}+{setup.down_price} × {setup.shares:.1f}"
+                    f"📌 {'紙盤' if paper_mode else '實盤'}掛單 {setup.title}\n"
+                    f"{format_leg_prices(setup.up_price, setup.down_price, leg=(setup.extra or {}).get('leg'))} × {setup.shares:.1f}"
                     f"\n未碰到盤口唔入帳{lock}"
                 )
         else:
@@ -733,7 +749,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["strategy_mode"] = str(s.get("strategy_mode") or "favorite")
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.90)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
-    tape["favorite_window"] = setting_num(s, "favorite_window_seconds", 30.0)
+    tape["favorite_window"] = favorite_window_of(s)
     tape["favorite_dir"] = parse_favorite_dir(s.get("favorite_dir"))
     rt.last_loop.update(
         {
@@ -839,7 +855,7 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
         strategy_mode="favorite",
         favorite_min_price=min_px,
         favorite_max_price=max_px,
-        favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
+        favorite_window_seconds=favorite_window_of(s),
         favorite_maker=False,
         favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
     )
@@ -1271,7 +1287,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
         rt.cooldown.pop(f"redeem:{cid}", None)
         up, down = float(job["up"]), float(job["down"])
         cost = float(job["cost"])
-        fav = str(job["kind"] or "") == "favorite"
+        fav = is_favorite_inventory(job["kind"])
         up_p, dn_p = job["prices"]
         payout = round(up * up_p + down * dn_p, 6) if job["tracked"] else 0.0
         if job["tracked"]:
@@ -1285,7 +1301,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
             shares=max(up, down) if job["tracked"] else float(job.get("size") or 0),
             up_price=up_p,
             down_price=dn_p,
-            net=settle_net if paper_mode else 0.0,
+            net=settle_net,
             mode=rt.mode(),
             status="paper_settled" if paper_mode else "redeemed",
             payload={
@@ -1304,7 +1320,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
         )
         n += 1
         if s.get("notify_signals"):
-            extra = f" · 淨 ${settle_net:.2f}" if fav and paper_mode else ""
+            extra = f" · 淨 ${settle_net:.2f}" if fav else ""
             flag = "🧪紙盤" if paper_mode else "🔴實盤"
             await rt.notify(
                 f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
