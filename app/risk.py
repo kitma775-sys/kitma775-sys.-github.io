@@ -37,6 +37,8 @@ def approve(
     favorite_max_price: float = 0.99,
     favorite_window_seconds: float = 30.0,
     favorite_dir: str = "auto",
+    max_usd_per_trade: float = 25.0,
+    favorite_spent: float = 0.0,
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")
@@ -68,6 +70,10 @@ def approve(
         leg = str((setup.extra or {}).get("leg") or "")
         if want != "auto" and leg and leg != want:
             return RiskDecision(False, "favorite_wrong_dir")
+        spent = float(favorite_spent or 0) if (inventory_up > 0.01 or inventory_down > 0.01) else 0.0
+        new_cost = float(cost) if cost is not None else float(setup.cost)
+        if spent + new_cost > float(max_usd_per_trade) + 0.05:
+            return RiskDecision(False, "favorite_stack_cap")
         if setup.kind == "maker" and unmatched_shares > 0.5:
             return RiskDecision(False, "unmatched_book")
     else:

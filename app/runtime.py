@@ -34,6 +34,16 @@ def http_book_due(*, missing: bool, flicker: bool) -> bool:
     return bool(missing or flicker)
 
 
+def favorite_budget(max_usd: float, inv: dict | None) -> float:
+    """Room left under max_usd_per_trade for an existing favorite position."""
+    cap = float(max_usd)
+    if not inv or str(inv.get("kind") or "") != "favorite":
+        return cap
+    if float(inv.get("up") or 0) <= 0.01 and float(inv.get("down") or 0) <= 0.01:
+        return cap
+    return max(0.0, round(cap - float(inv.get("cost") or 0), 6))
+
+
 def favorite_taker_replaces_rest(setup, rest: dict | None) -> bool:
     """A 97¢ bid must not block lifting a live 97–99¢ ask on the same slug."""
     if rest is None or setup is None:
@@ -202,6 +212,7 @@ async def _refresh_universe(rt: Runtime) -> None:
     if rt.circuit_tripped():
         n = rt.store.cancel_all_resting("circuit")
         paper = rt.store.paper_state() if rt.mode() == "paper" else None
+        limit = setting_num(s, "daily_loss_limit_usd", 0)
         rt.last_loop = {
             "ts": time.time(),
             "status": "circuit_breaker",
@@ -210,15 +221,18 @@ async def _refresh_universe(rt: Runtime) -> None:
             "fills": rescued + settled,
             "paper": paper,
             "ws_status": rt.ws_status,
+            "tape": (rt.last_loop or {}).get("tape") or {},
+            "today_pnl": None if paper is None else paper.get("today_pnl"),
+            "daily_loss_limit": limit,
         }
         if not rt._circuit_latch:
             rt._circuit_latch = True
-            limit = setting_num(s, "daily_loss_limit_usd", 0)
             pnl = paper["today_pnl"] if paper else rt.store.today_pnl()
             rt.store.add_event("warn", f"circuit breaker pnl={pnl:.2f} limit={limit:.2f} cancelled_resting={n}")
             await rt.notify(
                 f"🧊 日虧熔斷：今日 PnL ${pnl:.2f} 已穿 −${limit:.0f}。\n"
-                "停開新倉，掛單已撤。未配對倉會對沖／結算。重置紙盤或明日先恢復。",
+                "停開新倉，掛單已撤。想繼續今日：Telegram 撳「解除今日熔斷」（今日 PnL 由 0 再計，現金／倉唔清）。"
+                "或者等 UTC 零點。唔好重置紙盤除非你想由 $500 再嚟。",
                 important=True,
             )
         return
@@ -339,15 +353,16 @@ async def _hunt_loop(rt: Runtime) -> None:
 
 async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     s = rt.settings()
-    if s.get("killed") or not s.get("engine_running") or rt.circuit_tripped():
+    if s.get("killed") or not s.get("engine_running"):
         return
     assert rt.data is not None
+    circuit = rt.circuit_tripped()
     paper_mode = rt.mode() == "paper"
     paper = rt.store.paper_state() if paper_mode else None
     prev_tape = (rt.last_loop or {}).get("tape") or {}
     rt.last_loop = {
         "ts": time.time(),
-        "status": "scan",
+        "status": "circuit_breaker" if circuit else "scan",
         "markets": len(events),
         "signals": 0,
         "fills": 0,
@@ -368,6 +383,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     empty_asks = 0
     max_age = setting_num(s, "max_book_age_ms", 60000.0)
     window = setting_num(s, "maker_window_seconds", 0.0)
+    trade_cap = float(s["max_usd_per_trade"])
     for ev in events:
         up_book, dn_book, src = await _pair_books(rt, ev, max_age_ms=max_age)
         if up_book is None or dn_book is None:
@@ -391,6 +407,12 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 end=ev.get("end"),
             )
         )
+        if circuit:
+            continue
+        inv = rt.store.inventory_one(ev["condition_id"])
+        max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))
+        if max_usd + 1e-9 < float(s["min_shares"]) * 0.90:
+            continue
         try:
             setup = hunt(
                 slug=ev["slug"],
@@ -402,7 +424,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 down_asks=dn_book["asks"],
                 up_bids=up_book["bids"],
                 down_bids=dn_book["bids"],
-                max_usd=_trade_budget(s, paper),
+                max_usd=max_usd,
                 min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
                 min_edge=float(s["min_edge"]),
                 fee_rate=fee_rate,
@@ -471,6 +493,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
             favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
             favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
+            max_usd_per_trade=trade_cap,
+            favorite_spent=float(inv.get("cost") or 0),
         )
         payload = {
             "title": setup.title,
@@ -571,6 +595,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
                 favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
+                max_usd_per_trade=trade_cap,
+                favorite_spent=float(inv.get("cost") or 0),
             )
             if not resized.ok:
                 fok_kills += 1
@@ -700,7 +726,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             "snapshot_signals": snapshot_signals,
             "fok_kills": fok_kills,
             "fok_fills": fok_fills,
-            "status": "ok",
+            "status": "circuit_breaker" if circuit else "ok",
             "paper": paper,
             "tape": tape,
             "ws_status": rt.ws_status,
@@ -782,7 +808,10 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
         down_asks=dn_book.get("asks") or [],
         up_bids=up_book.get("bids") or [],
         down_bids=dn_book.get("bids") or [],
-        max_usd=_trade_budget(s, paper),
+        max_usd=min(
+            _trade_budget(s, paper),
+            favorite_budget(float(s["max_usd_per_trade"]), rt.store.inventory_one(ev["condition_id"])),
+        ),
         min_shares=min_shares,
         min_edge=float(s["min_edge"]),
         fee_rate=fee_rate,

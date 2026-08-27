@@ -122,15 +122,19 @@ def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     run = "⏸ 暫停" if s.get("engine_running") else "▶️ 繼續跑"
     run_cb = "pause" if s.get("engine_running") else "resume"
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
-            [InlineKeyboardButton(run, callback_data=run_cb), InlineKeyboardButton("📜 最近紀錄", callback_data="log")],
-            [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")],
-            [InlineKeyboardButton("⚙️ 高階設定", callback_data="set"), InlineKeyboardButton("🧪／🔴 盤口模式", callback_data="mode")],
-            [InlineKeyboardButton("🆘 緊急停機", callback_data="kill")],
-        ]
-    )
+    rows = [
+        [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
+        [InlineKeyboardButton(run, callback_data=run_cb), InlineKeyboardButton("📜 最近紀錄", callback_data="log")],
+        [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")],
+        [InlineKeyboardButton("⚙️ 高階設定", callback_data="set"), InlineKeyboardButton("🧪／🔴 盤口模式", callback_data="mode")],
+        [InlineKeyboardButton("🆘 緊急停機", callback_data="kill")],
+    ]
+    if rt.circuit_tripped():
+        rows.insert(
+            1,
+            [InlineKeyboardButton("🧊 解除今日熔斷（今日PnL重新計）", callback_data="circuit1")],
+        )
+    return InlineKeyboardMarkup(rows)
 
 
 def mode_kb(rt: Runtime) -> InlineKeyboardMarkup:
@@ -313,7 +317,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 13：大熱尾窗可全段，方向可調 Up／Down／自動。全段 95–99 翻盤風險大。紙盤、停互補掛單。\n"
+        "Rev 14：大熱每盤最多單筆上限（唔再疊到 $50+）。熔斷會停新倉但仍掃盤。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -486,6 +490,34 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
     if data == "resume":
         rt.store.patch_settings(engine_running=True, killed=False)
         await q.answer("繼續跑")
+        await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
+        return
+    if data == "circuit1":
+        if not rt.circuit_tripped():
+            await q.answer("而家冇熔斷")
+            await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
+            return
+        p = rt.store.paper_state()
+        kb = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("確認：今日 PnL 由 0 再計", callback_data="circuit2")],
+                [InlineKeyboardButton("算吧", callback_data="home")],
+            ]
+        )
+        await q.answer()
+        await _safe_edit(
+            q,
+            "解除今日熔斷唔會清倉、唔會改本金。\n"
+            f"而家權益 ${p['equity']:.2f} · 今日 {_signed(p['today_pnl'])}。\n"
+            "撳確認之後今日 PnL 由 0 再計，會再開新倉。大熱每盤仍然 ≤ 單筆上限。",
+            reply_markup=kb,
+        )
+        return
+    if data == "circuit2":
+        book = rt.store.reset_today_pnl()
+        rt._circuit_latch = False
+        rt.store.add_event("warn", f"cleared daily circuit equity=${book['equity']:.2f} today=${book['today_pnl']:.2f}")
+        await q.answer("已解除熔斷")
         await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "kill":

@@ -25,6 +25,7 @@ def create_app(rt: Runtime) -> FastAPI:
     @app.get("/health")
     async def health():
         s = rt.settings()
+        paper = rt.store.paper_state() if rt.mode() == "paper" else None
         return {
             "ok": True,
             "mode": rt.mode(),
@@ -40,6 +41,10 @@ def create_app(rt: Runtime) -> FastAPI:
             "favorite_maker": bool(s.get("favorite_maker")),
             "favorite_dir": s.get("favorite_dir") or "auto",
             "favorite_window_seconds": s.get("favorite_window_seconds"),
+            "circuit": rt.circuit_tripped(),
+            "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(),
+            "daily_loss_limit_usd": s.get("daily_loss_limit_usd"),
+            "paper_equity": None if paper is None else paper["equity"],
         }
 
     @app.get("/", response_class=HTMLResponse)
@@ -90,6 +95,11 @@ def create_app(rt: Runtime) -> FastAPI:
             book = rt.store.reset_paper(cash)
             rt.store.add_event("warn", f"paper reset starting=${book['starting']:.2f}")
             return {"ok": True, "settings": rt.settings(), "paper": book}
+        elif name == "clear_circuit":
+            book = rt.store.reset_today_pnl()
+            rt._circuit_latch = False
+            rt.store.add_event("warn", f"dashboard cleared daily circuit equity=${book['equity']:.2f}")
+            return {"ok": True, "settings": rt.settings(), "paper": book, "circuit": rt.circuit_tripped()}
         else:
             raise HTTPException(400, "unknown action")
         rt.store.add_event("info", f"dashboard {name}")

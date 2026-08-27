@@ -387,6 +387,20 @@ class Store:
                 data = json.loads(raw)
             return self._paper_view(data)
 
+    def reset_today_pnl(self) -> dict:
+        """Keep cash and inventory; start a new daily PnL window from current equity."""
+        with self._lock:
+            raw = self._get("paper")
+            data = json.loads(raw) if raw else self._paper_default(self._planned_starting_unlocked())
+            inv = round(self._inventory_matched_usd() + self._inventory_favorite_usd(), 6)
+            cash = round(float(data.get("cash") or 0), 6)
+            reserved = round(float(data.get("reserved") or 0), 6)
+            equity = round(cash + reserved + inv, 6)
+            data["day"] = _utc_day()
+            data["day_start_equity"] = equity
+            self._set("paper", json.dumps(data))
+            return self._paper_view(data)
+
     def reset_paper(self, starting: float) -> dict:
         with self._lock:
             self._conn.execute("DELETE FROM inventory")

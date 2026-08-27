@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 13" in text
+    assert "Rev 14" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -957,6 +957,63 @@ def test_circuit_tripped_uses_equity_pnl(tmp_path):
     rt = Runtime(st, Env())
     assert rt.store.paper_state()["today_pnl"] <= -50
     assert rt.circuit_tripped() is True
+    book = st.reset_today_pnl()
+    assert abs(book["today_pnl"]) < 0.02
+    assert rt.circuit_tripped() is False
+    assert book["cash"] == st.paper_state()["cash"]
+
+
+def test_favorite_budget_caps_stack():
+    from app.runtime import favorite_budget
+    from app.hunter import Setup
+    from app.risk import approve
+
+    assert favorite_budget(25, None) == 25
+    assert favorite_budget(25, {"kind": "pair", "up": 10, "down": 10, "cost": 20}) == 25
+    assert favorite_budget(25, {"kind": "favorite", "up": 0, "down": 0, "cost": 0}) == 25
+    assert favorite_budget(25, {"kind": "favorite", "up": 25, "down": 0, "cost": 24.9}) == round(25 - 24.9, 6)
+    assert favorite_budget(25, {"kind": "favorite", "up": 80, "down": 0, "cost": 25}) == 0
+    setup = Setup(
+        slug="xrp",
+        title="xrp",
+        condition_id="c1",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.99,
+        down_price=0.0,
+        shares=25.25,
+        fillable=25.25,
+        gross=0.01,
+        fees=0.02,
+        net=0.23,
+        tail=True,
+        extra={"strategy": "favorite", "leg": "up"},
+    )
+    blocked = approve(
+        setup,
+        stale_leg=0.02,
+        tail_confirm=0.9,
+        max_imbalance=40,
+        inventory_up=25,
+        inventory_down=0,
+        daily_pnl=0,
+        daily_loss_limit=50,
+        open_markets=1,
+        max_open_markets=8,
+        killed=False,
+        engine_running=True,
+        auto_execute=True,
+        seconds_left=20,
+        cost=setup.cost,
+        favorite_min_price=0.95,
+        favorite_max_price=0.99,
+        favorite_window_seconds=300,
+        max_usd_per_trade=25,
+        favorite_spent=24.9,
+    )
+    assert blocked.ok is False
+    assert blocked.reason == "favorite_stack_cap"
 
 
 def test_paper_settle_credits_winner(tmp_path):
@@ -1955,7 +2012,7 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 13
+    assert s["strategy_rev"] == 14
     assert s.get("strategy_mode") == "auto"
     assert float(s["favorite_min_price"]) == 0.95
     assert float(s["favorite_max_price"]) == 0.99
@@ -1992,7 +2049,7 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 13
+    assert s["strategy_rev"] == 14
     assert float(s["favorite_window_seconds"]) == 0
     assert float(s["favorite_min_price"]) == 0.95
     assert float(s["favorite_max_price"]) == 0.99
@@ -2020,7 +2077,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 13
+    assert body["strategy_rev"] == 14
     assert body.get("strategy_mode") == "auto"
     assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"
@@ -2029,6 +2086,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert body.get("favorite_maker") is True
     assert body.get("favorite_dir") == "auto"
     assert float(body.get("favorite_window_seconds") or 0) == 0.0
+    assert body.get("circuit") is False
     state = client.get("/api/state?t=tok").json()
     assert state["ws_status"] == "connected"
     assert "ws_status" in state

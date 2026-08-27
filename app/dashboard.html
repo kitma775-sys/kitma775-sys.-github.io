@@ -40,6 +40,7 @@
       <button onclick="act('resume')">繼續跑</button>
       <button class="ghost" onclick="act('pause')">暫停</button>
       <button class="ghost" onclick="act('paper')">強制紙盤</button>
+      <button id="clearCircuit" class="ghost" style="display:none" onclick="clearCircuit()">解除今日熔斷</button>
       <button class="ghost" onclick="act('kill')">緊急停機</button>
     </div>
     <div class="bank">
@@ -76,10 +77,12 @@
       const tape = (d.last_loop||{}).tape || {};
       const nfmt = (x, digits) => (x==null || x==="") ? "—" : Number(x).toFixed(digits==null?2:digits);
       const shareNet = (x) => (x==null || x==="") ? "—" : ((Number(x)>=0?"+":"") + Number(x).toFixed(3));
+      document.getElementById("clearCircuit").style.display = circuit ? "inline-block" : "none";
       document.getElementById("sub").textContent =
         "keys " + (d.keys_ready ? "ready" : "missing") +
         " · WS " + (d.ws_status || "off") +
         " · rev " + (s.strategy_rev || "?") +
+        ((d.last_loop||{}).status === "circuit_breaker" ? " · 日虧熔斷停新倉" : "") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
         (st.hedges_24h ? (" · 對沖 " + st.hedges_24h) : "") +
         " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
@@ -177,6 +180,11 @@
       if (!n || n < 50) { alert("本金最少 $50"); return; }
       if (!confirm("重置紙盤到 $" + n.toFixed(0) + " 並清倉／撤掛單？成交紀錄會留低。")) return;
       await fetch("/api/action/reset_paper?amount=" + encodeURIComponent(n), { method:"POST", credentials:"same-origin" });
+      load();
+    }
+    async function clearCircuit() {
+      if (!confirm("解除今日熔斷：今日 PnL 由 0 再計。現金／倉唔清。確定？")) return;
+      await fetch("/api/action/clear_circuit", { method:"POST", credentials:"same-origin" });
       load();
     }
     async function act(name) {
