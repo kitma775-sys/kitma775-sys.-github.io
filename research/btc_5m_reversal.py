@@ -402,7 +402,6 @@ def make_recommendation(ranks: dict) -> dict:
     safest = (ranks.get("safest") or [None])[0]
     best_bal = (ranks.get("best_balance") or [None])[0]
     by_tick = ranks.get("best_window_by_tick") or {}
-    pick = best_bal or best_ev
     rec = {
         "sample": "BTC 5m, 30d, first BUY in band after window opens, 7% fee, hold to official resolve",
         "current_bot": current,
@@ -410,18 +409,23 @@ def make_recommendation(ranks: dict) -> dict:
         "safest_combo": safest,
         "best_balance_combo": best_bal,
         "best_window_by_tick": by_tick,
-        "avoid": "Last 30–45s. Taker 99¢. 15m books. Full-hour 90–99¢.",
-    }
-    if pick:
-        rec["bot_settings_if_following_tape"] = {
-            "favorite_min_price": float(pick["band"].split("-")[0]),
-            "favorite_max_price": float(pick["band"].split("-")[1]),
-            "favorite_window_seconds": pick["window"],
+        "avoid": "Last 30–45s from 93¢ up. Taker 99¢. 15m books. 90–92 full session while daily_loss_limit is $50.",
+        "bot_settings_if_following_tape": {
+            "favorite_min_price": 0.96,
+            "favorite_max_price": 0.98,
+            "favorite_window_seconds": 180,
+            "optional_tighten": {"favorite_max_price": 0.97},
             "why": (
-                f"{pick['band']} last {pick['window']}s: reverse {pick['reverse']}, "
-                f"+{pick['pnl_per_share']} /share, n={pick['n']}, CI clears breakeven at avg fill."
+                "Keep 96–98 last 3 minutes. 90–92 last 5m wins on EV but blowups trip a $50 circuit. "
+                "97 last 3 min is the fewest steamrolls. Do not add 99."
             ),
-        }
+        },
+        "playbook": {
+            "max_ev": "90-92 last 240-300s",
+            "safest_plus_ev": "97 last 180s",
+            "best_for_this_bot": "96-98 last 180s (optional max 97)",
+        },
+    }
     return rec
 
 
