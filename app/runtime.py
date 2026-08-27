@@ -452,9 +452,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
                 maker_window_seconds=window,
                 maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
-                strategy_mode=str(s.get("strategy_mode") or "auto"),
-                favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
-                favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
+                strategy_mode=str(s.get("strategy_mode") or "favorite"),
+                favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
+                favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
                 favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
                 favorite_maker=bool(s.get("favorite_maker")),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
@@ -505,8 +505,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             maker_window=window,
             maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
             maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
-            favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
-            favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
+            favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
+            favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
             favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
             favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
             max_usd_per_trade=trade_cap,
@@ -607,8 +607,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_window=window,
                 maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
-                favorite_min_price=setting_num(s, "favorite_min_price", 0.95),
-                favorite_max_price=setting_num(s, "favorite_max_price", 0.99),
+                favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
+                favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
                 favorite_window_seconds=setting_num(s, "favorite_window_seconds", 30.0),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
                 max_usd_per_trade=trade_cap,
@@ -730,9 +730,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["snapshot_signals"] = snapshot_signals
     tape["fok_kills"] = fok_kills
     tape["fok_fills"] = fok_fills
-    tape["strategy_mode"] = str(s.get("strategy_mode") or "auto")
-    tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.95)
-    tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.99)
+    tape["strategy_mode"] = str(s.get("strategy_mode") or "favorite")
+    tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.90)
+    tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = setting_num(s, "favorite_window_seconds", 30.0)
     tape["favorite_dir"] = parse_favorite_dir(s.get("favorite_dir"))
     rt.last_loop.update(
@@ -788,8 +788,8 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
 def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
     leg = str((setup.extra or {}).get("leg") or "up")
     asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
-    min_px = setting_num(s, "favorite_min_price", 0.95)
-    max_px = setting_num(s, "favorite_max_price", 0.99)
+    min_px = setting_num(s, "favorite_min_price", 0.90)
+    max_px = setting_num(s, "favorite_max_price", 0.98)
     limit = setup.up_price if leg == "up" else setup.down_price
     min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
     fill = fak_one(

@@ -17,11 +17,11 @@ STRATEGY_MODES = ("auto", "complement", "favorite")
 STRATEGY_ZH = {
     "auto": "自動（互補優先，否則大熱）",
     "complement": "只做互補 YES+NO",
-    "favorite": "只買大熱 95–99¢",
+    "favorite": "只買大熱 90–98¢",
 }
 FAVORITE_DIRS = ("auto", "up", "down")
 FAVORITE_DIR_ZH = {
-    "auto": "方向：自動（95–99¢ 邊邊買邊邊）",
+    "auto": "方向：自動（90–98¢ 邊邊買邊邊）",
     "up": "方向：只買 Up",
     "down": "方向：只買 Down",
 }
@@ -30,8 +30,8 @@ FAVORITE_WINDOWS = (30, 45, 90, 180, 300, 900, 0)
 
 
 def _strategy_mode(s: dict) -> str:
-    mode = str(s.get("strategy_mode") or "auto").lower()
-    return mode if mode in STRATEGY_ZH else "auto"
+    mode = str(s.get("strategy_mode") or "favorite").lower()
+    return mode if mode in STRATEGY_ZH else "favorite"
 
 
 def _favorite_dir(s: dict) -> str:
@@ -319,7 +319,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 16：完場自動 redeem 取回注碼。大熱 90–99¢。每盤最多單筆上限。熔斷停新倉但仍掃盤。紙盤、停互補掛單。\n"
+        "Rev 17：只做大熱 90–98¢，$5/注。停雙邊差價（互補）。完場自動 redeem。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -385,7 +385,7 @@ def _status_text(rt: Runtime) -> str:
         + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status}\n"
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"策略 {_strategy_mode(s)} · 大熱 {float(s.get('favorite_min_price') or 0.95):.2f}–{float(s.get('favorite_max_price') or 0.99):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
+        + f"策略 {STRATEGY_ZH[_strategy_mode(s)]} · 大熱 {float(s.get('favorite_min_price') or 0.90):.2f}–{float(s.get('favorite_max_price') or 0.98):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
         + f"自動 merge {'開' if s.get('auto_merge', True) else '關'} · 自動 redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"

@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 16" in text
+    assert "Rev 17" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1281,6 +1281,40 @@ def test_auto_prefers_complement_when_both_asks():
     assert setup.kind == "taker"
     assert not is_favorite_setup(setup)
     assert setup.down_price > 0
+
+
+def test_favorite_mode_skips_two_ask_complement():
+    from app.hunter import is_favorite_setup
+
+    kw = dict(
+        slug="sol",
+        title="sol",
+        condition_id="0xsol",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.82, 80)),
+        down_asks=_L((0.14, 80)),
+        up_bids=_L((0.81, 10)),
+        down_bids=_L((0.13, 10)),
+        max_usd=5,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        favorite_min_price=0.90,
+        favorite_max_price=0.98,
+        favorite_maker=False,
+    )
+    fav = hunt(**kw, strategy_mode="favorite")
+    assert fav is None
+    auto = hunt(**kw, strategy_mode="auto")
+    if auto is not None:
+        assert not is_favorite_setup(auto)
+        assert auto.kind == "taker"
+        assert auto.down_price > 0
 
 
 def test_favorite_maker_rests_at_min_when_ask_pulled():
@@ -2012,11 +2046,12 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 16
+    assert s["strategy_rev"] == 17
     assert s.get("auto_redeem") is True
-    assert s.get("strategy_mode") == "auto"
+    assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
-    assert float(s["favorite_max_price"]) == 0.99
+    assert float(s["favorite_max_price"]) == 0.98
+    assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_window_seconds"]) == 0.0
     assert s.get("favorite_dir") == "auto"
     assert float(s["maker_window_seconds"]) == 0.0
@@ -2050,11 +2085,13 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 16
+    assert s["strategy_rev"] == 17
     assert s.get("auto_redeem") is True
+    assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_window_seconds"]) == 0
     assert float(s["favorite_min_price"]) == 0.90
-    assert float(s["favorite_max_price"]) == 0.99
+    assert float(s["favorite_max_price"]) == 0.98
+    assert float(s["max_usd_per_trade"]) == 5.0
     assert s["favorite_dir"] == "auto"
     assert s["live_trading"] is False
     after = st.paper_state()
@@ -2080,10 +2117,12 @@ def test_rev15_opens_90_99_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 16
+    assert s["strategy_rev"] == 17
     assert s.get("auto_redeem") is True
+    assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
-    assert float(s["favorite_max_price"]) == 0.99
+    assert float(s["favorite_max_price"]) == 0.98
+    assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_window_seconds"]) == 180
     assert s["live_trading"] is False
     after = st.paper_state()
@@ -2109,9 +2148,11 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 16
+    assert body["strategy_rev"] == 17
     assert body.get("auto_redeem") is True
-    assert body.get("strategy_mode") == "auto"
+    assert body.get("strategy_mode") == "favorite"
+    assert float(body.get("max_usd_per_trade") or 0) == 5.0
+    assert float(body.get("favorite_max_price") or 0) == 0.98
     assert body["taker_fok"] is True
     assert body["ws_status"] == "connected"
     assert body["live_trading"] is False
@@ -2426,10 +2467,46 @@ def test_rev16_enables_auto_redeem_keeps_band_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 16
+    assert s["strategy_rev"] == 17
     assert s.get("auto_redeem") is True
+    assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.90
     assert float(s["favorite_max_price"]) == 0.98
+    assert float(s["max_usd_per_trade"]) == 5.0
+    assert float(s["favorite_window_seconds"]) == 180
+    assert s["live_trading"] is False
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert after["starting"] == 500
+    assert after["total_pnl"] == before["total_pnl"]
+    assert apply_strategy_rev(st) == 0
+
+
+def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
+    from app.main import apply_strategy_rev
+
+    st = Store(tmp_path / "rev17.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(40)
+    st.patch_settings(
+        strategy_rev=16,
+        strategy_mode="auto",
+        favorite_min_price=0.90,
+        favorite_max_price=0.99,
+        favorite_window_seconds=180,
+        max_usd_per_trade=25.0,
+        live_trading=False,
+    )
+    before = st.paper_state()
+    n = apply_strategy_rev(st)
+    assert n == 0
+    s = st.settings()
+    assert s["strategy_rev"] == 17
+    assert s.get("strategy_mode") == "favorite"
+    assert float(s["favorite_min_price"]) == 0.90
+    assert float(s["favorite_max_price"]) == 0.98
+    assert float(s["max_usd_per_trade"]) == 5.0
+    assert float(s["maker_window_seconds"]) == 0.0
     assert float(s["favorite_window_seconds"]) == 180
     assert s["live_trading"] is False
     after = st.paper_state()
