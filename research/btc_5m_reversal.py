@@ -488,7 +488,8 @@ def build_pnl_compare(finished_buy: dict, ranks: dict) -> dict:
         "last300s_by_tick": [r for r in ticks if r["window"] == 300],
         "honest": [
             "Dollar totals assume every qualifying 5m book fills at $25. Live FOK, scan_limit, and a $50 circuit cut this a lot.",
-            "90¢ last 5m is ~5× the 96–98 last-3m dollar PnL and ~2× the blowups; the circuit will clip it.",
+            "90¢ last 5m unclipped is ~8× the circuit-stop daily PnL. One reverse still costs ~$25.",
+            "Wins to offset one $25 blowup: 90¢ 9.7, 96¢ 26, 98¢ 53, 99¢ 106. 99¢ sample does not cover.",
         ],
     }
 
