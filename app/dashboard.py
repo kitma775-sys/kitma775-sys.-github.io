@@ -41,6 +41,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "favorite_maker": bool(s.get("favorite_maker")),
             "favorite_dir": s.get("favorite_dir") or "auto",
             "favorite_window_seconds": s.get("favorite_window_seconds"),
+            "auto_redeem": bool(s.get("auto_redeem", True)),
             "circuit": rt.circuit_tripped(),
             "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(),
             "daily_loss_limit_usd": s.get("daily_loss_limit_usd"),

@@ -57,6 +57,7 @@ STATUS_ZH = {
     "paper_hedged": "單邊對沖",
     "paper_dumped": "單邊出貨",
     "paper_settled": "結算",
+    "redeemed": "redeem 取回",
     "paper_fok_killed": "FOK殺單",
     "fok_killed": "FOK殺單",
     "filled": "成交",
@@ -69,6 +70,7 @@ TOGGLES = {
     "prefer_tail": ("尾盤優先", "近完場、一邊好貴一邊好平先掃"),
     "maker_first": ("全日掛單（關閉）", "開咗都唔會全日掛。Rev 6 預設停尾盤掛單；尾窗 0=關"),
     "auto_merge": ("自動 merge", "兩邊齊就換返現金"),
+    "auto_redeem": ("自動 redeem", "完場官方結果後自動取回：紙盤入帳，實盤 redeemPositions"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
     "taker_fok": ("FOK 確認", "250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote。殺單 0.4s 可再試"),
@@ -317,7 +319,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 15：大熱價帶 90–99¢。每盤最多單筆上限。熔斷停新倉但仍掃盤。紙盤、停互補掛單。\n"
+        "Rev 16：完場自動 redeem 取回注碼。大熱 90–99¢。每盤最多單筆上限。熔斷停新倉但仍掃盤。紙盤、停互補掛單。\n"
         "未交匙之前永遠紙盤。真金要撳兩次確認。"
     )
 
@@ -385,6 +387,7 @@ def _status_text(rt: Runtime) -> str:
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
         + f"策略 {_strategy_mode(s)} · 大熱 {float(s.get('favorite_min_price') or 0.95):.2f}–{float(s.get('favorite_max_price') or 0.99):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
+        + f"自動 merge {'開' if s.get('auto_merge', True) else '關'} · 自動 redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
         + f"幣：{assets or '全部'}"
     )

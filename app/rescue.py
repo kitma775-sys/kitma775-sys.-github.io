@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from app.fees import taker_fee
 from app.hunter import Level, walk
+from app.paper_sim import seconds_left
 
 
 @dataclass(frozen=True)
@@ -82,3 +83,34 @@ def parse_outcome_prices(raw) -> tuple[float, float] | None:
     if up_p < -1e-9 or dn_p < -1e-9:
         return None
     return up_p, dn_p
+
+
+def is_redeemable_market(event: dict | None) -> tuple[float, float] | None:
+    """Official payout vector once the market is resolved (or the window has ended).
+
+    Paper credits and live redeemPositions both wait for a decided 0/1 or 50/50
+    vector. Mid-book quotes are not a resolution.
+    """
+    if not isinstance(event, dict):
+        return None
+    market = (event.get("markets") or [{}])[0]
+    if not isinstance(market, dict):
+        market = {}
+    prices = parse_outcome_prices(market.get("outcomePrices"))
+    if prices is None:
+        return None
+    up_p, dn_p = prices
+    decided = (
+        (up_p >= 0.99 and dn_p <= 0.01)
+        or (dn_p >= 0.99 and up_p <= 0.01)
+        or (abs(up_p - 0.5) <= 0.02 and abs(dn_p - 0.5) <= 0.02)
+    )
+    if not decided:
+        return None
+    closed = bool(event.get("closed") or market.get("closed"))
+    status = str(market.get("umaResolutionStatus") or event.get("umaResolutionStatus") or "").lower()
+    left = seconds_left(market.get("endDate") or event.get("endDate") or event.get("end"))
+    ended = left is not None and left <= 0
+    if closed or ended or status in {"resolved", "ready"}:
+        return prices
+    return None

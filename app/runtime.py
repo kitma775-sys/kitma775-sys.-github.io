@@ -13,7 +13,7 @@ from app.config import Env, clamp_paper_cash, live_keys_ready, setting_num
 from app.hunter import book_quote, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
-from app.rescue import parse_outcome_prices, plan_rescue
+from app.rescue import is_redeemable_market, plan_rescue
 from app.risk import approve
 from app.store import Store
 from app.universe import DEFAULT_ASSETS, DEFAULT_TAGS
@@ -189,10 +189,26 @@ async def _refresh_universe(rt: Runtime) -> None:
         n = rt.store.cancel_all_resting("kill")
         if n:
             await rt.notify(f"🛑 已撤 {n} 張紙盤掛單")
-        rt.last_loop = {"ts": time.time(), "status": "killed", "tape": (rt.last_loop or {}).get("tape") or {}}
+    redeemed = 0
+    try:
+        redeemed = await _redeem_resolved(rt)
+    except Exception as exc:
+        rt.store.add_event("warn", f"redeem {fmt_exc(exc)}")
+    if s.get("killed"):
+        rt.last_loop = {
+            "ts": time.time(),
+            "status": "killed",
+            "tape": (rt.last_loop or {}).get("tape") or {},
+            "redeemed": redeemed,
+        }
         return
     if not s.get("engine_running"):
-        rt.last_loop = {"ts": time.time(), "status": "paused", "tape": (rt.last_loop or {}).get("tape") or {}}
+        rt.last_loop = {
+            "ts": time.time(),
+            "status": "paused",
+            "tape": (rt.last_loop or {}).get("tape") or {},
+            "redeemed": redeemed,
+        }
         return
     assert rt.data is not None
     events = await rt.data.live_events(
@@ -207,7 +223,6 @@ async def _refresh_universe(rt: Runtime) -> None:
         tokens.append(str(ev.get("down_token") or ""))
     rt.universe = events
     rt.books.set_wanted(tokens)
-    settled = await _settle_inventory(rt)
     rescued = await _rescue_naked(rt, events)
     if rt.circuit_tripped():
         n = rt.store.cancel_all_resting("circuit")
@@ -218,7 +233,8 @@ async def _refresh_universe(rt: Runtime) -> None:
             "status": "circuit_breaker",
             "markets": len(events),
             "signals": 0,
-            "fills": rescued + settled,
+            "fills": rescued + redeemed,
+            "redeemed": redeemed,
             "paper": paper,
             "ws_status": rt.ws_status,
             "tape": (rt.last_loop or {}).get("tape") or {},
@@ -238,7 +254,7 @@ async def _refresh_universe(rt: Runtime) -> None:
         return
     rt._circuit_latch = False
     rt.last_loop.setdefault("tape", {})
-    rt.last_loop.update({"settled": settled, "rescues": rescued, "markets": len(events)})
+    rt.last_loop.update({"settled": redeemed, "redeemed": redeemed, "rescues": rescued, "markets": len(events)})
 
 
 async def _ws_loop(rt: Runtime) -> None:
@@ -1166,53 +1182,141 @@ async def _rescue_naked(rt: Runtime, events: list[dict]) -> int:
     return n
 
 
-async def _settle_inventory(rt: Runtime) -> int:
-    if rt.mode() != "paper" or rt.data is None:
+async def _redeem_resolved(rt: Runtime) -> int:
+    """Credit paper cash / on-chain redeemPositions once a market has resolved.
+
+    Runs while paused, killed, or circuit-tripped so leftover favorite inventory
+    is not stuck. Live tokens stay in the proxy until redeemPositions.
+    """
+    if rt.data is None:
         return 0
-    n = 0
+    s = rt.settings()
+    if s.get("auto_redeem") is False:
+        return 0
+    paper_mode = rt.mode() == "paper"
+    jobs: list[dict] = []
+    seen: set[str] = set()
     for inv in list(rt.store.inventory()):
         up, down = float(inv["up"] or 0), float(inv["down"] or 0)
         if up < 0.01 and down < 0.01:
             continue
-        slug = inv.get("slug") or ""
+        cid = str(inv.get("condition_id") or "")
+        slug = str(inv.get("slug") or "")
+        if not cid:
+            continue
         try:
             ev = await rt.data.event_by_slug(slug)
         except Exception as exc:
-            rt.store.add_event("warn", f"settle fetch {slug}: {exc}"[:200])
+            rt.store.add_event("warn", f"redeem fetch {slug}: {fmt_exc(exc)}"[:200])
             continue
-        if not ev:
-            continue
-        market = (ev.get("markets") or [{}])[0]
-        if not (ev.get("closed") or market.get("closed")):
-            continue
-        prices = parse_outcome_prices(market.get("outcomePrices"))
+        prices = is_redeemable_market(ev)
         if prices is None:
             continue
-        up_p, dn_p = prices
-        payout = round(up * up_p + down * dn_p, 6)
-        cost = float(inv.get("cost") or 0)
-        fav = str(inv.get("kind") or "") == "favorite"
-        rt.store.take_inventory(inv["condition_id"], up=up, down=down)
-        if payout > 0:
-            rt.store.paper_apply_credit(payout)
+        jobs.append(
+            {
+                "condition_id": cid,
+                "slug": slug,
+                "up": up,
+                "down": down,
+                "cost": float(inv.get("cost") or 0),
+                "kind": str(inv.get("kind") or ""),
+                "prices": prices,
+                "tracked": True,
+            }
+        )
+        seen.add(cid)
+    if not paper_mode:
+        try:
+            extra = await rt.broker().list_redeemable()
+        except Exception as exc:
+            rt.store.add_event("warn", f"redeem list {fmt_exc(exc)}"[:200])
+            extra = []
+        for row in extra:
+            cid = str((row or {}).get("condition_id") or "")
+            if not cid or cid in seen:
+                continue
+            jobs.append(
+                {
+                    "condition_id": cid,
+                    "slug": str((row or {}).get("slug") or ""),
+                    "up": 0.0,
+                    "down": 0.0,
+                    "cost": 0.0,
+                    "kind": "",
+                    "prices": (0.0, 0.0),
+                    "tracked": False,
+                    "size": float((row or {}).get("size") or 0),
+                }
+            )
+            seen.add(cid)
+    n = 0
+    now = time.time()
+    for job in jobs:
+        if n >= 8:
+            break
+        cid = job["condition_id"]
+        if float(rt.cooldown.get(f"redeem:{cid}") or 0) > now:
+            continue
+        for rest in list(rt.store.resting_open()):
+            if rest.get("condition_id") == cid:
+                try:
+                    rt.store.cancel_resting(int(rest["id"]), "redeem")
+                except Exception:
+                    pass
+        result = await rt.broker().redeem(cid)
+        if not result.ok:
+            rt.cooldown[f"redeem:{cid}"] = now + 20.0
+            rt.store.add_event("warn", f"redeem fail {job['slug'] or cid}: {result.detail}"[:220])
+            continue
+        rt.cooldown.pop(f"redeem:{cid}", None)
+        up, down = float(job["up"]), float(job["down"])
+        cost = float(job["cost"])
+        fav = str(job["kind"] or "") == "favorite"
+        up_p, dn_p = job["prices"]
+        payout = round(up * up_p + down * dn_p, 6) if job["tracked"] else 0.0
+        if job["tracked"]:
+            rt.store.take_inventory(cid, up=up, down=down)
+            if paper_mode and payout > 0:
+                rt.store.paper_apply_credit(payout)
         settle_net = round(payout - cost, 6) if fav else payout
         rt.store.add_trade(
-            slug=slug,
+            slug=job["slug"],
             kind="settle",
-            shares=max(up, down),
+            shares=max(up, down) if job["tracked"] else float(job.get("size") or 0),
             up_price=up_p,
             down_price=dn_p,
-            net=settle_net,
-            mode="paper",
-            status="paper_settled",
-            payload={"up": up, "down": down, "payout": payout, "cost": cost, "strategy": "favorite" if fav else "pair"},
+            net=settle_net if paper_mode else 0.0,
+            mode=rt.mode(),
+            status="paper_settled" if paper_mode else "redeemed",
+            payload={
+                "up": up,
+                "down": down,
+                "payout": payout,
+                "cost": cost,
+                "strategy": "favorite" if fav else "pair",
+                "redeem": True,
+                "already": bool((result.payload or {}).get("already")),
+            },
         )
-        rt.store.add_event("info", f"paper settled {slug} up={up:.1f}@{up_p} down={down:.1f}@{dn_p} payout=${payout:.2f}")
+        rt.store.add_event(
+            "info",
+            f"redeem {job['slug'] or cid} up={up:.1f}@{up_p} down={down:.1f}@{dn_p} payout=${payout:.2f}",
+        )
         n += 1
-        if rt.settings().get("notify_signals"):
-            extra = f" · 淨 ${settle_net:.2f}" if fav else ""
-            await rt.notify(f"⚖️ 結算 {slug}\nUp {up:.1f}×{up_p} + Down {down:.1f}×{dn_p} = ${payout:.2f}{extra}")
+        if s.get("notify_signals"):
+            extra = f" · 淨 ${settle_net:.2f}" if fav and paper_mode else ""
+            flag = "🧪紙盤" if paper_mode else "🔴實盤"
+            await rt.notify(
+                f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
+                f"Up {up:.1f}×{up_p} + Down {down:.1f}×{dn_p} = ${payout:.2f}{extra}",
+                important=True,
+            )
     return n
+
+
+async def _settle_inventory(rt: Runtime) -> int:
+    """Back-compat alias: favorite hold-to-settle is now auto-redeem."""
+    return await _redeem_resolved(rt)
 
 
 async def _reset_http(rt: Runtime) -> None:

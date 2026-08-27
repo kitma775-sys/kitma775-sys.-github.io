@@ -137,9 +137,10 @@
         tile((Array.isArray(s.tags) ? s.tags : [s.tag || "15M"]).join("+"), "週期"),
         tile(String(s.scan_limit || 16), "每圈最多盤"),
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
+        tile(s.auto_redeem===false ? "關" : "開", "自動 redeem"),
         tile(s.auto_execute ? "ON" : "OFF", "全自動")
       ].join("");
-      const statusZh = {paper_filled:"紙盤成交", paper_fok_killed:"FOK殺單", fok_killed:"FOK殺單", paper_hedged:"單邊對沖", paper_dumped:"單邊出貨", paper_settled:"結算", paper_missed:"錯過", filled:"成交", cancelled:"已撤"};
+      const statusZh = {paper_filled:"紙盤成交", paper_fok_killed:"FOK殺單", fok_killed:"FOK殺單", paper_hedged:"單邊對沖", paper_dumped:"單邊出貨", paper_settled:"結算", redeemed:"redeem 取回", paper_missed:"錯過", filled:"成交", cancelled:"已撤"};
       const fmtTs = (ts) => {
         if (!ts) return "";
         try { return new Date(Number(ts)*1000).toISOString().slice(11,19) + "Z"; } catch(e) { return ""; }

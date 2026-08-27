@@ -18,7 +18,7 @@ from app.telegram_ui import run_telegram
 
 
 def apply_strategy_rev(store: Store) -> int:
-    """Patch live sqlite up to rev 15. Does not reset the paper ledger."""
+    """Patch live sqlite up to rev 16. Does not reset the paper ledger."""
     rev = int(store.settings().get("strategy_rev") or 0)
     n = 0
     if rev < 6:
@@ -142,6 +142,15 @@ def apply_strategy_rev(store: Store) -> int:
         store.add_event(
             "info",
             "rev15 open favorite band to 90-99¢; keep current tail window; no paper reset",
+        )
+    if rev < 16:
+        store.patch_settings(
+            strategy_rev=16,
+            auto_redeem=True,
+        )
+        store.add_event(
+            "info",
+            "rev16 auto-redeem resolved inventory (paper credit / live redeemPositions); keep band and paper",
         )
     return n
 

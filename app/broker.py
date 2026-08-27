@@ -70,6 +70,21 @@ def paper_execute(setup: Setup) -> FillResult:
     )
 
 
+def already_redeemed(detail: str) -> bool:
+    """True when the CLOB/relayer has nothing left to redeem for this condition."""
+    text = (detail or "").lower()
+    needles = (
+        "you have no positions",
+        "no positions",
+        "nothing to redeem",
+        "already redeem",
+        "no outcome tokens",
+        "balance is zero",
+        "insufficient token",
+    )
+    return any(n in text for n in needles)
+
+
 class PaperBroker:
     mode = "paper"
 
@@ -78,6 +93,12 @@ class PaperBroker:
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:
         return FillResult(True, "merged", "paper", f"紙盤 merge {shares:.1f}", {"shares": shares})
+
+    async def redeem(self, condition_id: str) -> FillResult:
+        return FillResult(True, "paper_settled", "paper", "紙盤 redeem 入帳", {"condition_id": condition_id})
+
+    async def list_redeemable(self) -> list[dict]:
+        return []
 
 
 class LiveBroker:
@@ -141,3 +162,46 @@ class LiveBroker:
             return FillResult(True, "merged", "live", "merge 完成", {"condition_id": condition_id})
         except Exception as exc:
             return FillResult(False, "merge_error", "live", str(exc)[:300], {})
+
+    async def redeem(self, condition_id: str) -> FillResult:
+        cid = str(condition_id or "").strip()
+        if not cid:
+            return FillResult(False, "redeem_error", "live", "missing condition_id", {})
+        try:
+            client = await self._client_ready()
+            tx = await client.redeem_positions(condition_id=cid)
+            await tx.wait()
+            return FillResult(True, "redeemed", "live", "redeem 完成", {"condition_id": cid})
+        except Exception as exc:
+            detail = str(exc)[:300]
+            if already_redeemed(detail):
+                return FillResult(
+                    True,
+                    "redeemed",
+                    "live",
+                    "already empty",
+                    {"condition_id": cid, "already": True},
+                )
+            return FillResult(False, "redeem_error", "live", detail, {"condition_id": cid})
+
+    async def list_redeemable(self) -> list[dict]:
+        """Wallet positions the data API marks redeemable. Empty on auth/network failure."""
+        try:
+            client = await self._client_ready()
+            paginator = client.list_positions(redeemable=True, page_size=50)
+            found: dict[str, dict] = {}
+            n = 0
+            async for pos in paginator.iter_items():
+                cid = str(getattr(pos, "condition_id", "") or "")
+                if cid and cid not in found:
+                    found[cid] = {
+                        "condition_id": cid,
+                        "slug": str(getattr(pos, "event_slug", None) or getattr(pos, "slug", None) or ""),
+                        "size": float(getattr(pos, "size", 0) or 0),
+                    }
+                n += 1
+                if n >= 80:
+                    break
+            return list(found.values())
+        except Exception:
+            return []
