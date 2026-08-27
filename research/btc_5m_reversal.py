@@ -354,6 +354,9 @@ def rank_no_water(band_events: dict, finished_band: dict) -> dict:
             else None,
         },
     }
+
+
+def usd_fields(n, pnl_ps, avg_px) -> dict:
     if not n or pnl_ps is None or not avg_px:
         return {"usd_per_fill_at_25": None, "total_usd_at_25": None, "usd_per_day_at_25": None}
     fill = pnl_ps * NOTIONAL / avg_px
