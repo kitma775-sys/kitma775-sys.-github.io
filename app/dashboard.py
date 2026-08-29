@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from app.config import clamp_paper_cash, favorite_window_label, favorite_window_of, live_keys_ready
+from app.config import clamp_paper_cash, favorite_window_label, favorite_window_of, live_keys_ready, strategy_mode_of
 from app.runtime import Runtime
 
 PAGE = Path(__file__).with_name("dashboard.html")
@@ -41,7 +41,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "max_book_age_ms": s.get("max_book_age_ms"),
             "taker_fok": bool(s.get("taker_fok", True)),
             "max_usd_per_trade": s.get("max_usd_per_trade"),
-            "strategy_mode": s.get("strategy_mode") or "favorite",
+            "strategy_mode": strategy_mode_of(s),
             "favorite_min_price": s.get("favorite_min_price"),
             "favorite_max_price": s.get("favorite_max_price"),
             "favorite_maker": bool(s.get("favorite_maker")),

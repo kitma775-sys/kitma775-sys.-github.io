@@ -7,13 +7,12 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import SETTING_STEPS, favorite_window_label, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num
+from app.config import SETTING_STEPS, STRATEGY_MODES, favorite_window_label, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.geo import telegram_line
 from app.runtime import Runtime
 from app.universe import DEFAULT_ASSETS
 
 TG_MAX = 3900
-STRATEGY_MODES = ("auto", "complement", "favorite")
 STRATEGY_ZH = {
     "auto": "自動（互補優先，否則大熱）",
     "complement": "只做互補 YES+NO",
@@ -30,8 +29,7 @@ FAVORITE_WINDOWS = (30, 45, 60, 90, 180, 300, 900, 0)
 
 
 def _strategy_mode(s: dict) -> str:
-    mode = str(s.get("strategy_mode") or "favorite").lower()
-    return mode if mode in STRATEGY_ZH else "favorite"
+    return strategy_mode_of(s)
 
 
 def _favorite_dir(s: dict) -> str:
@@ -51,6 +49,26 @@ def _strategy_label(s: dict) -> str:
     lo = float(s.get("favorite_min_price") or 0.97)
     hi = float(s.get("favorite_max_price") or 0.98)
     return f"只買大熱 {lo:.2f}–{hi:.2f}"
+
+
+def _rev_blurb(s: dict) -> str:
+    rev = int(s.get("strategy_rev") or 0)
+    mode = _strategy_mode(s)
+    if mode == "favorite":
+        return (
+            f"Rev {rev}：只做大熱 97–98¢，$5/注，尾 60s。"
+            "要最好賣價就喺 97–98、bid 未穿到 99、WS 活簿先抬。"
+            "同一 5 分鐘窗 BTC/ETH 只做一隻。Redeem 等官方 0/1。紙盤。"
+        )
+    if mode == "auto":
+        return (
+            f"Rev {rev}：自動＝互補優先，否則大熱。"
+            "互補缺口 ≥0.02、FOK、maker 關。Redeem 等官方 0/1。紙盤。"
+        )
+    return (
+        f"Rev {rev}：停大熱 hunt。預設只做 YES+NO 互補（缺口 ≥0.02、FOK、maker 關）。"
+        "Telegram 可切回大熱。Redeem 等官方 0/1。紙盤。"
+    )
 
 
 NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
@@ -320,8 +338,8 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 21：只做大熱 97–98¢，$5/注，尾 60s。要最好賣價就喺 97–98、bid 未穿到 99、WS 活簿先抬。同一 5 分鐘窗 BTC/ETH 只做一隻。Redeem 等官方 0/1。紙盤。\n"
-        "未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
+        + _rev_blurb(s)
+        + "\n未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
     )
 
 

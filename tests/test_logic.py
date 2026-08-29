@@ -623,7 +623,8 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 21" in text
+    assert "Rev 22" in text
+    assert "互補" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1093,6 +1094,36 @@ def test_favorite_lifts_97_ask_in_last_30s():
     assert 0.969 <= setup.up_price <= 0.971
     assert setup.down_price == 0.0
     assert setup.net > 0
+
+
+def test_complement_mode_skips_locked_favorite():
+    from app.hunter import is_favorite_setup
+
+    setup = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.96, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=5,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="complement",
+        favorite_maker=False,
+        maker_window_seconds=0,
+    )
+    assert setup is None or not is_favorite_setup(setup)
+    if setup is not None:
+        assert setup.down_price > 0
 
 
 def test_favorite_skips_outside_window():
@@ -2210,9 +2241,9 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert s.get("auto_redeem") is True
-    assert s.get("strategy_mode") == "favorite"
+    assert s.get("strategy_mode") == "complement"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2250,9 +2281,9 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert s.get("auto_redeem") is True
-    assert s.get("strategy_mode") == "favorite"
+    assert s.get("strategy_mode") == "complement"
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
@@ -2283,9 +2314,9 @@ def test_rev15_opens_90_99_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert s.get("auto_redeem") is True
-    assert s.get("strategy_mode") == "favorite"
+    assert s.get("strategy_mode") == "complement"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2314,9 +2345,9 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 21
+    assert body["strategy_rev"] == 22
     assert body.get("auto_redeem") is True
-    assert body.get("strategy_mode") == "favorite"
+    assert body.get("strategy_mode") == "complement"
     assert float(body.get("max_usd_per_trade") or 0) == 5.0
     assert float(body.get("favorite_min_price") or 0) == 0.97
     assert float(body.get("favorite_max_price") or 0) == 0.98
@@ -2683,9 +2714,9 @@ def test_rev16_enables_auto_redeem_keeps_band_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert s.get("auto_redeem") is True
-    assert s.get("strategy_mode") == "favorite"
+    assert s.get("strategy_mode") == "complement"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2717,8 +2748,8 @@ def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
-    assert s.get("strategy_mode") == "favorite"
+    assert s["strategy_rev"] == 22
+    assert s.get("strategy_mode") == "complement"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2751,7 +2782,7 @@ def test_rev18_pins_180s_window_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_min_price"]) == 0.97
@@ -2783,7 +2814,7 @@ def test_rev19_waits_for_binary_redeem_pins_97_98_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2823,7 +2854,7 @@ def test_rev20_pins_60s_locked_favorite_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["favorite_min_price"]) == 0.97
     assert s["live_trading"] is False
@@ -2862,7 +2893,8 @@ def test_rev21_pins_five_usd_and_kills_down_requote(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 21
+    assert s["strategy_rev"] == 22
+    assert s.get("strategy_mode") == "complement"
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_window_seconds"]) == 60
     assert s["live_trading"] is False
@@ -2960,6 +2992,43 @@ def test_rev21_pins_five_usd_and_kills_down_requote(tmp_path):
     assert better.ok is True
     assert better.reason in {"fok_filled", "fok_fak"}
     assert 0.969 <= better.up_price <= 0.971
+
+
+def test_rev22_stops_favorite_keeps_paper_and_edge(tmp_path):
+    from app.main import apply_strategy_rev
+
+    st = Store(tmp_path / "rev22.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(40)
+    st.patch_settings(
+        strategy_rev=21,
+        strategy_mode="favorite",
+        min_edge=0.02,
+        maker_window_seconds=0.0,
+        taker_fok=True,
+        favorite_min_price=0.97,
+        favorite_max_price=0.98,
+        favorite_window_seconds=60,
+        favorite_maker=False,
+        max_usd_per_trade=5.0,
+        live_trading=False,
+    )
+    before = st.paper_state()
+    n = apply_strategy_rev(st)
+    assert n == 0
+    s = st.settings()
+    assert s["strategy_rev"] == 22
+    assert s.get("strategy_mode") == "complement"
+    assert float(s["min_edge"]) == 0.02
+    assert float(s["maker_window_seconds"]) == 0.0
+    assert s.get("taker_fok") is True
+    assert float(s["max_usd_per_trade"]) == 5.0
+    assert s["live_trading"] is False
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert after["starting"] == 500
+    assert after["total_pnl"] == before["total_pnl"]
+    assert apply_strategy_rev(st) == 0
 
 
 def test_hedges_24h_ignores_settles(tmp_path):
@@ -3169,6 +3238,53 @@ def test_fair_p_stay_brownian():
     assert mod.fair_p_stay(80.0, 1.0, 9.0) > 0.99
     assert mod.fair_p_stay(-80.0, 1.0, 9.0) < 0.01
     assert mod.to_sec(1787875200000000) == 1787875200
+
+
+def test_strategy_mode_of_defaults_to_complement():
+    from app.config import DEFAULT_SETTINGS, strategy_mode_of
+
+    assert DEFAULT_SETTINGS["strategy_rev"] == 22
+    assert DEFAULT_SETTINGS["strategy_mode"] == "complement"
+    assert strategy_mode_of(None) == "complement"
+    assert strategy_mode_of({}) == "complement"
+    assert strategy_mode_of({"strategy_mode": "favorite"}) == "favorite"
+    assert strategy_mode_of({"strategy_mode": "nope"}) == "complement"
+
+
+def test_top_5m_follow_is_not_a_ship_signal():
+    """Top 5m wallets are not 97¢ farmers; Binance-TWAP follow sign-flips train vs holdout."""
+    import json
+    from collections import Counter
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "top_5m.py"
+    spec = importlib.util.spec_from_file_location("top_5m_research", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod.band_of(0.40) == "longshot_<45"
+    assert mod.band_of(0.50) == "mid_45_55"
+    assert mod.band_of(0.975) == "favorite_97_99"
+    acc = Counter({"longshot_<45": 400, "midhi_56_89": 400, "mid_45_55": 200})
+    assert mod.classify_style(acc, 0, 1000, 70, 100) == "both_sides_accumulator"
+    fav = Counter({"favorite_97_99": 90, "hi_90_96": 10})
+    assert mod.classify_style(fav, 0, 100, 0, 50) == "favorite_taker"
+
+    data = json.loads(path.with_name("top_5m.json").read_text())
+    f = data["findings"]
+    assert f["sim_follow_2bps_robust"] is False
+    assert f["n_wallets_with_50plus_5m"] >= 10
+    assert 0.45 <= f["median_of_median_buy_px"] <= 0.70
+    train = data["sim_twap60"]["train"]["follow_2bps"]
+    hold = data["sim_twap60"]["holdout"]["follow_2bps"]
+    assert train["ev_ok"] is False
+    assert train["pnl_usd"] < 0
+    # Holdout can look lucky; both splits must pass before this is a hunter.
+    assert not (train.get("ev_ok") and hold.get("ev_ok"))
+    assert "complement" in f["recommend"]["stop_now"]
+    assert data["sim_twap60"]["all"]["favorite"]["ev_ok"] is False
+
 
 
 

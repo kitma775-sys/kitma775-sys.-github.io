@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
-from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num
+from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -450,7 +450,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if circuit:
             continue
-        if str(s.get("strategy_mode") or "favorite") == "favorite" and not favorite_ws_ok(
+        if strategy_mode_of(s) == "favorite" and not favorite_ws_ok(
             rt.ws_status, src, up_book, dn_book
         ):
             continue
@@ -483,7 +483,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
                 maker_window_seconds=window,
                 maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
-                strategy_mode=str(s.get("strategy_mode") or "favorite"),
+                strategy_mode=strategy_mode_of(s),
                 favorite_min_price=setting_num(s, "favorite_min_price", 0.97),
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
                 favorite_window_seconds=favorite_window_of(s),
@@ -769,7 +769,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["snapshot_signals"] = snapshot_signals
     tape["fok_kills"] = fok_kills
     tape["fok_fills"] = fok_fills
-    tape["strategy_mode"] = str(s.get("strategy_mode") or "favorite")
+    tape["strategy_mode"] = strategy_mode_of(s)
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.97)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = favorite_window_of(s)

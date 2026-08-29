@@ -34,16 +34,16 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 21,
+    "strategy_rev": 22,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 13: favorite one-leg hold-to-settle. window<=0 = whole book
-    # until 3s before end. Rev 20 pins last 60s. Rev 21: true-top lock, $5.
+    # Rev 13–21: favorite one-leg. Rev 22: favorite hunt off (complement-only).
+    # Band/window kept so Telegram can switch favorite back on.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
-    "strategy_mode": "favorite",
+    "strategy_mode": "complement",
     "favorite_min_price": 0.97,
     "favorite_max_price": 0.98,
     "favorite_window_seconds": 60.0,
@@ -82,6 +82,17 @@ def setting_num(s: dict, key: str, default: float) -> float:
     if v is None or v == "":
         return float(default)
     return float(v)
+
+
+STRATEGY_MODES = ("auto", "complement", "favorite")
+
+
+def strategy_mode_of(s: dict | None) -> str:
+    """auto / complement / favorite. Missing or junk → current default (complement)."""
+    raw = str((s or {}).get("strategy_mode") or DEFAULT_SETTINGS["strategy_mode"]).strip().lower()
+    if raw not in STRATEGY_MODES:
+        return str(DEFAULT_SETTINGS["strategy_mode"])
+    return raw
 
 
 def favorite_window_of(s: dict | None) -> float:

@@ -57,6 +57,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 22**：停大熱 97–98 hunt。預設 **只做 YES+NO 互補**（`strategy_mode=complement`，`min_edge=0.02`、FOK、maker 關）。Telegram 仍可切回大熱。紙盤未重置、未開實盤。詳情 `research/top_5m.json`。
 - **Rev 21**：大熱仍然 **尾 60s 97–98¢ $5**。要 **最好賣價本身喺 97–98**（唔抬 63¢ 簿後面掛住嘅 97），**bid 未穿到 99¢**（唔好 0.98 FOK 殺咗之後再抬剩餘 97），WS 斷線／HTTP 後備簿唔入。同一 5 分鐘窗 BTC/ETH 只做一隻。紙盤未重置、未開實盤。
 - **Rev 20**：大熱改 **尾 60s**、要盤口鎖住（bid ≥90¢、spread <4¢、對手 ask <10¢），同一 5 分鐘窗 BTC/ETH 只做一隻。紙盤未重置、未開實盤。
 - **Rev 19**：完場 **等官方 0/1** 先 redeem（唔好用結束瞬間嘅 50/50 mid 入帳——呢個先係日虧熔斷主因）。預設大熱 **97–98¢**、**$5/注**、taker。紙盤未重置、未開實盤。
@@ -82,8 +83,9 @@ FORCE_PAPER=true
 - 紙盤 maker **唔會當即成交**：掛單鎖現金，要後續盤口 ask 碰到（trade-through）先填；只成交一邊就按 $0 計未配對倉。taker 先按掃描 VWAP 成交（可加滑點 tick）
 - 歷史回測：`python3 research/backtest.py --hours 8` 用成交 tape 重放同一套 hunt／rescue（唔用 mid 價），結果喺 `research/backtest_results.json`
 - **BTC 5m 95–99¢ 翻盤**：`python3 research/btc_5m_reversal.py`，14 日 ~4000 盤。抬 99¢ **唔係 100%**；taker 99¢ 勝率高過 98% 仍然可以 −EV。詳情 `research/btc_5m_reversal.json`
-- **30 日 BTC+ETH 97–98¢ 反轉解剖**：`python3 research/reverse_30d.py`（公開 Gamma／trades，cache `/tmp/reverse_30d_cache`）。尾 60s 第一手 97–98¢、$5、每 5 分鐘窗一注，費後反轉損益平衡 97¢ ≈ 2.80%、98¢ ≈ 1.86%。一個月樣本反轉 ~2.9%，PnL 略負。成交當刻 tape 同贏盤幾乎一樣；真反轉約 91% 係入場後先砸到 90¢。完場成交量高係砸盤結果（前視），唔好用嚟濾盤。Holdout 先轉正嘅 filter（跳過第一 tick、只做 BTC、跳過某幾個 UTC 鐘）全樣本唔穩，**唔好當 Rev 22**。詳情 `research/reverse_30d.json` 嘅 `findings`。
-- **預測反轉（PTB + 1s 現貨）**：`python3 research/reverse_predict.py`。官方 `priceToBeat`／`finalPrice` 加 Binance 1 秒路徑。同源 TWAP 收市方向同官方贏家一致 ~96.5%；Binance 減 Chainlink PTB 唔得（~9 bps 基差）。入場時贏／輸盤 lead 同 Brownian fair P 幾乎一樣（fair≈87% vs 付 97¢）。**冇高精度事前 skip**；唔好當 Rev 22。詳情 `research/reverse_predict.json`。
+- **30 日 BTC+ETH 97–98¢ 反轉解剖**：`python3 research/reverse_30d.py`（公開 Gamma／trades，cache `/tmp/reverse_30d_cache`）。尾 60s 第一手 97–98¢、$5、每 5 分鐘窗一注，費後反轉損益平衡 97¢ ≈ 2.80%、98¢ ≈ 1.86%。一個月樣本反轉 ~2.9%，PnL 略負。成交當刻 tape 同贏盤幾乎一樣；真反轉約 91% 係入場後先砸到 90¢。完場成交量高係砸盤結果（前視），唔好用嚟濾盤。Holdout 先轉正嘅 filter（跳過第一 tick、只做 BTC、跳過某幾個 UTC 鐘）全樣本唔穩，**唔好當 hunter 訊號**。詳情 `research/reverse_30d.json` 嘅 `findings`。
+- **預測反轉（PTB + 1s 現貨）**：`python3 research/reverse_predict.py`。官方 `priceToBeat`／`finalPrice` 加 Binance 1 秒路徑。同源 TWAP 收市方向同官方贏家一致 ~96.5%；Binance 減 Chainlink PTB 唔得（~9 bps 基差）。入場時贏／輸盤 lead 同 Brownian fair P 幾乎一樣（fair≈87% vs 付 97¢）。**冇高精度事前 skip**。詳情 `research/reverse_predict.json`。
+- **5 分鐘頂層贏家 vs TWAP 中間價**：`python3 research/top_5m.py`。CRYPTO 週榜真正打 5m 嘅錢包多數喺 **0.47–0.57 雙邊累積**，唔係抬 97¢。TWAP-60 時代用 Binance 1s 跟開盤 lead ≥2bps 喺 45–55¢ 入場：train −EV、holdout 先轉正（樣本只有約兩週，newest-10d 佔大半），**未接官方 Chainlink TWAP 之前唔好上線**。同期大熱 97–98 仍然略負。詳情 `research/top_5m.json`。
 - 權益 = 現金 + 凍結掛單 + 可 merge 對數 × $1（互補未配對倉 = $0；大熱單腿按成本計到官方結算）；累計 PnL = 權益 − 本金
 
 呢個唔係投資建議。遵守當地法律同 Polymarket geoblock。
