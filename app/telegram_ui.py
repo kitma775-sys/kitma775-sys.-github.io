@@ -7,7 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import SETTING_STEPS, STRATEGY_MODES, favorite_window_label, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
+from app.config import SETTING_STEPS, STRATEGY_MODES, favorite_window_label, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.geo import telegram_line
 from app.runtime import Runtime
 from app.universe import DEFAULT_ASSETS
@@ -16,6 +16,7 @@ TG_MAX = 3900
 STRATEGY_ZH = {
     "auto": "自動（互補優先，否則大熱）",
     "complement": "只做互補 YES+NO",
+    "twap": "TWAP 中間價（BTC 5m）",
     "favorite": "只買大熱",
 }
 FAVORITE_DIRS = ("auto", "up", "down")
@@ -44,6 +45,10 @@ def _favorite_window_label(s: dict) -> str:
 
 def _strategy_label(s: dict) -> str:
     mode = _strategy_mode(s)
+    if mode == "twap":
+        lo = float(s.get("twap_min_price") or 0.45)
+        hi = float(s.get("twap_max_price") or 0.55)
+        return f"TWAP 中間價 {lo:.2f}–{hi:.2f} BTC 5m"
     if mode != "favorite":
         return STRATEGY_ZH[mode]
     lo = float(s.get("favorite_min_price") or 0.97)
@@ -64,6 +69,11 @@ def _rev_blurb(s: dict) -> str:
         return (
             f"Rev {rev}：自動＝互補優先，否則大熱。"
             "互補缺口 ≥0.02、FOK、maker 關。Redeem 等官方 0/1。紙盤。"
+        )
+    if mode == "twap":
+        return (
+            f"Rev {rev}：BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢ 入場，弱倉 scratch。"
+            "互補洞仍然會先吃。FOK、maker 關。Redeem 等官方 0/1。紙盤。"
         )
     return (
         f"Rev {rev}：停大熱 hunt。預設只做 YES+NO 互補（缺口 ≥0.02、FOK、maker 關）。"
@@ -349,6 +359,8 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
         bits = []
         if tape.get("ws_status"):
             bits.append(f"WS {tape['ws_status']}")
+        if tape.get("chainlink_status"):
+            bits.append(f"CL {tape['chainlink_status']}")
         if tape.get("stale_pairs"):
             bits.append(f"過期 {int(tape['stale_pairs'])}")
         if tape.get("empty_ask_legs"):
@@ -362,6 +374,8 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
     bits = [f"盤口 {tape['n']} 盤"]
     if tape.get("ws_status"):
         bits.append(f"WS {tape['ws_status']}")
+    if tape.get("chainlink_status"):
+        bits.append(f"CL {tape['chainlink_status']}")
     if tape.get("ws_pairs") is not None:
         bits.append(f"WS盤 {int(tape.get('ws_pairs') or 0)}")
     if tape.get("http_pairs"):
@@ -405,6 +419,7 @@ def _status_text(rt: Runtime) -> str:
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
         + f"策略 {_strategy_label(s)} · 大熱 {float(s.get('favorite_min_price') or 0.97):.2f}–{float(s.get('favorite_max_price') or 0.98):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
+        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 120):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f} · Chainlink {rt.chainlink_status}\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
         + f"自動 merge {'開' if s.get('auto_merge', True) else '關'} · 自動 redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
@@ -430,9 +445,9 @@ def _pos_text(rt: Runtime) -> str:
         return "\n".join(lines)
     for row in inv[:15]:
         kind = str(row.get("kind") or "pair")
-        tag = " 大熱" if is_favorite_inventory(kind) else ""
+        tag = " TWAP" if str(kind).startswith("twap") else (" 大熱" if is_favorite_inventory(kind) else "")
         cost = float(row.get("cost") or 0)
-        cost_txt = f" · 成本 ${cost:.2f}" if kind == "favorite" and cost > 0 else ""
+        cost_txt = f" · 成本 ${cost:.2f}" if is_directional_inventory(kind) and cost > 0 else ""
         lines.append(
             f"{row['slug'] or row['condition_id'][:8]}{tag}\n  Up {row['up']:.1f} · Down {row['down']:.1f}{cost_txt}"
         )

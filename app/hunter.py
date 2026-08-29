@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from app.fees import gross_edge, pair_taker_fee, taker_fee, taker_net
 from app.config import DEFAULT_SETTINGS
+from app.twap import TwapParams, default_params, entry_edge, fee_per_share, twap_entry_reason
 
 MAKER_MIN_LEG = 0.22
 MAKER_MAX_SKEW = 0.28
@@ -38,10 +39,10 @@ class Setup:
 
     @property
     def cost(self) -> float:
-        """Cash out to buy both legs (fees included). Merge of `shares` returns that many dollars.
-
-        Identically `shares - net`, so a fill+merge changes cash by `net`.
-        """
+        """Cash to put on. Pair: shares - pair_net. One-leg: extra.cash_cost or shares-net."""
+        cash = (self.extra or {}).get("cash_cost")
+        if cash is not None:
+            return round(float(cash), 6)
         return round(self.shares - self.net, 6)
 
 
@@ -140,12 +141,14 @@ def hunt(
     favorite_window_seconds: float = 60.0,
     favorite_maker: bool = False,
     favorite_dir: str = "auto",
+    twap_snap=None,
+    twap_params=None,
 ) -> Setup | None:
     mode = (strategy_mode or "complement").strip().lower()
-    if mode not in {"complement", "favorite", "auto"}:
+    if mode not in {"complement", "favorite", "auto", "twap"}:
         mode = "complement"
     taker = None
-    if mode in {"complement", "auto"}:
+    if mode in {"complement", "auto", "twap"}:
         taker = _taker_setup(
             slug=slug,
             title=title,
@@ -212,6 +215,27 @@ def hunt(
         )
         if fav:
             return fav
+    if mode == "twap":
+        tw = _twap_setup(
+            slug=slug,
+            title=title,
+            condition_id=condition_id,
+            up_token=up_token,
+            down_token=down_token,
+            up_asks=up_asks,
+            down_asks=down_asks,
+            up_bids=up_bids,
+            down_bids=down_bids,
+            max_usd=max_usd,
+            min_shares=min_shares,
+            fee_rate=fee_rate,
+            end=end,
+            now=now,
+            snap=twap_snap,
+            params=twap_params,
+        )
+        if tw:
+            return tw
     if maker:
         return maker
     return taker
@@ -219,6 +243,97 @@ def hunt(
 
 def is_favorite_setup(setup: Setup | None) -> bool:
     return bool(setup and (setup.extra or {}).get("strategy") == "favorite")
+
+
+def is_twap_setup(setup: Setup | None) -> bool:
+    return bool(setup and (setup.extra or {}).get("strategy") == "twap")
+
+
+def is_one_leg_setup(setup: Setup | None) -> bool:
+    return is_favorite_setup(setup) or is_twap_setup(setup)
+
+
+def _twap_setup(
+    *,
+    slug: str,
+    title: str,
+    condition_id: str,
+    up_token: str,
+    down_token: str,
+    up_asks: list[Level],
+    down_asks: list[Level],
+    up_bids: list[Level],
+    down_bids: list[Level],
+    max_usd: float,
+    min_shares: float,
+    fee_rate: float,
+    end: str | None,
+    now,
+    snap,
+    params,
+) -> Setup | None:
+    p = params if isinstance(params, TwapParams) else default_params(params if isinstance(params, dict) else None)
+    left = _seconds_left(end, now)
+    leg = None if snap is None else snap.side
+    asks = up_asks if leg == "up" else down_asks if leg == "down" else []
+    bids = up_bids if leg == "up" else down_bids if leg == "down" else []
+    ask = _top(asks, asks=True)
+    bid = _top(bids, asks=False)
+    if twap_entry_reason(slug=slug, snap=snap, ask=ask, bid=bid, left=left, fee_rate=fee_rate, params=p):
+        return None
+    assert snap is not None and ask is not None and leg in {"up", "down"}
+    fair = snap.fair_p_side
+    if fair is None:
+        return None
+    fee_share = fee_per_share(ask, fee_rate)
+    unit = max(ask + fee_share, 0.02)
+    depth = total_size([lv for lv in asks if p.min_price - 1e-12 <= lv.price <= min(ask + 1e-12, p.max_price)])
+    shares = min(float(max_usd) / unit, depth)
+    if shares + 1e-9 < float(min_shares):
+        return None
+    filled, vwap = walk(
+        [lv for lv in asks if lv.price <= ask + 1e-12 and p.min_price - 1e-12 <= lv.price <= p.max_price + 1e-12],
+        shares,
+        asks=True,
+    )
+    if filled + 1e-9 < float(min_shares):
+        return None
+    fees = taker_fee(filled, vwap, fee_rate)
+    ev_net = round(filled * entry_edge(fair, vwap, fee_rate), 5)
+    if ev_net <= 0:
+        return None
+    cash = round(filled * vwap + fees, 6)
+    up_px = vwap if leg == "up" else 0.0
+    dn_px = vwap if leg == "down" else 0.0
+    return Setup(
+        slug=slug,
+        title=title,
+        condition_id=condition_id,
+        up_token=up_token,
+        down_token=down_token,
+        kind="taker",
+        up_price=up_px,
+        down_price=dn_px,
+        shares=round(filled, 4),
+        fillable=round(filled, 4),
+        gross=round(fair - vwap, 4),
+        fees=round(fees, 5),
+        net=ev_net,
+        tail=False,
+        end=end,
+        extra={
+            "fee_rate": float(fee_rate),
+            "strategy": "twap",
+            "leg": leg,
+            "fill_px": round(vwap, 4),
+            "cash_cost": cash,
+            "fair_p": fair,
+            "lead_bps": snap.lead_bps,
+            "ptb": snap.ptb,
+            "twap": snap.twap,
+            "lookback": snap.lookback,
+        },
+    )
 
 
 # Live paper was lifting a 97¢ ask while the tape was still 0.63–0.92, and

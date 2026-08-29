@@ -27,11 +27,16 @@ def create_app(rt: Runtime) -> FastAPI:
         s = rt.settings()
         paper = rt.store.paper_state() if rt.mode() == "paper" else None
         win = favorite_window_of(s)
+        cl = rt.chainlink.public()
+        btc = (cl.get("symbols") or {}).get("btc/usd") or {}
         return {
             "ok": True,
             "mode": rt.mode(),
             "strategy_rev": s.get("strategy_rev"),
             "ws_status": rt.ws_status,
+            "chainlink_status": rt.chainlink_status,
+            "chainlink_btc": btc.get("px"),
+            "chainlink_age_ms": cl.get("age_ms"),
             "live_trading": bool(s.get("live_trading")),
             "force_paper": bool(rt.env.force_paper),
             "keys_ready": live_keys_ready(rt.env),
@@ -48,6 +53,10 @@ def create_app(rt: Runtime) -> FastAPI:
             "favorite_dir": s.get("favorite_dir") or "auto",
             "favorite_window_seconds": win,
             "favorite_window_label": favorite_window_label(win),
+            "twap_min_price": s.get("twap_min_price"),
+            "twap_max_price": s.get("twap_max_price"),
+            "twap_min_lead_bps": s.get("twap_min_lead_bps"),
+            "twap_min_edge": s.get("twap_min_edge"),
             "auto_redeem": bool(s.get("auto_redeem", True)),
             "circuit": rt.circuit_tripped(),
             "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(),

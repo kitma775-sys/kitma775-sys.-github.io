@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.fees import pair_taker_fee, taker_fee, taker_net
-from app.hunter import Level, Setup, hunt, is_favorite_setup, plus_ev_fill, total_size, walk
+from app.hunter import Level, Setup, hunt, is_one_leg_setup, plus_ev_fill, total_size, walk
 
 TICK = 0.01
 
@@ -42,7 +42,7 @@ def simulate_taker(
 ) -> TakerSim:
     rate = float(fee_rate if fee_rate is not None else setup.extra.get("fee_rate") or 0.07)
     slip = max(0, int(slip_ticks)) * float(tick)
-    if is_favorite_setup(setup):
+    if is_one_leg_setup(setup):
         leg = str((setup.extra or {}).get("leg") or ("up" if setup.up_price >= setup.down_price else "down"))
         raw = setup.up_price if leg == "up" else setup.down_price
         px = min(0.99, round(float(raw) + slip, 4))

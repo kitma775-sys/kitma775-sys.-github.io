@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.hunter import Setup, in_favorite_window, is_favorite_setup, parse_favorite_dir
+from app.hunter import Setup, in_favorite_window, is_favorite_setup, is_twap_setup, parse_favorite_dir
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,10 @@ def approve(
     favorite_dir: str = "auto",
     max_usd_per_trade: float = 25.0,
     favorite_spent: float = 0.0,
+    twap_min_price: float = 0.45,
+    twap_max_price: float = 0.55,
+    twap_min_left: float = 12.0,
+    twap_max_left: float = 120.0,
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")
@@ -58,7 +62,20 @@ def approve(
     cheap = min(setup.up_price, setup.down_price)
     rich = max(setup.up_price, setup.down_price)
     fav = is_favorite_setup(setup)
-    if fav:
+    twap = is_twap_setup(setup)
+    one = fav or twap
+    if twap:
+        lo = min(float(twap_min_price), float(twap_max_price))
+        hi = max(float(twap_min_price), float(twap_max_price))
+        if rich + 1e-12 < lo or rich - 1e-12 > hi:
+            return RiskDecision(False, "twap_out_of_band")
+        if seconds_left is None or seconds_left < float(twap_min_left) or seconds_left > float(twap_max_left) + 1e-9:
+            return RiskDecision(False, "twap_window")
+        spent = float(favorite_spent or 0) if (inventory_up > 0.01 or inventory_down > 0.01) else 0.0
+        new_cost = float(cost) if cost is not None else float(setup.cost)
+        if spent + new_cost > float(max_usd_per_trade) + 0.05:
+            return RiskDecision(False, "twap_stack_cap")
+    elif fav:
         lo = min(float(favorite_min_price), float(favorite_max_price))
         hi = max(float(favorite_min_price), float(favorite_max_price))
         band_lo = lo - 0.01 if setup.kind == "maker" else lo
@@ -91,7 +108,7 @@ def approve(
             if unmatched_shares > 0.5:
                 return RiskDecision(False, "unmatched_book")
 
-    if not fav and abs(inventory_up - inventory_down) > max_imbalance:
+    if not one and abs(inventory_up - inventory_down) > max_imbalance:
         return RiskDecision(False, "already_naked")
 
     holding = inventory_up > 0.01 or inventory_down > 0.01

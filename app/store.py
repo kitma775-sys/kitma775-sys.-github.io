@@ -231,6 +231,8 @@ class Store:
         new_kind = kind or cur.get("kind") or "pair"
         if str(cur.get("kind") or "").startswith("favorite") or str(kind or "").startswith("favorite"):
             new_kind = kind or cur.get("kind") or "favorite"
+        if str(cur.get("kind") or "").startswith("twap") or str(kind or "").startswith("twap"):
+            new_kind = kind or cur.get("kind") or "twap"
         new_cost = round(float(cur.get("cost") or 0) + float(cost or 0), 6)
         return self._write_inventory_unlocked(condition_id, slug or cur.get("slug") or "", nu, nd, kind=new_kind, cost=new_cost)
 
@@ -325,13 +327,15 @@ class Store:
 
     def _inventory_matched_usd(self) -> float:
         row = self._conn.execute(
-            "SELECT COALESCE(SUM(CASE WHEN up < down THEN up ELSE down END), 0) AS v FROM inventory WHERE kind!='favorite' OR kind IS NULL"
+            "SELECT COALESCE(SUM(CASE WHEN up < down THEN up ELSE down END), 0) AS v FROM inventory "
+            "WHERE kind IS NULL OR (kind NOT LIKE 'favorite%' AND kind NOT LIKE 'twap%')"
         ).fetchone()
         return float(row["v"] or 0.0)
 
     def _inventory_favorite_usd(self) -> float:
         row = self._conn.execute(
-            "SELECT COALESCE(SUM(cost), 0) AS v FROM inventory WHERE kind='favorite'"
+            "SELECT COALESCE(SUM(cost), 0) AS v FROM inventory "
+            "WHERE kind IN ('favorite', 'twap')"
         ).fetchone()
         return float(row["v"] or 0.0)
 

@@ -82,6 +82,7 @@
         (d.force_paper ? "FORCE_PAPER 鎖實盤 · " : "") +
         "keys " + (d.keys_ready ? "ready" : "missing") +
         " · WS " + (d.ws_status || "off") +
+        " · CL " + (d.chainlink_status || "off") +
         " · rev " + (s.strategy_rev || "?") +
         ((d.last_loop||{}).status === "circuit_breaker" ? " · 日虧熔斷停新倉" : "") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
@@ -120,7 +121,14 @@
         tile(s.taker_fok===false ? "關" : "開", "延遲確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
-        tile({"auto":"自動","complement":"互補","favorite":"大熱"}[s.strategy_mode] || (s.strategy_mode || "—"), "策略模式"),
+        tile({"auto":"自動","complement":"互補","twap":"TWAP","favorite":"大熱"}[s.strategy_mode] || (s.strategy_mode || "—"), "策略模式"),
+        tile(d.chainlink_status || "off", "Chainlink"),
+        tile((function(){
+          if (s.strategy_mode !== "twap") return "—";
+          const lo = Math.round(Number(s.twap_min_price||0.45)*100);
+          const hi = Math.round(Number(s.twap_max_price||0.55)*100);
+          return lo + "–" + hi + "¢ / ≥" + Number(s.twap_min_lead_bps||6) + "bps";
+        })(), "TWAP 價帶／lead"),
         tile((function(){
           const fw = Number(s.favorite_window_seconds);
           const win = (s.favorite_window_seconds==null || s.favorite_window_seconds==="") ? "60s" : (fw<=0 ? "全段" : (Math.round(fw)+"s"));
@@ -159,7 +167,7 @@
       document.getElementById("scans").innerHTML = (d.scans||[]).map(x => {
         const p = x.payload || {};
         const px = formatLeg(p.up, p.down, p.leg);
-        const kind = (p.strategy==="favorite" ? "大熱" : "") + (x.kind==="maker" ? "掛單" : esc(x.kind));
+        const kind = (p.strategy==="twap" ? "TWAP" : (p.strategy==="favorite" ? "大熱" : "")) + (x.kind==="maker" ? "掛單" : esc(x.kind));
         return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+kind+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
       }).join("") || "<tr><td colspan=6>本輪未有 taker 信號（舊 maker 掃描已隱藏）</td></tr>";
       document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
@@ -169,7 +177,7 @@
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
       ).join("") || "<tr><td colspan=6>暫無（Rev 6 預設停掛單）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
-        "<tr><td>"+esc(x.slug||x.condition_id)+((x.kind||"").indexOf("favorite")===0?" · 大熱":"")+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
+        "<tr><td>"+esc(x.slug||x.condition_id)+((x.kind||"").indexOf("twap")===0?" · TWAP":((x.kind||"").indexOf("favorite")===0?" · 大熱":""))+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
       ).join("") || "<tr><td colspan=3>暫無倉位（0/0 空列已清）</td></tr>";
       document.getElementById("events").textContent = (d.events||[]).map(e => e.level + " " + e.message).join("\n") || "—";
     }

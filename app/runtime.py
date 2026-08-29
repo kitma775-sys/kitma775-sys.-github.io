@@ -9,8 +9,10 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
-from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
-from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
+from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
+from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
+from app.chainlink import RTDS_URL, ChainlinkTape
+from app.twap import default_params, should_scratch
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue
@@ -37,7 +39,7 @@ def http_book_due(*, missing: bool, flicker: bool) -> bool:
 def favorite_budget(max_usd: float, inv: dict | None) -> float:
     """Room left under max_usd_per_trade for an existing favorite position."""
     cap = float(max_usd)
-    if not inv or str(inv.get("kind") or "") != "favorite":
+    if not inv or not is_directional_inventory(inv.get("kind")):
         return cap
     if float(inv.get("up") or 0) <= 0.01 and float(inv.get("down") or 0) <= 0.01:
         return cap
@@ -86,6 +88,10 @@ class Runtime:
         self._last_ws_error_ts = 0.0
         self._last_ws_info_ts = 0.0
         self.books = BookCache()
+        self.chainlink = ChainlinkTape()
+        self.chainlink_status = "off"
+        self._twap_scored: dict[str, float] = {}
+        self._last_rtds_error_ts = 0.0
         self.universe: list[dict] = []
         self.ws_status = "off"
         self._hunt_event = asyncio.Event()
@@ -147,6 +153,8 @@ class Runtime:
             "paper": paper,
             "last_loop": self.last_loop,
             "ws_status": self.ws_status,
+            "chainlink": self.chainlink.public(),
+            "chainlink_status": self.chainlink_status,
             "inventory": self.store.inventory_open()[:20],
             "resting": self.store.resting_open()[:20],
             "trades": trades,
@@ -157,7 +165,7 @@ class Runtime:
 
 async def engine_loop(rt: Runtime) -> None:
     await _ensure_http(rt)
-    await asyncio.gather(_universe_loop(rt), _ws_loop(rt), _hunt_loop(rt))
+    await asyncio.gather(_universe_loop(rt), _ws_loop(rt), _chainlink_loop(rt), _hunt_loop(rt))
 
 
 async def _ensure_http(rt: Runtime) -> None:
@@ -369,6 +377,85 @@ async def _ws_ping(ws) -> None:
             return
 
 
+async def _chainlink_loop(rt: Runtime) -> None:
+    """Official Polymarket RTDS Chainlink USD stream (5m settlement source)."""
+    backoff = 1.0
+    while True:
+        s = rt.settings()
+        mode = strategy_mode_of(s)
+        holding_twap = any(str(x.get("kind") or "").startswith("twap") for x in rt.store.inventory_open())
+        if s.get("killed") or not s.get("engine_running") or (mode != "twap" and not holding_twap):
+            rt.chainlink.connected = False
+            rt.chainlink_status = "idle"
+            await asyncio.sleep(1.0)
+            continue
+        try:
+            import websockets
+        except ImportError:
+            rt.chainlink_status = "no_lib"
+            await asyncio.sleep(15)
+            continue
+        kw: dict[str, Any] = {"ping_interval": None, "max_size": 2**20}
+        params = inspect.signature(websockets.connect).parameters
+        headers = {"Origin": "https://polymarket.com", "User-Agent": "surf-arb-bot/0.3"}
+        if "additional_headers" in params:
+            kw["additional_headers"] = headers
+        elif "extra_headers" in params:
+            kw["extra_headers"] = headers
+        if "close_timeout" in params:
+            kw["close_timeout"] = 5
+        if "open_timeout" in params:
+            kw["open_timeout"] = 15
+        try:
+            async with websockets.connect(RTDS_URL, **kw) as ws:
+                rt.chainlink.connected = True
+                rt.chainlink_status = "connected"
+                rt.chainlink.last_error = ""
+                backoff = 1.0
+                await ws.send(rt.chainlink.subscribe_frame())
+                ping = asyncio.create_task(_rtds_ping(ws))
+                last_mode_check = 0.0
+                try:
+                    async for raw in ws:
+                        if rt.chainlink.apply_message(raw):
+                            rt._hunt_event.set()
+                        now = time.time()
+                        if now - last_mode_check < 2.0:
+                            continue
+                        last_mode_check = now
+                        s2 = rt.settings()
+                        holding = any(str(x.get("kind") or "").startswith("twap") for x in rt.store.inventory_open())
+                        if s2.get("killed") or not s2.get("engine_running") or (
+                            strategy_mode_of(s2) != "twap" and not holding
+                        ):
+                            break
+                finally:
+                    ping.cancel()
+        except Exception as exc:
+            rt.chainlink.connected = False
+            rt.chainlink_status = "down"
+            rt.chainlink.last_error = fmt_exc(exc)
+            now = time.time()
+            if now - rt._last_rtds_error_ts > 120:
+                rt._last_rtds_error_ts = now
+                rt.store.add_event("warn", f"rtds {rt.chainlink.last_error}")
+            await asyncio.sleep(backoff)
+            backoff = min(15.0, backoff * 2)
+        else:
+            rt.chainlink.connected = False
+            rt.chainlink_status = "reconnect"
+            await asyncio.sleep(0.4)
+
+
+async def _rtds_ping(ws) -> None:
+    while True:
+        await asyncio.sleep(5)
+        try:
+            await ws.send("PING")
+        except Exception:
+            return
+
+
 async def _hunt_loop(rt: Runtime) -> None:
     while True:
         s = rt.settings()
@@ -390,6 +477,91 @@ async def _hunt_loop(rt: Runtime) -> None:
             detail = fmt_exc(exc)
             rt.store.add_event("error", f"hunt {detail}")
             await asyncio.sleep(0.5)
+
+
+async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
+    """Sell weak BTC 5m TWAP inventory at the bid. Never hedge the other side."""
+    if rt.mode() != "paper":
+        return 0
+    s = rt.settings()
+    params = default_params(s)
+    rescore = setting_num(s, "twap_rescore_seconds", 15.0)
+    live = {ev["condition_id"]: ev for ev in events if ev.get("condition_id")}
+    n = 0
+    now = time.time()
+    for inv in list(rt.store.inventory_open()):
+        if not str(inv.get("kind") or "").startswith("twap"):
+            continue
+        cid = str(inv.get("condition_id") or "")
+        if now - rt._twap_scored.get(cid, 0.0) < rescore:
+            continue
+        rt._twap_scored[cid] = now
+        ev = live.get(cid)
+        if ev is None:
+            continue
+        up, down = float(inv.get("up") or 0), float(inv.get("down") or 0)
+        if up > 0.01 and down > 0.01:
+            continue
+        leg = "up" if up > down else "down"
+        shares = up if leg == "up" else down
+        if shares < 0.01:
+            continue
+        snap = rt.chainlink.snapshot(
+            str(ev.get("slug") or inv.get("slug") or ""),
+            lookback=int(params.lookback),
+            left=seconds_left(ev.get("end")),
+        )
+        fair = None if snap is None else snap.fair_p_side
+        if snap is not None and snap.side != leg:
+            # holding the dog vs current lead
+            fair = None if snap.fair_p_up is None else (snap.fair_p_up if leg == "up" else 1.0 - snap.fair_p_up)
+        signed = None
+        if snap is not None:
+            signed = snap.lead_bps if leg == "up" else -snap.lead_bps
+        up_book, dn_book, _src = await _pair_books(rt, ev, max_age_ms=setting_num(s, "max_book_age_ms", 60000.0))
+        if up_book is None or dn_book is None:
+            continue
+        book = up_book if leg == "up" else dn_book
+        bid = _top(book.get("bids") or [], asks=False)
+        fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
+        left = seconds_left(ev.get("end"))
+        go, why = should_scratch(
+            fair_p=fair,
+            lead_bps_signed=signed,
+            bid=bid,
+            shares=shares,
+            fee_rate=fee_rate,
+            left=left,
+            params=params,
+        )
+        if not go:
+            continue
+        filled_px = float(inv.get("cost") or 0) / shares if shares else 0.5
+        plan = plan_rescue(
+            filled_px=filled_px,
+            shares=shares,
+            other_asks=[],
+            filled_bids=book.get("bids") or [],
+            fee_rate=fee_rate,
+        )
+        if plan.action != "dump":
+            continue
+        row = {
+            "id": None,
+            "slug": inv.get("slug") or ev["slug"],
+            "condition_id": cid,
+            "shares": shares,
+            "up_price": filled_px if leg == "up" else 0.0,
+            "down_price": filled_px if leg == "down" else 0.0,
+            "up_token": ev["up_token"],
+            "down_token": ev["down_token"],
+        }
+        missing = "down" if leg == "up" else "up"
+        did = await _apply_rescue(rt, row, missing, plan)
+        n += did
+        if did:
+            rt.store.add_event("info", f"twap scratch {row['slug']} {why} @{plan.price}")
+    return n
 
 
 async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
@@ -425,6 +597,12 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     max_age = setting_num(s, "max_book_age_ms", 60000.0)
     window = setting_num(s, "maker_window_seconds", 0.0)
     trade_cap = float(s["max_usd_per_trade"])
+    twap_params = default_params(s)
+    if not circuit:
+        try:
+            await _scratch_twap(rt, events)
+        except Exception as exc:
+            rt.store.add_event("warn", f"twap scratch {fmt_exc(exc)}")
     for ev in events:
         up_book, dn_book, src = await _pair_books(rt, ev, max_age_ms=max_age)
         if up_book is None or dn_book is None:
@@ -489,13 +667,19 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_window_seconds=favorite_window_of(s),
                 favorite_maker=bool(s.get("favorite_maker")),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
+                twap_snap=rt.chainlink.snapshot(
+                    str(ev.get("slug") or ""),
+                    lookback=int(twap_params.lookback),
+                    left=seconds_left(ev.get("end")),
+                ),
+                twap_params=twap_params,
             )
         except Exception as exc:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
             continue
         if not setup:
             continue
-        if is_favorite_setup(setup) and not favorite_ws_ok(rt.ws_status, src, up_book, dn_book):
+        if is_one_leg_setup(setup) and not favorite_ws_ok(rt.ws_status, src, up_book, dn_book):
             continue
         if setup.kind == "maker" and window < 3 and not is_favorite_setup(setup):
             continue
@@ -544,6 +728,10 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
             max_usd_per_trade=trade_cap,
             favorite_spent=float(inv.get("cost") or 0),
+            twap_min_price=setting_num(s, "twap_min_price", 0.45),
+            twap_max_price=setting_num(s, "twap_max_price", 0.55),
+            twap_min_left=setting_num(s, "twap_min_left", 12.0),
+            twap_max_left=setting_num(s, "twap_max_left", 120.0),
         )
         payload = {
             "title": setup.title,
@@ -608,13 +796,22 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 setup.fillable = setup.shares
             setup.up_price = confirm.up_price
             setup.down_price = confirm.down_price
-            setup.net = confirm.net
             setup.fees = confirm.fees
             setup.gross = round(1.0 - (confirm.up_price + confirm.down_price), 4)
+            if is_twap_setup(setup):
+                from app.twap import entry_edge as _twap_edge
+
+                px = float(confirm.up_price or confirm.down_price)
+                fair = float((setup.extra or {}).get("fair_p") or 0)
+                setup.net = round(float(setup.shares) * _twap_edge(fair, px, fee_rate), 5)
+                setup.extra["cash_cost"] = confirm.cost
+                setup.extra["fill_px"] = px
+            else:
+                setup.net = confirm.net
             setup.extra["fok"] = confirm.reason
             payload["up"] = confirm.up_price
             payload["down"] = confirm.down_price
-            payload["net"] = confirm.net
+            payload["net"] = setup.net
             payload["shares"] = setup.shares
             payload["reason"] = confirm.reason
             if paper_mode:
@@ -646,6 +843,10 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
                 max_usd_per_trade=trade_cap,
                 favorite_spent=float(inv.get("cost") or 0),
+                twap_min_price=setting_num(s, "twap_min_price", 0.45),
+                twap_max_price=setting_num(s, "twap_max_price", 0.55),
+                twap_min_left=setting_num(s, "twap_min_left", 12.0),
+                twap_max_left=setting_num(s, "twap_max_left", 120.0),
             )
             if not resized.ok:
                 fok_kills += 1
@@ -664,7 +865,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             shares=setup.shares,
             up_price=setup.up_price,
             down_price=setup.down_price,
-            net=(result.payload or {}).get("net", setup.net) if result.ok and result.status in {"filled", "paper_filled"} and not is_favorite_setup(setup) else 0.0,
+            net=(result.payload or {}).get("net", setup.net) if result.ok and result.status in {"filled", "paper_filled"} and not is_one_leg_setup(setup) else 0.0,
             mode=result.mode,
             status=result.status,
             payload={"detail": result.detail, **(result.payload or {})},
@@ -683,16 +884,19 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 except ValueError:
                     rt.store.add_event("warn", f"paper cash race {setup.slug}")
                     continue
-            if is_favorite_setup(setup):
+            if is_one_leg_setup(setup):
                 leg = str((setup.extra or {}).get("leg") or "up")
                 up_sh = setup.shares if leg == "up" else 0.0
                 dn_sh = setup.shares if leg == "down" else 0.0
+                kind = "twap" if is_twap_setup(setup) else "favorite"
+                if not paper_mode:
+                    kind = kind + "_live"
                 rt.store.add_inventory(
                     setup.condition_id,
                     setup.slug,
                     up_sh,
                     dn_sh,
-                    kind="favorite" if paper_mode else "favorite_live",
+                    kind=kind,
                     cost=fill_cost,
                 )
             else:
@@ -714,10 +918,12 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                         f"\n成本 ${fill_cost:.2f} · 現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
                         f"\n累計 PnL {sign}${paper['total_pnl']:.2f} · 今日 ${paper['today_pnl']:.2f}"
                     )
+                label = "TWAP" if is_twap_setup(setup) else ("大熱" if is_favorite_setup(setup) else setup.kind)
+                expect = "未結算期望" if is_one_leg_setup(setup) else "淨利"
                 await rt.notify(
-                    f"{flag} 成交 {'大熱' if is_favorite_setup(setup) else setup.kind}\n{setup.title}\n"
+                    f"{flag} 成交 {label}\n{setup.title}\n"
                     f"{format_leg_prices(fill_up, fill_down, leg=(setup.extra or {}).get('leg'))} × {setup.shares:.1f}\n"
-                    f"{'未結算期望' if is_favorite_setup(setup) else '淨利'} ${fill_net:.2f}{book}",
+                    f"{expect} ${fill_net:.2f}{book}",
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
@@ -770,6 +976,11 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["fok_kills"] = fok_kills
     tape["fok_fills"] = fok_fills
     tape["strategy_mode"] = strategy_mode_of(s)
+    tape["chainlink_status"] = rt.chainlink_status
+    cl = rt.chainlink.public()
+    btc = (cl.get("symbols") or {}).get("btc/usd") or {}
+    tape["chainlink_btc"] = btc.get("px")
+    tape["chainlink_age_ms"] = cl.get("age_ms")
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.97)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = favorite_window_of(s)
@@ -809,6 +1020,8 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
     paper = rt.store.paper_state() if rt.mode() == "paper" else None
     if is_favorite_setup(setup):
         return _confirm_favorite(rt, ev, setup, up_book, dn_book, s, fee_rate, paper)
+    if is_twap_setup(setup):
+        return _confirm_twap(rt, ev, setup, up_book, dn_book, s, fee_rate, paper)
     return confirm_pair(
         setup=setup,
         up_asks=up_book.get("asks") or [],
@@ -902,6 +1115,86 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
     if str((requote.extra or {}).get("leg") or leg) != leg:
         return fill
     setup.extra["leg"] = (requote.extra or {}).get("leg") or leg
+    return TakerSim(
+        True,
+        requote.up_price,
+        requote.down_price,
+        requote.net,
+        requote.cost,
+        requote.fees,
+        False,
+        "fok_requote",
+        requote.shares,
+    )
+
+
+def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
+    """One-leg FAK in 45–55¢. Cheaper requote is fine; flipping the leg is not."""
+    params = default_params(s)
+    leg = str((setup.extra or {}).get("leg") or "up")
+    asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
+    limit = setup.up_price if leg == "up" else setup.down_price
+    min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
+    fill = fak_one(
+        asks=asks,
+        shares=setup.shares,
+        limit=limit,
+        min_shares=min_shares,
+        min_px=params.min_price,
+        max_px=params.max_price,
+        fee_rate=fee_rate,
+    )
+    if fill.ok:
+        px = fill.up_price
+        return TakerSim(
+            True,
+            px if leg == "up" else 0.0,
+            px if leg == "down" else 0.0,
+            fill.net,
+            fill.cost,
+            fill.fees,
+            False,
+            fill.reason,
+            fill.shares,
+        )
+    snap = rt.chainlink.snapshot(
+        str(ev.get("slug") or setup.slug),
+        lookback=int(params.lookback),
+        left=seconds_left(ev.get("end") or setup.end),
+    )
+    requote = hunt(
+        slug=ev["slug"],
+        title=ev.get("title") or setup.title,
+        condition_id=ev["condition_id"],
+        up_token=ev["up_token"],
+        down_token=ev["down_token"],
+        up_asks=up_book.get("asks") or [],
+        down_asks=dn_book.get("asks") or [],
+        up_bids=up_book.get("bids") or [],
+        down_bids=dn_book.get("bids") or [],
+        max_usd=min(
+            _trade_budget(s, paper),
+            favorite_budget(float(s["max_usd_per_trade"]), rt.store.inventory_one(ev["condition_id"])),
+        ),
+        min_shares=min_shares,
+        min_edge=float(s["min_edge"]),
+        fee_rate=fee_rate,
+        prefer_tail=bool(s["prefer_tail"]),
+        tail_confirm=float(s["tail_confirm"]),
+        maker_first=False,
+        end=ev.get("end") or setup.end,
+        maker_window_seconds=0.0,
+        strategy_mode="twap",
+        twap_snap=snap,
+        twap_params=params,
+    )
+    if requote is None or not is_twap_setup(requote) or requote.net <= 0:
+        return fill
+    if str((requote.extra or {}).get("leg") or leg) != leg:
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_flip")
+    new_px = float((requote.extra or {}).get("fill_px") or requote.up_price or requote.down_price)
+    if new_px - 1e-12 > float(limit):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_up_requote")
     return TakerSim(
         True,
         requote.up_price,
@@ -1197,7 +1490,7 @@ async def _rescue_naked(rt: Runtime, events: list[dict]) -> int:
             continue
         if up < 0.01 and down < 0.01:
             continue
-        if str(inv.get("kind") or "") == "favorite":
+        if is_directional_inventory(inv.get("kind")):
             continue
         cid = inv["condition_id"]
         ev = live.get(cid)
@@ -1328,13 +1621,15 @@ async def _redeem_resolved(rt: Runtime) -> int:
         up, down = float(job["up"]), float(job["down"])
         cost = float(job["cost"])
         fav = is_favorite_inventory(job["kind"])
+        twap = str(job.get("kind") or "").startswith("twap")
+        directional = fav or twap
         up_p, dn_p = job["prices"]
         payout = round(up * up_p + down * dn_p, 6) if job["tracked"] else 0.0
         if job["tracked"]:
             rt.store.take_inventory(cid, up=up, down=down)
             if paper_mode and payout > 0:
                 rt.store.paper_apply_credit(payout)
-        settle_net = round(payout - cost, 6) if fav else payout
+        settle_net = round(payout - cost, 6) if directional else payout
         rt.store.add_trade(
             slug=job["slug"],
             kind="settle",
@@ -1349,7 +1644,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
                 "down": down,
                 "payout": payout,
                 "cost": cost,
-                "strategy": "favorite" if fav else "pair",
+                "strategy": "twap" if twap else ("favorite" if fav else "pair"),
                 "redeem": True,
                 "already": bool((result.payload or {}).get("already")),
             },
@@ -1360,7 +1655,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
         )
         n += 1
         if s.get("notify_signals"):
-            extra = f" · 淨 ${settle_net:.2f}" if fav else ""
+            extra = f" · 淨 ${settle_net:.2f}" if directional else ""
             flag = "🧪紙盤" if paper_mode else "🔴實盤"
             await rt.notify(
                 f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
