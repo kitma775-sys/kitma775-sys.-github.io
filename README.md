@@ -57,6 +57,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 19**：完場 **等官方 0/1** 先 redeem（唔好用結束瞬間嘅 50/50 mid 入帳——呢個先係日虧熔斷主因）。預設大熱 **97–98¢**、**$5/注**、taker、尾 180s。紙盤未重置、未開實盤。
 - **Rev 18**：真 live 前對齊。大熱尾窗釘 **180s**（同而家紙盤 bot）。Telegram／Dashboard／`/health` 顯示同一套狀態。實盤 taker 用 **FAK market**，唔再誤掛 GTC。Kill／熔斷會 `cancel_all`。FORCE_PAPER 仍然鎖實盤。紙盤未重置、未開實盤。
 - **Rev 17**：預設 **只做大熱 90–98¢**，每注 **$5**。停 YES+NO 雙邊差價（`strategy_mode=favorite`，互補掛單仍然關）。尾窗唔改。紙盤未重置、未開實盤。
 - **Rev 16**：完場後自動 **redeem** 取回注碼（紙盤按官方結果入帳；實盤打 `redeemPositions`）。暫停／熔斷／緊急停機仍然會取回。紙盤未重置、未開實盤。

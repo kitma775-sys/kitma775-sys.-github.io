@@ -34,7 +34,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 18,
+    "strategy_rev": 19,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -44,10 +44,10 @@ DEFAULT_SETTINGS = {
     "taker_fok": True,
     "fok_delay_ms": 250.0,
     "strategy_mode": "favorite",
-    "favorite_min_price": 0.90,
+    "favorite_min_price": 0.97,
     "favorite_max_price": 0.98,
     "favorite_window_seconds": 180.0,
-    "favorite_maker": True,
+    "favorite_maker": False,
     "favorite_dir": "auto",
 }
 
@@ -68,7 +68,7 @@ SETTING_STEPS = {
     "paper_slip_ticks": (1.0, 0.0, 3.0),
     "paper_starting_cash": (100.0, 50.0, 100000.0),
     "scan_limit": (1.0, 8.0, 32.0),
-    "favorite_min_price": (0.01, 0.90, 0.98),
+    "favorite_min_price": (0.01, 0.97, 0.98),
     "favorite_max_price": (0.01, 0.91, 0.99),
 }
 

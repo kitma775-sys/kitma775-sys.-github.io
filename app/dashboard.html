@@ -125,7 +125,7 @@
           const fw = Number(s.favorite_window_seconds);
           const win = (s.favorite_window_seconds==null || s.favorite_window_seconds==="") ? "180s" : (fw<=0 ? "全段" : (Math.round(fw)+"s"));
           const dir = ({auto:"自動",up:"Up",down:"Down"}[s.favorite_dir] || "自動");
-          return ((Number(s.favorite_min_price||0.90)*100).toFixed(0)) + "–" + ((Number(s.favorite_max_price||0.98)*100).toFixed(0)) + "¢ / " + win + " / " + dir;
+          return ((Number(s.favorite_min_price||0.97)*100).toFixed(0)) + "–" + ((Number(s.favorite_max_price||0.98)*100).toFixed(0)) + "¢ / " + win + " / " + dir;
         })(), "大熱區間／尾窗／方向"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),

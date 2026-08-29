@@ -463,7 +463,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_window_seconds=window,
                 maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
                 strategy_mode=str(s.get("strategy_mode") or "favorite"),
-                favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
+                favorite_min_price=setting_num(s, "favorite_min_price", 0.97),
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
                 favorite_window_seconds=favorite_window_of(s),
                 favorite_maker=bool(s.get("favorite_maker")),
@@ -515,7 +515,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             maker_window=window,
             maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
             maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
-            favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
+            favorite_min_price=setting_num(s, "favorite_min_price", 0.97),
             favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
             favorite_window_seconds=favorite_window_of(s),
             favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
@@ -617,7 +617,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 maker_window=window,
                 maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
                 maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
-                favorite_min_price=setting_num(s, "favorite_min_price", 0.90),
+                favorite_min_price=setting_num(s, "favorite_min_price", 0.97),
                 favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
                 favorite_window_seconds=favorite_window_of(s),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
@@ -747,7 +747,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["fok_kills"] = fok_kills
     tape["fok_fills"] = fok_fills
     tape["strategy_mode"] = str(s.get("strategy_mode") or "favorite")
-    tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.90)
+    tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.97)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = favorite_window_of(s)
     tape["favorite_dir"] = parse_favorite_dir(s.get("favorite_dir"))
@@ -804,7 +804,7 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
 def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
     leg = str((setup.extra or {}).get("leg") or "up")
     asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
-    min_px = setting_num(s, "favorite_min_price", 0.90)
+    min_px = setting_num(s, "favorite_min_price", 0.97)
     max_px = setting_num(s, "favorite_max_price", 0.98)
     limit = setup.up_price if leg == "up" else setup.down_price
     min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))

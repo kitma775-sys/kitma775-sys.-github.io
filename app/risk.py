@@ -33,7 +33,7 @@ def approve(
     maker_window: float = 75.0,
     maker_min_leg: float = 0.22,
     maker_max_skew: float = 0.28,
-    favorite_min_price: float = 0.90,
+    favorite_min_price: float = 0.97,
     favorite_max_price: float = 0.98,
     favorite_window_seconds: float = 180.0,
     favorite_dir: str = "auto",

@@ -135,7 +135,7 @@ def hunt(
     maker_min_edge: float | None = None,
     now: datetime | None = None,
     strategy_mode: str = "complement",
-    favorite_min_price: float = 0.95,
+    favorite_min_price: float = 0.97,
     favorite_max_price: float = 0.99,
     favorite_window_seconds: float = 180.0,
     favorite_maker: bool = False,

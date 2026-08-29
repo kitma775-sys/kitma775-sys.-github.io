@@ -86,10 +86,14 @@ def parse_outcome_prices(raw) -> tuple[float, float] | None:
 
 
 def is_redeemable_market(event: dict | None) -> tuple[float, float] | None:
-    """Official payout vector once the market is resolved (or the window has ended).
+    """Official payout once Gamma shows a resolved 0/1 (or a true 50/50 invalid).
 
-    Paper credits and live redeemPositions both wait for a decided 0/1 or 50/50
-    vector. Mid-book quotes are not a resolution.
+    Crypto 5m books print ~0.50/0.50 the second the window ends, before
+    Chainlink posts 0/1. Treating that mid as a payout crystallizes a ~50%
+    loss on books that later resolve to $1 — that is what kept tripping the
+    $50 paper circuit. Wait for a binary vector, or for UMA to actually
+    resolve an invalid 50/50. Never redeem on "clock hit zero and the book
+    is still mid".
     """
     if not isinstance(event, dict):
         return None
@@ -100,17 +104,17 @@ def is_redeemable_market(event: dict | None) -> tuple[float, float] | None:
     if prices is None:
         return None
     up_p, dn_p = prices
-    decided = (
-        (up_p >= 0.99 and dn_p <= 0.01)
-        or (dn_p >= 0.99 and up_p <= 0.01)
-        or (abs(up_p - 0.5) <= 0.02 and abs(dn_p - 0.5) <= 0.02)
-    )
-    if not decided:
-        return None
-    closed = bool(event.get("closed") or market.get("closed"))
+    binary_up = up_p >= 0.99 and dn_p <= 0.01
+    binary_dn = dn_p >= 0.99 and up_p <= 0.01
     status = str(market.get("umaResolutionStatus") or event.get("umaResolutionStatus") or "").lower()
+    auto = bool(market.get("automaticallyResolved") or event.get("automaticallyResolved"))
+    closed = bool(event.get("closed") or market.get("closed"))
     left = seconds_left(market.get("endDate") or event.get("endDate") or event.get("end"))
     ended = left is not None and left <= 0
-    if closed or ended or status in {"resolved", "ready"}:
-        return prices
+    posted = closed or ended or status == "resolved" or auto
+    if (binary_up or binary_dn) and posted:
+        return (1.0, 0.0) if binary_up else (0.0, 1.0)
+    if abs(up_p - 0.5) <= 0.001 and abs(dn_p - 0.5) <= 0.001:
+        if closed and status == "resolved":
+            return (0.5, 0.5)
     return None
