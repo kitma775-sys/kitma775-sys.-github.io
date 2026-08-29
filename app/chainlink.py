@@ -27,6 +27,7 @@ from app.twap import (
 
 RTDS_URL = "wss://ws-live-data.polymarket.com"
 CHAINLINK_TOPIC = "crypto_prices_chainlink"
+CHAINLINK_TOPICS = {"crypto_prices_chainlink", "crypto_prices", "prices.crypto.chainlink"}
 KEEP_SECONDS = 900.0
 PING_EVERY = 5.0
 
@@ -58,11 +59,17 @@ class ChainlinkTape:
         self.msg_n = 0
 
     def subscribe_frame(self) -> str:
+        # Compact filters are required. `json.dumps` default spacing
+        # (`{"symbol": "btc/usd"}`) only gets a snapshot, no live updates.
         return json.dumps(
             {
                 "action": "subscribe",
                 "subscriptions": [
-                    {"topic": CHAINLINK_TOPIC, "type": "*", "filters": json.dumps({"symbol": sym})}
+                    {
+                        "topic": CHAINLINK_TOPIC,
+                        "type": "*",
+                        "filters": json.dumps({"symbol": sym}, separators=(",", ":")),
+                    }
                     for sym in self.symbols
                 ],
             }
@@ -95,30 +102,47 @@ class ChainlinkTape:
                 return False
         if not isinstance(msg, dict):
             return False
+        if str(msg.get("type") or "").lower() == "error":
+            return False
         topic = str(msg.get("topic") or "")
-        if topic and topic != CHAINLINK_TOPIC:
+        if topic and topic not in CHAINLINK_TOPICS:
             return False
         payload = msg.get("payload") if isinstance(msg.get("payload"), dict) else msg
-        if msg.get("type") in {"subscribed", "subscribe", "error"}:
-            return False
         sym = str(payload.get("symbol") or payload.get("pair") or "").lower()
-        if not sym:
+        if not sym or "/" not in sym:
             return False
-        try:
-            px = float(payload.get("value") or payload.get("price") or 0)
-        except (TypeError, ValueError):
+        rows: list[tuple[float, float]] = []
+        data = payload.get("data")
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    px = float(item.get("value") or item.get("price") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if px <= 0:
+                    continue
+                rows.append((_unix(item.get("timestamp") or payload.get("timestamp") or msg.get("timestamp")), px))
+        else:
+            try:
+                px = float(payload.get("value") or payload.get("price") or 0)
+            except (TypeError, ValueError):
+                px = 0.0
+            if px > 0:
+                rows.append((_unix(payload.get("timestamp") or msg.get("timestamp") or time.time()), px))
+        if not rows:
             return False
-        if px <= 0:
-            return False
-        ts = _unix(payload.get("timestamp") or msg.get("timestamp") or time.time())
+        rows.sort(key=lambda x: x[0])
         q = self.ticks[sym]
-        q.append(Tick(ts, px))
-        cutoff = ts - KEEP_SECONDS
+        for ts, px in rows:
+            q.append(Tick(ts, px))
+            self._maybe_ptb(sym, ts, px)
+        cutoff = rows[-1][0] - KEEP_SECONDS
         while q and q[0].ts < cutoff:
             q.popleft()
         self.last_msg_ts = time.time()
         self.msg_n += 1
-        self._maybe_ptb(sym, ts, px)
         return True
 
     def _window_key(self, asset: str, start: int) -> str:

@@ -3448,12 +3448,42 @@ def test_chainlink_ptb_requires_tick_before_open():
 
 
 def test_chainlink_apply_message_accepts_json_string():
+    import json
+
     from app.chainlink import ChainlinkTape
 
     tape = ChainlinkTape()
     assert tape.apply_message('{"topic":"crypto_prices_chainlink","type":"update","payload":{"symbol":"btc/usd","value":101,"timestamp":1700000000}}')
     assert tape.ticks["btc/usd"][-1].price == 101.0
     assert tape.apply_message("PONG") is False
+    frame = tape.subscribe_frame()
+    subs = json.loads(frame)["subscriptions"]
+    assert subs[0]["filters"] == '{"symbol":"btc/usd"}'
+
+
+def test_chainlink_ingests_filtered_snapshot_and_slash_topic():
+    from app.chainlink import ChainlinkTape
+
+    tape = ChainlinkTape()
+    start = 1_700_000_000 - (1_700_000_000 % 300)
+    ok = tape.apply_message(
+        {
+            "topic": "crypto_prices",
+            "type": "subscribe",
+            "payload": {
+                "symbol": "btc/usd",
+                "data": [
+                    {"timestamp": (start - 2) * 1000, "value": 100000},
+                    {"timestamp": (start + 1) * 1000, "value": 100010},
+                    {"timestamp": (start + 2) * 1000, "value": 100020},
+                ],
+            },
+        }
+    )
+    assert ok is True
+    assert tape.ticks["btc/usd"][-1].price == 100020.0
+    assert tape.ensure_ptb(f"btc-updown-5m-{start}") == 100010.0
+    assert tape.apply_message({"topic": "crypto_prices", "type": "update", "payload": {"symbol": "btcusdt", "value": 99}}) is False
 
 
 def test_twap_hunt_lifts_mid_band_skips_97_and_needs_snap():
