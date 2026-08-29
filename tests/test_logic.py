@@ -623,7 +623,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 20" in text
+    assert "Rev 21" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -1316,6 +1316,105 @@ def test_favorite_skips_wide_spread_and_rich_other():
         favorite_maker=False,
     )
     assert flipping is None or not is_favorite_setup(flipping)
+
+
+def test_favorite_skips_hanging_97_behind_cheap_ask():
+    from app.hunter import favorite_lock_reason, favorite_ws_ok, is_favorite_setup
+
+    assert favorite_ws_ok("connected", "ws") is True
+    assert favorite_ws_ok("down", "ws") is False
+    assert favorite_ws_ok("connected", "http") is False
+    assert favorite_ws_ok("connected", "ws", {"source": "http"}, {"source": "ws"}) is False
+    assert favorite_ws_ok("connected", "ws", {"source": "ws"}, {"source": "ws"}) is True
+    hanging = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.63, 40), (0.97, 40)),
+        down_asks=_L((0.04, 10)),
+        up_bids=_L((0.62, 20)),
+        down_bids=_L((0.03, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_maker=False,
+    )
+    assert hanging is None or not is_favorite_setup(hanging)
+    assert (
+        favorite_lock_reason(
+            asks=_L((0.63, 40), (0.97, 40)),
+            bids=_L((0.62, 20)),
+            other_asks=_L((0.04, 10)),
+            min_px=0.97,
+            max_px=0.98,
+        )
+        == "favorite_not_top"
+    )
+
+
+def test_favorite_skips_leftover_97_after_99_bid():
+    from app.hunter import favorite_lock_reason, is_favorite_setup
+
+    leftover = hunt(
+        slug="eth",
+        title="eth",
+        condition_id="0xeth",
+        up_token="u",
+        down_token="d",
+        up_asks=_L((0.97, 20), (0.99, 40)),
+        down_asks=_L((0.01, 10)),
+        up_bids=_L((0.99, 20)),
+        down_bids=_L((0.005, 10)),
+        max_usd=25,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(20),
+        strategy_mode="favorite",
+        favorite_maker=False,
+    )
+    assert leftover is None or not is_favorite_setup(leftover)
+    assert (
+        favorite_lock_reason(
+            asks=_L((0.97, 20), (0.99, 40)),
+            bids=_L((0.99, 20)),
+            other_asks=_L((0.01, 10)),
+            min_px=0.97,
+            max_px=0.98,
+        )
+        == "favorite_through"
+    )
+    assert (
+        favorite_lock_reason(
+            asks=_L((0.97, 20)),
+            bids=_L((0.98, 20)),
+            other_asks=_L((0.02, 10)),
+            min_px=0.97,
+            max_px=0.98,
+        )
+        == "favorite_crossed"
+    )
+    assert (
+        favorite_lock_reason(
+            asks=_L((0.97, 40)),
+            bids=_L((0.96, 20)),
+            other_asks=_L((0.04, 10)),
+            min_px=0.97,
+            max_px=0.98,
+        )
+        is None
+    )
 
 
 def test_auto_prefers_complement_when_both_asks():
@@ -2111,7 +2210,7 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2151,7 +2250,7 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_window_seconds"]) == 60
@@ -2184,7 +2283,7 @@ def test_rev15_opens_90_99_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2215,7 +2314,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 20
+    assert body["strategy_rev"] == 21
     assert body.get("auto_redeem") is True
     assert body.get("strategy_mode") == "favorite"
     assert float(body.get("max_usd_per_trade") or 0) == 5.0
@@ -2584,7 +2683,7 @@ def test_rev16_enables_auto_redeem_keeps_band_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2618,7 +2717,7 @@ def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert s.get("strategy_mode") == "favorite"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
@@ -2652,7 +2751,7 @@ def test_rev18_pins_180s_window_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_min_price"]) == 0.97
@@ -2684,7 +2783,7 @@ def test_rev19_waits_for_binary_redeem_pins_97_98_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2724,7 +2823,7 @@ def test_rev20_pins_60s_locked_favorite_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 20
+    assert s["strategy_rev"] == 21
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["favorite_min_price"]) == 0.97
     assert s["live_trading"] is False
@@ -2738,6 +2837,139 @@ def test_rev20_pins_60s_locked_favorite_keeps_paper(tmp_path):
     assert favorite_same_window_open(rt, "btc-updown-5m-1787981100") is False
     assert favorite_same_window_open(rt, "eth-updown-5m-1787981400") is False
     assert apply_strategy_rev(st) == 0
+
+
+def test_rev21_pins_five_usd_and_kills_down_requote(tmp_path):
+    from app.config import Env
+    from app.hunter import Setup
+    from app.main import apply_strategy_rev
+    from app.runtime import Runtime, _confirm_favorite
+
+    st = Store(tmp_path / "rev21.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(40)
+    st.patch_settings(
+        strategy_rev=20,
+        strategy_mode="favorite",
+        favorite_min_price=0.97,
+        favorite_max_price=0.98,
+        favorite_window_seconds=60,
+        favorite_maker=False,
+        max_usd_per_trade=10.0,
+        live_trading=False,
+    )
+    before = st.paper_state()
+    n = apply_strategy_rev(st)
+    assert n == 0
+    s = st.settings()
+    assert s["strategy_rev"] == 21
+    assert float(s["max_usd_per_trade"]) == 5.0
+    assert float(s["favorite_window_seconds"]) == 60
+    assert s["live_trading"] is False
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert after["total_pnl"] == before["total_pnl"]
+    assert apply_strategy_rev(st) == 0
+
+    rt = Runtime(st, Env())
+    setup = Setup(
+        slug="eth-updown-5m-1",
+        title="eth",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.98,
+        down_price=0.0,
+        shares=5.1,
+        fillable=5.1,
+        gross=0.02,
+        fees=0.01,
+        net=0.09,
+        tail=True,
+        end=_late_end(40),
+        extra={"strategy": "favorite", "leg": "up", "favorite_px": 0.98, "fee_rate": 0.07},
+    )
+    ev = {
+        "slug": setup.slug,
+        "title": "eth",
+        "condition_id": "c",
+        "up_token": "u",
+        "down_token": "d",
+        "end": setup.end,
+        "min_size": 5,
+        "fee_rate": 0.07,
+    }
+    through = _confirm_favorite(
+        rt,
+        ev,
+        setup,
+        {"asks": _L((0.97, 20)), "bids": _L((0.99, 20))},
+        {"asks": _L((0.01, 20)), "bids": _L((0.005, 20))},
+        st.settings(),
+        0.07,
+        st.paper_state(),
+    )
+    assert through.ok is False
+    assert through.reason in {"favorite_through", "favorite_crossed"}
+
+    up_req = Setup(
+        slug="btc-updown-5m-1",
+        title="btc",
+        condition_id="c2",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.97,
+        down_price=0.0,
+        shares=5.15,
+        fillable=5.15,
+        gross=0.03,
+        fees=0.02,
+        net=0.14,
+        tail=True,
+        end=_late_end(40),
+        extra={"strategy": "favorite", "leg": "up", "favorite_px": 0.97, "fee_rate": 0.07},
+    )
+    ev2 = {**ev, "slug": up_req.slug, "condition_id": "c2"}
+    requote = _confirm_favorite(
+        rt,
+        ev2,
+        up_req,
+        {"asks": _L((0.98, 40)), "bids": _L((0.97, 20))},
+        {"asks": _L((0.02, 20)), "bids": _L((0.01, 20))},
+        st.settings(),
+        0.07,
+        st.paper_state(),
+    )
+    assert requote.ok is True
+    assert requote.reason == "fok_requote"
+    assert 0.979 <= requote.up_price <= 0.981
+
+    # Snapshot 0.98 but delayed book is a real 97 lock: FAK the better ask.
+    better = _confirm_favorite(
+        rt,
+        ev,
+        setup,
+        {"asks": _L((0.97, 40)), "bids": _L((0.96, 20))},
+        {"asks": _L((0.03, 20)), "bids": _L((0.02, 20))},
+        st.settings(),
+        0.07,
+        st.paper_state(),
+    )
+    assert better.ok is True
+    assert better.reason in {"fok_filled", "fok_fak"}
+    assert 0.969 <= better.up_price <= 0.971
+
+
+def test_hedges_24h_ignores_settles(tmp_path):
+    st = Store(tmp_path / "hedge-stat.sqlite")
+    st.add_trade(slug="a", kind="settle", shares=5, up_price=1, down_price=0, net=0.2, mode="paper", status="paper_settled")
+    st.add_trade(slug="b", kind="hedge", shares=5, up_price=0.5, down_price=0.49, net=-0.1, mode="paper", status="paper_hedged")
+    st.add_trade(slug="c", kind="dump", shares=5, up_price=0.4, down_price=0, net=-2, mode="paper", status="paper_dumped")
+    got = st.stats()
+    assert got["hedges_24h"] == 2
+    assert got["trades_24h"] == 0
 
 
 def test_format_leg_prices_one_leg():

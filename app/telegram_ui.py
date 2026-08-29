@@ -320,7 +320,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 20：只做大熱 97–98¢，$5/注，尾 60s，鎖住盤先抬。同一 5 分鐘窗 BTC/ETH 只做一隻。Redeem 等官方 0/1。紙盤。\n"
+        "Rev 21：只做大熱 97–98¢，$5/注，尾 60s。要最好賣價就喺 97–98、bid 未穿到 99、WS 活簿先抬。同一 5 分鐘窗 BTC/ETH 只做一隻。Redeem 等官方 0/1。紙盤。\n"
         "未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
     )
 

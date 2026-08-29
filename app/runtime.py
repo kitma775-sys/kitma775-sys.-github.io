@@ -10,7 +10,7 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num
-from app.hunter import book_quote, favorite_window_key, hunt, is_favorite_setup, is_ghost_favorite, parse_favorite_dir, favorite_other_too_rich, summarize_quotes, _top
+from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue
@@ -450,6 +450,10 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if circuit:
             continue
+        if str(s.get("strategy_mode") or "favorite") == "favorite" and not favorite_ws_ok(
+            rt.ws_status, src, up_book, dn_book
+        ):
+            continue
         if favorite_same_window_open(rt, str(ev.get("slug") or "")):
             continue
         inv = rt.store.inventory_one(ev["condition_id"])
@@ -490,6 +494,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
             continue
         if not setup:
+            continue
+        if is_favorite_setup(setup) and not favorite_ws_ok(rt.ws_status, src, up_book, dn_book):
             continue
         if setup.kind == "maker" and window < 3 and not is_favorite_setup(setup):
             continue
@@ -826,12 +832,15 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
     min_px = setting_num(s, "favorite_min_price", 0.97)
     max_px = setting_num(s, "favorite_max_price", 0.98)
     limit = setup.up_price if leg == "up" else setup.down_price
-    ask_px = _top(asks, asks=True)
-    bid_px = _top(bids, asks=False)
-    if is_ghost_favorite(ask_px if ask_px is not None else limit, bid_px):
-        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "favorite_ghost")
-    if favorite_other_too_rich(_top(other_asks, asks=True)):
-        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "favorite_other_ask")
+    lock = favorite_lock_reason(
+        asks=asks,
+        bids=bids,
+        other_asks=other_asks,
+        min_px=min_px,
+        max_px=max_px,
+    )
+    if lock:
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, lock)
     min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
     fill = fak_one(
         asks=asks,
@@ -885,6 +894,12 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
         favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
     )
     if requote is None or requote.kind != "taker" or requote.net <= 0:
+        return fill
+    new_px = float((requote.extra or {}).get("favorite_px") or 0)
+    # 0.98 FOK-kill then leftover 0.97 is the 99¢ steamroller, not a better fill.
+    if new_px + 1e-12 < float(limit):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "favorite_no_down_requote")
+    if str((requote.extra or {}).get("leg") or leg) != leg:
         return fill
     setup.extra["leg"] = (requote.extra or {}).get("leg") or leg
     return TakerSim(

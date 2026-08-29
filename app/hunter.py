@@ -101,7 +101,7 @@ def parse_favorite_dir(raw) -> str:
 
 
 def in_favorite_window(seconds_left: float | None, window: float | None) -> bool:
-    """window<=0 means the whole book (until 3s before end). None → default 180s."""
+    """window<=0 means the whole book (until 3s before end). None → default 60s."""
     if seconds_left is None or float(seconds_left) < 3:
         return False
     win = float(DEFAULT_SETTINGS["favorite_window_seconds"]) if window is None else float(window)
@@ -136,7 +136,7 @@ def hunt(
     now: datetime | None = None,
     strategy_mode: str = "complement",
     favorite_min_price: float = 0.97,
-    favorite_max_price: float = 0.99,
+    favorite_max_price: float = 0.98,
     favorite_window_seconds: float = 60.0,
     favorite_maker: bool = False,
     favorite_dir: str = "auto",
@@ -221,21 +221,76 @@ def is_favorite_setup(setup: Setup | None) -> bool:
     return bool(setup and (setup.extra or {}).get("strategy") == "favorite")
 
 
-# Live paper was lifting a 97¢ ask while the tape was still 0.63–0.92.
-# Backtests only count a public BUY at 97. Require a locked book: bid still
-# ≥90¢, spread tight, and the other ask still the cheap dog.
-FAVORITE_MIN_BID = 0.90
+# Live paper was lifting a 97¢ ask while the tape was still 0.63–0.92, and
+# later lifting leftover 97¢ after the book had already gone through to 99¢
+# (eth-updown-5m-1788008400: FOK-kill 0.98, fill 0.97, dump 6s later).
+# Backtests only count a public BUY at 97–98. The *touch* must be the
+# favorite: true best ask in-band, bid still in/near the band (not 99¢),
+# not crossed, spread tight, dog ask still cheap.
+FAVORITE_BID_SLACK = 0.02
 FAVORITE_MAX_SPREAD = 0.04
 FAVORITE_MAX_OTHER_ASK = 0.10
 
 
-def is_ghost_favorite(ask: float | None, bid: float | None) -> bool:
-    """Hanging 97¢ asks over a 70¢ last trade are not a favorite you can lift."""
-    if ask is None:
+def favorite_ws_ok(ws_status: str | None, book_src: str | None, *books: dict | None) -> bool:
+    """Favorite lifts need a live WS book. HTTP fallback after 1013 is stale."""
+    if str(ws_status or "") != "connected" or str(book_src or "") != "ws":
+        return False
+    for b in books:
+        src = str((b or {}).get("source") or "ws")
+        if src != "ws":
+            return False
+    return True
+
+
+def favorite_lock_reason(
+    *,
+    asks: list[Level],
+    bids: list[Level],
+    other_asks: list[Level],
+    min_px: float,
+    max_px: float,
+) -> str | None:
+    """None if this is a locked 97–98 favorite. Else a kill reason."""
+    lo, hi = min(float(min_px), float(max_px)), max(float(min_px), float(max_px))
+    ask = _top(asks, asks=True)
+    bid = _top(bids, asks=False)
+    other = _top(other_asks, asks=True)
+    if ask is None or bid is None:
+        return "favorite_ghost"
+    if not (lo - 1e-12 <= float(ask) <= hi + 1e-12):
+        return "favorite_not_top"
+    if is_ghost_favorite(ask, bid, min_px=lo, max_px=hi):
+        if float(bid) > hi + 1e-12:
+            return "favorite_through"
+        if float(ask) + 1e-12 < float(bid):
+            return "favorite_crossed"
+        return "favorite_ghost"
+    if favorite_other_too_rich(other):
+        return "favorite_other_ask"
+    return None
+
+
+def is_ghost_favorite(
+    ask: float | None,
+    bid: float | None,
+    min_px: float = 0.97,
+    max_px: float = 0.98,
+) -> bool:
+    """Hanging 97¢ asks over a 70¢ last, or leftover 97¢ on a 99¢ bid, are not lift-able."""
+    if ask is None or bid is None:
         return True
-    if bid is None:
+    lo, hi = min(float(min_px), float(max_px)), max(float(min_px), float(max_px))
+    a, b = float(ask), float(bid)
+    if b < lo - FAVORITE_BID_SLACK - 1e-12:
         return True
-    return float(bid) < FAVORITE_MIN_BID or (float(ask) - float(bid)) >= FAVORITE_MAX_SPREAD
+    if b > hi + 1e-12:
+        return True
+    if a + 1e-12 < b:
+        return True
+    if a - b >= FAVORITE_MAX_SPREAD - 1e-12:
+        return True
+    return False
 
 
 def favorite_other_too_rich(other_ask: float | None) -> bool:
@@ -292,10 +347,15 @@ def _favorite_taker_leg(**kw) -> Setup | None:
     for leg, asks, bids in candidates:
         if not asks:
             continue
-        if is_ghost_favorite(asks[0].price, _top(bids, asks=False)):
-            continue
+        full_asks = kw["up_asks"] if leg == "up" else kw["down_asks"]
         other_asks = kw["down_asks"] if leg == "up" else kw["up_asks"]
-        if favorite_other_too_rich(_top(other_asks, asks=True)):
+        if favorite_lock_reason(
+            asks=full_asks,
+            bids=bids,
+            other_asks=other_asks,
+            min_px=min_px,
+            max_px=max_px,
+        ):
             continue
         top = asks[0].price
         shares = _size_from_depth(asks, asks, kw["max_usd"], kw["min_shares"], max(top, 0.5))
@@ -364,7 +424,7 @@ def _favorite_maker_leg(**kw) -> Setup | None:
             continue
         if not (min_px - 1e-12 <= float(rich) <= max_px + 1e-12):
             continue
-        if is_ghost_favorite(ask if ask is not None else rich, bid):
+        if is_ghost_favorite(ask if ask is not None else rich, bid, min_px=min_px, max_px=max_px):
             continue
         other_asks = kw["down_asks"] if leg == "up" else kw["up_asks"]
         if favorite_other_too_rich(_top(other_asks, asks=True)):

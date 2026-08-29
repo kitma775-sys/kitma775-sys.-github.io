@@ -668,7 +668,7 @@ class Store:
             (time.time() - 86400,),
         ).fetchone()["c"]
         hedges = self._conn.execute(
-            "SELECT COUNT(*) c FROM trades WHERE ts>=? AND status IN ('paper_hedged','paper_dumped','paper_settled')",
+            "SELECT COUNT(*) c FROM trades WHERE ts>=? AND status IN ('paper_hedged','paper_dumped')",
             (time.time() - 86400,),
         ).fetchone()["c"]
         trades = self._conn.execute("SELECT COUNT(*) c FROM trades WHERE ts>=?", (time.time() - 86400,)).fetchone()["c"]
