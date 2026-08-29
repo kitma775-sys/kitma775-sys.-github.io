@@ -3128,4 +3128,32 @@ def test_live2_blocked_when_force_paper(tmp_path):
     assert q.answered
 
 
+def test_reverse_breakeven_is_reverse_rate_not_win_rate():
+    """Old 30d script labelled p+fee (~97%) as reverse BE; true BE is 1-p-fee (~2.8% at 97¢)."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "reverse_30d.py"
+    spec = importlib.util.spec_from_file_location("reverse_30d_research", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    be97 = mod.reverse_breakeven(0.97)
+    be98 = mod.reverse_breakeven(0.98)
+    assert 0.027 < be97 < 0.029
+    assert 0.018 < be98 < 0.020
+    assert be97 == round(1.0 - 0.97 - mod.fee_on(0.97), 6)
+
+    row = mod.summarize(
+        [
+            {"won": True, "px": 0.97, "pnl": 0.14, "left": 40, "looked_50": False, "looked_90": False},
+            {"won": False, "px": 0.97, "pnl": -5.0, "left": 40, "looked_50": True, "looked_90": True},
+        ]
+    )
+    assert row["reverse"] == 0.5
+    assert row["ev_ok"] is False
+    assert row["vs_be"] > 0.4
+
+
+
 
