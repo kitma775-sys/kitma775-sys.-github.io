@@ -439,11 +439,37 @@
     },
     "rule": "First public BUY in band during last T seconds. Settle at official 0/1 (true) or shares*0.50 at end (false_mid). $50 UTC-day circuit."
   },
+  "live_vs_backtest_2026_08_29T05": {
+    "circuit": false,
+    "today_pnl": -31.18,
+    "equity": 468.82,
+    "starting": 500.0,
+    "size": 5.0,
+    "band": "97-98",
+    "window": "last 180s (Rev 19)",
+    "approx_settled": {"win": 27, "lose": 7, "open": 2, "reverse": 0.206},
+    "example_loss": {
+      "slug": "btc-updown-5m-1787981100 and eth same window",
+      "paper": "Up @0.97 ~05:27:52",
+      "tape": "no public BUY at 97+ in last 200s; ETH tape was Up 0.63-0.93 with Down still 0.07-0.44",
+      "resolved": "Down",
+      "why": "Paper lifted a 97 ask on the book. Backtest only counts a public 97 BUY, so this market is a skip in the study and a fill on the bot. BTC+ETH same 5m both lost."
+    },
+    "gaps": [
+      "Backtest = first tape BUY at 97. Bot = lift 97 ASK if it exists after 250ms HTTP, even with no 97 print.",
+      "180s window bought fake-out pumps ~100s before end.",
+      "BTC and ETH same 5m dump together; two $5 losses in one window.",
+      "Win +$0.14 vs lose -$5.01 needs 97.2% win rate. 20% reverse on this morning is -EV even before circuit."
+    ],
+    "rev20": [
+      "Last 60s (the 05:27 Up@97 losses had ~108-128s left).",
+      "Locked book: bid>=90c and spread<4c; skip if other ask>=10c.",
+      "One fill per 5m timestamp across assets."
+    ]
+  },
   "verdict": [
-    "The strategy is not unlucky. Paper was realizing ~50% losses at the close print.",
-    "False-mid $10 halted both days in the 12h tape (22 fills, skipped the rest). True 0/1 $5 did not halt (worst day -$19).",
-    "Fix redeem to wait for 0/1 (or UMA-resolved exact 50/50 invalid). That is Rev 19.",
-    "Default 97-98c last 180s at $5, taker-only. Keep $50 circuit. 12h sample was still -EV; 36h BTC 96-98 was +EV. Do not paper-reset. Do not go live.",
-    "90-98 remains a steamroller even with correct redeem (this 12h reverse 10.6%)."
+    "Rev 19 redeem is working (0/1 payouts). Circuit is not latched right now; today is still -$31 on $5 size.",
+    "Live is worse than the 97-98 tape study because the bot lifts 97 asks that never printed 97 on the tape, takes both BTC and ETH, and buys 97s ~2 minutes out on fake-out pumps.",
+    "Rev 20: last 60s, locked 97-98 book, one asset per 5m window. Keep paper. No live. Edge is still thin in dump regimes."
   ]
 }

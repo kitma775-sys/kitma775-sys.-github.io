@@ -137,7 +137,7 @@ def hunt(
     strategy_mode: str = "complement",
     favorite_min_price: float = 0.97,
     favorite_max_price: float = 0.99,
-    favorite_window_seconds: float = 180.0,
+    favorite_window_seconds: float = 60.0,
     favorite_maker: bool = False,
     favorite_dir: str = "auto",
 ) -> Setup | None:
@@ -221,13 +221,36 @@ def is_favorite_setup(setup: Setup | None) -> bool:
     return bool(setup and (setup.extra or {}).get("strategy") == "favorite")
 
 
+# Live paper was lifting a 97¢ ask while the tape was still 0.63–0.92.
+# Backtests only count a public BUY at 97. Require a locked book: bid still
+# ≥90¢, spread tight, and the other ask still the cheap dog.
+FAVORITE_MIN_BID = 0.90
+FAVORITE_MAX_SPREAD = 0.04
+FAVORITE_MAX_OTHER_ASK = 0.10
+
+
 def is_ghost_favorite(ask: float | None, bid: float | None) -> bool:
-    """ZEC-style 0.99/0.01 locked books are not a 99¢ favorite you can lift."""
+    """Hanging 97¢ asks over a 70¢ last trade are not a favorite you can lift."""
     if ask is None:
         return True
     if bid is None:
         return True
-    return float(bid) < 0.50 or (float(ask) - float(bid)) >= 0.15
+    return float(bid) < FAVORITE_MIN_BID or (float(ask) - float(bid)) >= FAVORITE_MAX_SPREAD
+
+
+def favorite_other_too_rich(other_ask: float | None) -> bool:
+    """If the dog ask is already 10¢+, the 97¢ favorite is mid-flip."""
+    if other_ask is None:
+        return True
+    return float(other_ask) >= FAVORITE_MAX_OTHER_ASK - 1e-12
+
+
+def favorite_window_key(slug: str | None) -> str | None:
+    """btc-updown-5m-1787981100 → updown-5m-1787981100 (same 5m as eth)."""
+    parts = str(slug or "").split("-")
+    if len(parts) < 4:
+        return None
+    return "-".join(parts[1:])
 
 
 def _band_asks(asks: list[Level], min_px: float, max_px: float) -> list[Level]:
@@ -270,6 +293,9 @@ def _favorite_taker_leg(**kw) -> Setup | None:
         if not asks:
             continue
         if is_ghost_favorite(asks[0].price, _top(bids, asks=False)):
+            continue
+        other_asks = kw["down_asks"] if leg == "up" else kw["up_asks"]
+        if favorite_other_too_rich(_top(other_asks, asks=True)):
             continue
         top = asks[0].price
         shares = _size_from_depth(asks, asks, kw["max_usd"], kw["min_shares"], max(top, 0.5))
@@ -339,6 +365,9 @@ def _favorite_maker_leg(**kw) -> Setup | None:
         if not (min_px - 1e-12 <= float(rich) <= max_px + 1e-12):
             continue
         if is_ghost_favorite(ask if ask is not None else rich, bid):
+            continue
+        other_asks = kw["down_asks"] if leg == "up" else kw["up_asks"]
+        if favorite_other_too_rich(_top(other_asks, asks=True)):
             continue
         if float(rich) >= best_rich:
             best_rich = float(rich)

@@ -10,7 +10,7 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_favorite_inventory, live_keys_ready, setting_num
-from app.hunter import book_quote, hunt, is_favorite_setup, parse_favorite_dir, summarize_quotes
+from app.hunter import book_quote, favorite_window_key, hunt, is_favorite_setup, is_ghost_favorite, parse_favorite_dir, favorite_other_too_rich, summarize_quotes, _top
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue
@@ -41,7 +41,22 @@ def favorite_budget(max_usd: float, inv: dict | None) -> float:
         return cap
     if float(inv.get("up") or 0) <= 0.01 and float(inv.get("down") or 0) <= 0.01:
         return cap
-    return max(0.0, round(cap - float(inv.get("cost") or 0), 6))
+    spent = float(inv.get("cost") or 0)
+    return max(0.0, round(cap - spent, 6))
+
+
+def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
+    """BTC and ETH 5m books with the same start timestamp dump together."""
+    key = favorite_window_key(slug)
+    if not key:
+        return False
+    for row in rt.store.inventory_open():
+        other = str(row.get("slug") or "")
+        if not other or other == slug:
+            continue
+        if favorite_window_key(other) == key:
+            return True
+    return False
 
 
 def favorite_taker_replaces_rest(setup, rest: dict | None) -> bool:
@@ -435,6 +450,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if circuit:
             continue
+        if favorite_same_window_open(rt, str(ev.get("slug") or "")):
+            continue
         inv = rt.store.inventory_one(ev["condition_id"])
         max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))
         if max_usd + 1e-9 < float(s["min_shares"]) * 0.90:
@@ -804,9 +821,17 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
 def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
     leg = str((setup.extra or {}).get("leg") or "up")
     asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
+    bids = (up_book.get("bids") or []) if leg == "up" else (dn_book.get("bids") or [])
+    other_asks = (dn_book.get("asks") or []) if leg == "up" else (up_book.get("asks") or [])
     min_px = setting_num(s, "favorite_min_price", 0.97)
     max_px = setting_num(s, "favorite_max_price", 0.98)
     limit = setup.up_price if leg == "up" else setup.down_price
+    ask_px = _top(asks, asks=True)
+    bid_px = _top(bids, asks=False)
+    if is_ghost_favorite(ask_px if ask_px is not None else limit, bid_px):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "favorite_ghost")
+    if favorite_other_too_rich(_top(other_asks, asks=True)):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "favorite_other_ask")
     min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
     fill = fak_one(
         asks=asks,

@@ -35,7 +35,7 @@ def approve(
     maker_max_skew: float = 0.28,
     favorite_min_price: float = 0.97,
     favorite_max_price: float = 0.98,
-    favorite_window_seconds: float = 180.0,
+    favorite_window_seconds: float = 60.0,
     favorite_dir: str = "auto",
     max_usd_per_trade: float = 25.0,
     favorite_spent: float = 0.0,

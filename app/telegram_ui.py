@@ -26,7 +26,7 @@ FAVORITE_DIR_ZH = {
     "down": "方向：只買 Down",
 }
 # 0 = whole book until 3s before end
-FAVORITE_WINDOWS = (30, 45, 90, 180, 300, 900, 0)
+FAVORITE_WINDOWS = (30, 45, 60, 90, 180, 300, 900, 0)
 
 
 def _strategy_mode(s: dict) -> str:
@@ -320,7 +320,7 @@ def home_text(rt: Runtime) -> str:
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
         f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
         f"{geo_line}\n\n"
-        "Rev 19：只做大熱 97–98¢，$5/注，尾 180s，taker。Redeem 等官方 0/1，唔好完場 50/50 入帳。停雙邊差價。紙盤。\n"
+        "Rev 20：只做大熱 97–98¢，$5/注，尾 60s，鎖住盤先抬。同一 5 分鐘窗 BTC/ETH 只做一隻。Redeem 等官方 0/1。紙盤。\n"
         "未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
     )
 
