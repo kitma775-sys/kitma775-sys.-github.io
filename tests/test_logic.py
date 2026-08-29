@@ -3155,5 +3155,22 @@ def test_reverse_breakeven_is_reverse_rate_not_win_rate():
     assert row["vs_be"] > 0.4
 
 
+def test_fair_p_stay_brownian():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "reverse_predict.py"
+    spec = importlib.util.spec_from_file_location("reverse_predict_research", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert abs(mod.phi(0.0) - 0.5) < 1e-9
+    assert mod.fair_p_stay(0.0, 1.0, 60.0) == 0.5
+    assert mod.fair_p_stay(80.0, 1.0, 9.0) > 0.99
+    assert mod.fair_p_stay(-80.0, 1.0, 9.0) < 0.01
+    assert mod.to_sec(1787875200000000) == 1787875200
+
+
+
 
 
