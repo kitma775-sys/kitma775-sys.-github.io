@@ -34,12 +34,12 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 23,
+    "strategy_rev": 24,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 23: Chainlink 60s TWAP mid-band (BTC 5m) + scratch. Complement
-    # still first if a two-ask hole appears. Favorite stays behind Telegram.
+    # Rev 24: same TWAP 6bps+scratch, window opened to 180s left to match
+    # top directional wallets' median entry. Complement still first.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
@@ -54,7 +54,7 @@ DEFAULT_SETTINGS = {
     "twap_min_lead_bps": 6.0,
     "twap_min_edge": 0.04,
     "twap_min_left": 12.0,
-    "twap_max_left": 120.0,
+    "twap_max_left": 180.0,
     "twap_max_spread": 0.04,
     "twap_scratch_p": 0.48,
     "twap_scratch_min_bid": 0.38,
@@ -82,6 +82,8 @@ SETTING_STEPS = {
     "scan_limit": (1.0, 8.0, 32.0),
     "favorite_min_price": (0.01, 0.97, 0.98),
     "favorite_max_price": (0.01, 0.91, 0.99),
+    "twap_max_left": (10.0, 60.0, 280.0),
+    "twap_min_lead_bps": (1.0, 2.0, 20.0),
 }
 
 

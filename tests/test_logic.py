@@ -623,8 +623,9 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 23" in text
+    assert "Rev 24" in text
     assert "TWAP" in text
+    assert "180" in text
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -2241,7 +2242,7 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2281,7 +2282,7 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_window_seconds"]) == 60
@@ -2314,7 +2315,7 @@ def test_rev15_opens_90_99_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2345,7 +2346,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 23
+    assert body["strategy_rev"] == 24
     assert body.get("auto_redeem") is True
     assert body.get("strategy_mode") == "twap"
     assert float(body.get("max_usd_per_trade") or 0) == 5.0
@@ -2716,7 +2717,7 @@ def test_rev16_enables_auto_redeem_keeps_band_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2750,7 +2751,7 @@ def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
@@ -2784,7 +2785,7 @@ def test_rev18_pins_180s_window_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_min_price"]) == 0.97
@@ -2816,7 +2817,7 @@ def test_rev19_waits_for_binary_redeem_pins_97_98_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -2856,7 +2857,7 @@ def test_rev20_pins_60s_locked_favorite_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["favorite_min_price"]) == 0.97
     assert s["live_trading"] is False
@@ -2895,7 +2896,7 @@ def test_rev21_pins_five_usd_and_kills_down_requote(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("strategy_mode") == "twap"
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_window_seconds"]) == 60
@@ -3019,12 +3020,12 @@ def test_rev22_stops_favorite_keeps_paper_and_edge(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("strategy_mode") == "twap"
     assert float(s["min_edge"]) == 0.02
     assert float(s.get("twap_min_lead_bps") or 0) == 6.0
     assert float(s.get("twap_min_edge") or 0) == 0.04
-    assert float(s.get("twap_max_left") or 0) == 120.0
+    assert float(s.get("twap_max_left") or 0) == 180.0
     assert (s.get("twap_assets") or ["btc"])[0] == "btc"
     assert float(s["maker_window_seconds"]) == 0.0
     assert s.get("taker_fok") is True
@@ -3060,13 +3061,14 @@ def test_rev23_twap_engine_keeps_paper_and_complement_edge(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 23
+    assert s["strategy_rev"] == 24
     assert s.get("strategy_mode") == "twap"
     assert float(s["min_edge"]) == 0.02
     assert float(s["twap_min_price"]) == 0.45
     assert float(s["twap_max_price"]) == 0.55
     assert float(s["twap_min_lead_bps"]) == 6.0
     assert float(s["twap_min_edge"]) == 0.04
+    assert float(s["twap_max_left"]) == 180.0
     assert float(s["max_usd_per_trade"]) == 5.0
     assert s["live_trading"] is False
     after = st.paper_state()
@@ -3288,7 +3290,7 @@ def test_fair_p_stay_brownian():
 def test_strategy_mode_of_defaults_to_twap():
     from app.config import DEFAULT_SETTINGS, strategy_mode_of
 
-    assert DEFAULT_SETTINGS["strategy_rev"] == 23
+    assert DEFAULT_SETTINGS["strategy_rev"] == 24
     assert DEFAULT_SETTINGS["strategy_mode"] == "twap"
     assert strategy_mode_of(None) == "twap"
     assert strategy_mode_of({}) == "twap"
@@ -3747,6 +3749,95 @@ def test_twap_engine_json_scratch_is_robust():
     assert picked["max_left"] == 120.0
     assert picked["min_lead_bps"] == 6.0
     assert data["findings"]["use_live"] is True
+
+
+def test_rev24_copies_whale_timing_not_pairlock(tmp_path):
+    from app.main import apply_strategy_rev
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params
+
+    st = Store(tmp_path / "rev24.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(25)
+    st.patch_settings(
+        strategy_rev=23,
+        strategy_mode="twap",
+        min_edge=0.02,
+        twap_max_left=120.0,
+        twap_min_lead_bps=6.0,
+        live_trading=False,
+        max_usd_per_trade=5.0,
+    )
+    before = st.paper_state()
+    n = apply_strategy_rev(st)
+    assert n == 0
+    s = st.settings()
+    assert s["strategy_rev"] == 24
+    assert s.get("strategy_mode") == "twap"
+    assert float(s["twap_max_left"]) == 180.0
+    assert float(s["twap_min_lead_bps"]) == 6.0
+    assert float(s["min_edge"]) == 0.02
+    assert s["live_trading"] is False
+    assert float(DEFAULT_SETTINGS["twap_max_left"]) == 180.0
+    p = default_params(s)
+    assert p.max_left == 180.0
+    assert p.min_lead_bps == 6.0
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert after["total_pnl"] == before["total_pnl"]
+    assert apply_strategy_rev(st) == 0
+
+
+def test_copy_top_rejects_taker_pairlock_and_copytrade():
+    import json
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "copy_top.py"
+    spec = importlib.util.spec_from_file_location("copy_top_research", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    data = json.loads(path.with_name("copy_top.json").read_text())
+    f = data["findings"]
+    assert f["copy_trade_robust"] is False
+    assert f["print_implied_simul_is_mirage"] is True
+    assert f["pairlock_fee07_any_plus"] == []
+    assert f["copy_as"] == "twap_earlier_window"
+    assert f["picked_rule"] == "twap_max_left_180_lead6_scratch"
+    assert f["picked_early_twap"]["max_left"] == 180.0
+    assert f["picked_early_twap"]["min_lead_bps"] == 6.0
+    assert f["picked_early_twap"]["robust"] is True
+    assert f["n_5m_specialists"] >= 20
+    assert f["n_pair_lock_harvesters"] >= 3
+    rec = mod.sim_pairlock(
+        [(100, 0.48, "Up"), (145, 0.47, "Down")],
+        "Up",
+        0,
+        300,
+        first_max=0.50,
+        complete_sum=0.96,
+        min_left=12,
+        max_left=240,
+        chop=False,
+        fee_rate=0.07,
+    )
+    assert rec["kind"] == "paired"
+    assert rec["pnl"] < 0.5
+    unmatched = mod.sim_pairlock(
+        [(100, 0.48, "Up")],
+        "Down",
+        0,
+        300,
+        first_max=0.50,
+        complete_sum=0.96,
+        min_left=12,
+        max_left=240,
+        chop=False,
+        fee_rate=0.07,
+    )
+    assert unmatched["kind"] == "unmatched"
+    assert unmatched["pnl"] < 0
 
 
 

@@ -72,7 +72,8 @@ def _rev_blurb(s: dict) -> str:
         )
     if mode == "twap":
         return (
-            f"Rev {rev}：BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢ 入場，弱倉 scratch。"
+            f"Rev {rev}：BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘最多 180s 入場，弱倉 scratch。"
+            "入場時間抄頂級方向盤戶（中位 ~160–210s），唔抄雙邊鎖倉（taker 費後 −EV）。"
             "互補洞仍然會先吃。FOK、maker 關。Redeem 等官方 0/1。紙盤。"
         )
     return (
@@ -431,7 +432,7 @@ def _status_text(rt: Runtime) -> str:
         + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
         + f"策略 {_strategy_label(s)} · 大熱 {float(s.get('favorite_min_price') or 0.97):.2f}–{float(s.get('favorite_max_price') or 0.98):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
-        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 120):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f} · Chainlink {rt.chainlink_status}\n"
+        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 180):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f} · Chainlink {rt.chainlink_status}\n"
         + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
         + f"自動 merge {'開' if s.get('auto_merge', True) else '關'} · 自動 redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"

@@ -786,7 +786,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             twap_min_price=setting_num(s, "twap_min_price", 0.45),
             twap_max_price=setting_num(s, "twap_max_price", 0.55),
             twap_min_left=setting_num(s, "twap_min_left", 12.0),
-            twap_max_left=setting_num(s, "twap_max_left", 120.0),
+            twap_max_left=setting_num(s, "twap_max_left", 180.0),
         )
         payload = {
             "title": setup.title,
@@ -901,7 +901,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 twap_min_price=setting_num(s, "twap_min_price", 0.45),
                 twap_max_price=setting_num(s, "twap_max_price", 0.55),
                 twap_min_left=setting_num(s, "twap_min_left", 12.0),
-                twap_max_left=setting_num(s, "twap_max_left", 120.0),
+                twap_max_left=setting_num(s, "twap_max_left", 180.0),
             )
             if not resized.ok:
                 fok_kills += 1
