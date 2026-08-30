@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
-from app.twap import default_params, is_btc_5m, should_scratch, twap_entry_reason
+from app.twap import CHAINLINK_SYMBOL, default_params, is_btc_5m, parse_5m, should_scratch, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue
@@ -61,17 +61,27 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
     return False
 
 
-def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float, params, setup) -> dict:
+def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float, params, setup, chainlink=None) -> dict:
     """Why this BTC 5m did or did not produce a TWAP lift."""
     left = seconds_left(ev.get("end"))
+    up_ask = _top(up_book.get("asks") or [], asks=True)
     if is_twap_setup(setup):
         why = "signal"
         ask = float(setup.up_price or setup.down_price)
         bid = None
+    elif snap is None:
+        parsed = parse_5m(str(ev.get("slug") or ""))
+        sym = CHAINLINK_SYMBOL.get(parsed[0]) if parsed else None
+        ticks = None if chainlink is None or not sym else chainlink.ticks.get(sym)
+        if chainlink is not None and chainlink.connected and ticks:
+            why = "twap_no_ptb"
+        else:
+            why = "twap_no_feed"
+        ask, bid = up_ask, _top(up_book.get("bids") or [], asks=False)
     else:
-        side = None if snap is None else snap.side
-        asks = (up_book.get("asks") or []) if side == "up" else (dn_book.get("asks") or []) if side == "down" else []
-        bids = (up_book.get("bids") or []) if side == "up" else (dn_book.get("bids") or []) if side == "down" else []
+        side = snap.side
+        asks = (up_book.get("asks") or []) if side == "up" else (dn_book.get("asks") or [])
+        bids = (up_book.get("bids") or []) if side == "up" else (dn_book.get("bids") or [])
         ask = _top(asks, asks=True)
         bid = _top(bids, asks=False)
         why = twap_entry_reason(
@@ -714,7 +724,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
             continue
         if is_btc_5m(str(ev.get("slug") or "")):
-            gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup)
+            gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup, chainlink=rt.chainlink)
             why = str(gate.get("reason") or "skip")
             twap_skips[why] = twap_skips.get(why, 0) + 1
             left = gate.get("left")

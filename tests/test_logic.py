@@ -3418,7 +3418,7 @@ def test_twap_entry_reason_and_scratch():
 
 def test_twap_gate_row_reports_window_and_signal():
     from app.runtime import _twap_gate_row
-    from app.twap import TwapParams, default_params
+    from app.twap import TwapParams
 
     snap = _twap_snap()
     ev = {"slug": "btc-updown-5m-1000", "end": _late_end(90)}
@@ -3431,6 +3431,13 @@ def test_twap_gate_row_reports_window_and_signal():
     early = dict(ev, end=_late_end(200))
     gate2 = _twap_gate_row(early, snap, up, dn, 0.07, TwapParams(), None)
     assert gate2["reason"] == "twap_window"
+
+    class _Tape:
+        connected = True
+        ticks = {"btc/usd": [1]}
+
+    gate_ptb = _twap_gate_row(ev, None, up, dn, 0.07, TwapParams(), None, chainlink=_Tape())
+    assert gate_ptb["reason"] == "twap_no_ptb"
     from app.hunter import Setup
 
     setup = Setup(
