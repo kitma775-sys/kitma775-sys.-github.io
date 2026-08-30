@@ -3416,6 +3416,44 @@ def test_twap_entry_reason_and_scratch():
     assert go is True and why == "twap_scratch_better"
 
 
+def test_twap_gate_row_reports_window_and_signal():
+    from app.runtime import _twap_gate_row
+    from app.twap import TwapParams, default_params
+
+    snap = _twap_snap()
+    ev = {"slug": "btc-updown-5m-1000", "end": _late_end(90)}
+    up = {"asks": _L((0.50, 20)), "bids": _L((0.49, 20))}
+    dn = {"asks": _L((0.52, 20)), "bids": _L((0.48, 20))}
+    gate = _twap_gate_row(ev, snap, up, dn, 0.07, TwapParams(), None)
+    assert gate["reason"] == "ready"
+    assert gate["ask"] == 0.50
+    assert gate["lead_bps"] == 8.0
+    early = dict(ev, end=_late_end(200))
+    gate2 = _twap_gate_row(early, snap, up, dn, 0.07, TwapParams(), None)
+    assert gate2["reason"] == "twap_window"
+    from app.hunter import Setup
+
+    setup = Setup(
+        slug="btc-updown-5m-1000",
+        title="btc",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.50,
+        down_price=0.0,
+        shares=10,
+        fillable=10,
+        gross=0.2,
+        fees=0.1,
+        net=0.5,
+        tail=False,
+        extra={"strategy": "twap", "leg": "up"},
+    )
+    gate3 = _twap_gate_row(ev, snap, up, dn, 0.07, TwapParams(), setup)
+    assert gate3["reason"] == "signal"
+
+
 def test_chainlink_ptb_requires_tick_before_open():
     from app.chainlink import ChainlinkTape
 

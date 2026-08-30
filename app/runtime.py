@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
-from app.twap import default_params, should_scratch
+from app.twap import default_params, is_btc_5m, should_scratch, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue
@@ -59,6 +59,39 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
         if favorite_window_key(other) == key:
             return True
     return False
+
+
+def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float, params, setup) -> dict:
+    """Why this BTC 5m did or did not produce a TWAP lift."""
+    left = seconds_left(ev.get("end"))
+    if is_twap_setup(setup):
+        why = "signal"
+        ask = float(setup.up_price or setup.down_price)
+        bid = None
+    else:
+        side = None if snap is None else snap.side
+        asks = (up_book.get("asks") or []) if side == "up" else (dn_book.get("asks") or []) if side == "down" else []
+        bids = (up_book.get("bids") or []) if side == "up" else (dn_book.get("bids") or []) if side == "down" else []
+        ask = _top(asks, asks=True)
+        bid = _top(bids, asks=False)
+        why = twap_entry_reason(
+            slug=str(ev.get("slug") or ""),
+            snap=snap,
+            ask=ask,
+            bid=bid,
+            left=left,
+            fee_rate=fee_rate,
+            params=params,
+        ) or "ready"
+    return {
+        "slug": ev.get("slug"),
+        "left": None if left is None else round(float(left), 1),
+        "lead_bps": None if snap is None else round(float(snap.lead_bps), 3),
+        "ask": None if ask is None else round(float(ask), 4),
+        "fair": None if snap is None or snap.fair_p_side is None else round(float(snap.fair_p_side), 4),
+        "reason": why,
+        "side": None if snap is None else snap.side,
+    }
 
 
 def favorite_taker_replaces_rest(setup, rest: dict | None) -> bool:
@@ -598,6 +631,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     window = setting_num(s, "maker_window_seconds", 0.0)
     trade_cap = float(s["max_usd_per_trade"])
     twap_params = default_params(s)
+    twap_skips: dict[str, int] = {}
+    twap_gate: dict | None = None
     if not circuit:
         try:
             await _scratch_twap(rt, events)
@@ -638,6 +673,11 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))
         if max_usd + 1e-9 < float(s["min_shares"]) * 0.90:
             continue
+        snap = rt.chainlink.snapshot(
+            str(ev.get("slug") or ""),
+            lookback=int(twap_params.lookback),
+            left=seconds_left(ev.get("end")),
+        )
         try:
             setup = hunt(
                 slug=ev["slug"],
@@ -667,16 +707,21 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_window_seconds=favorite_window_of(s),
                 favorite_maker=bool(s.get("favorite_maker")),
                 favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
-                twap_snap=rt.chainlink.snapshot(
-                    str(ev.get("slug") or ""),
-                    lookback=int(twap_params.lookback),
-                    left=seconds_left(ev.get("end")),
-                ),
+                twap_snap=snap,
                 twap_params=twap_params,
             )
         except Exception as exc:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
             continue
+        if is_btc_5m(str(ev.get("slug") or "")):
+            gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup)
+            why = str(gate.get("reason") or "skip")
+            twap_skips[why] = twap_skips.get(why, 0) + 1
+            left = gate.get("left")
+            if twap_gate is None or (
+                left is not None and 0 < float(left) < float(twap_gate.get("left") or 9e9)
+            ):
+                twap_gate = gate
         if not setup:
             continue
         if is_one_leg_setup(setup) and not favorite_ws_ok(rt.ws_status, src, up_book, dn_book):
@@ -981,6 +1026,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     btc = (cl.get("symbols") or {}).get("btc/usd") or {}
     tape["chainlink_btc"] = btc.get("px")
     tape["chainlink_age_ms"] = cl.get("age_ms")
+    tape["twap_skips"] = twap_skips
+    tape["twap_gate"] = twap_gate
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.97)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = favorite_window_of(s)

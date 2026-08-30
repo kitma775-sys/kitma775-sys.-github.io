@@ -124,11 +124,13 @@
         tile({"auto":"自動","complement":"互補","twap":"TWAP","favorite":"大熱"}[s.strategy_mode] || (s.strategy_mode || "—"), "策略模式"),
         tile(d.chainlink_status || "off", "Chainlink"),
         tile((function(){
-          if (s.strategy_mode !== "twap") return "—";
-          const lo = Math.round(Number(s.twap_min_price||0.45)*100);
-          const hi = Math.round(Number(s.twap_max_price||0.55)*100);
-          return lo + "–" + hi + "¢ / ≥" + Number(s.twap_min_lead_bps||6) + "bps";
-        })(), "TWAP 價帶／lead"),
+          const g = tape.twap_gate || {};
+          if (!g.reason) return "—";
+          const left = g.left==null ? "" : (Math.round(Number(g.left)) + "s ");
+          const lead = g.lead_bps==null ? "" : (("+" + Number(g.lead_bps).toFixed(1)).replace("+-","-") + "bps ");
+          const ask = g.ask==null ? "" : ("ask " + g.ask + " ");
+          return (left + lead + ask + g.reason).trim();
+        })(), "TWAP 閘"),
         tile((function(){
           const fw = Number(s.favorite_window_seconds);
           const win = (s.favorite_window_seconds==null || s.favorite_window_seconds==="") ? "60s" : (fw<=0 ? "全段" : (Math.round(fw)+"s"));

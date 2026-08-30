@@ -376,6 +376,18 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
         bits.append(f"WS {tape['ws_status']}")
     if tape.get("chainlink_status"):
         bits.append(f"CL {tape['chainlink_status']}")
+    gate = tape.get("twap_gate") or {}
+    if gate.get("reason"):
+        lead = gate.get("lead_bps")
+        ask = gate.get("ask")
+        left = gate.get("left")
+        bits.append(
+            "TWAP "
+            + (f"{int(left)}s " if left is not None else "")
+            + (f"lead {lead:+.1f}bps " if lead is not None else "")
+            + (f"ask {ask} " if ask is not None else "")
+            + str(gate.get("reason"))
+        )
     if tape.get("ws_pairs") is not None:
         bits.append(f"WS盤 {int(tape.get('ws_pairs') or 0)}")
     if tape.get("http_pairs"):
