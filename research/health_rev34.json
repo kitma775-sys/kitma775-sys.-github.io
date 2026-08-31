@@ -1,11 +1,26 @@
 {
-  "researched_at_utc": "2026-08-31T05:45:00Z",
+  "researched_at_utc": "2026-08-31T05:48:00Z",
+  "live_rev": 34,
   "question": "Drop 15m and 1H; run 5m Chainlink TWAP across coins only?",
   "answer": "yes",
   "why": {
-    "5m": "Same settlement as the engine: Chainlink 60s TWAP vs window-open PTB. Tape grid (twap_freq) is 5m BTC/ETH 45-55 / 6bps / scratch / 12-280s. 7 coins x 2 tokens = 14 CLOB slots, two sockets x8.",
-    "15m": "Same oracle, but 14-token JP CLOB cap means 15m collides with live 5m. 280s max_left is the last 4.7m of a 900s clock with no 15m tape grid. PTB/join and WS ranking kept stealing 5m mid-band.",
+    "5m": "Same settlement as the engine: Chainlink 60s TWAP vs window-open PTB. Tape grid is 5m 45-55 / 6bps / scratch / 12-280s. 7 coins x 2 tokens = 14 CLOB slots.",
+    "15m": "Same oracle, but 14-token JP CLOB cap means 15m collides with live 5m. 280s max_left is the last 4.7m of a 900s clock with no 15m tape grid.",
     "1h": "Binance candle close vs open. Chainlink-vs-PTB on that book is the ~9 bps basis hole. Never this engine."
+  },
+  "live": {
+    "strategy_rev": 34,
+    "tags": ["5M"],
+    "twap_horizons": ["5m"],
+    "assets": ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"],
+    "clob_ws_slugs": "7 current 5m only",
+    "tape_slugs": "only *-updown-5m-*; no 15m/1h",
+    "skips": {"twap_window": 7, "future_listing": 14},
+    "paper_equity": 486.675086,
+    "paper_starting": 500.0,
+    "force_paper": true,
+    "live_trading": false,
+    "no_1013": true
   },
   "keep": [
     "45-55c",
@@ -15,9 +30,5 @@
     "user assets",
     "paper",
     "no live"
-  ],
-  "pin": {
-    "tags": ["5M"],
-    "twap_horizons": ["5m"]
-  }
+  ]
 }
