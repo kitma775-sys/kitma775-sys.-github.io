@@ -3659,6 +3659,45 @@ def test_live_taker_uses_actual_taking_amount():
     assert abs(float(result.payload["cost"]) - 6.4) < 1e-9
 
 
+def test_normalize_private_key_adds_0x():
+    from app.config import normalize_private_key
+
+    assert normalize_private_key("ab") == "0xab"
+    assert normalize_private_key("0xab") == "0xab"
+    assert normalize_private_key("  0xab  ") == "0xab"
+    assert normalize_private_key("") == ""
+
+
+def test_live_broker_passes_wallet_to_client(monkeypatch):
+    import asyncio
+    import sys
+    import types
+
+    from app.broker import LiveBroker
+
+    captured = {}
+
+    class FakeClient:
+        @classmethod
+        async def create(cls, **kw):
+            captured.update(kw)
+            return cls()
+
+    fake = types.ModuleType("polymarket")
+    fake.AsyncSecureClient = FakeClient
+    monkeypatch.setitem(sys.modules, "polymarket", fake)
+    safe = "0xC8a8dEF991F2FC0fa7322b9374A682848615b3db"
+    broker = LiveBroker("abc123", wallet=safe)
+    asyncio.run(broker._client_ready())
+    assert captured["private_key"] == "0xabc123"
+    assert captured["wallet"] == safe
+    eoa = LiveBroker("0xabc")
+    captured.clear()
+    asyncio.run(eoa._client_ready())
+    assert captured["private_key"] == "0xabc"
+    assert "wallet" not in captured
+
+
 def test_today_pnl_live_includes_dumps(tmp_path):
     st = Store(tmp_path / "live-pnl.sqlite")
     st.add_trade(slug="a", kind="twap", shares=5, up_price=0.5, down_price=0, net=-2, mode="live", status="dumped")

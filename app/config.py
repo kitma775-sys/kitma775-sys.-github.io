@@ -200,12 +200,20 @@ class Env:
     trading_mode: str = "paper"
     engine_autostart: bool = True
     private_key: str = ""
+    wallet: str = ""
     clob_api_key: str = ""
     clob_secret: str = ""
     clob_passphrase: str = ""
     force_paper: bool = False
     paper_starting_cash: float = 500.0
     dashboard_public_url: str = ""
+
+
+def normalize_private_key(raw: str) -> str:
+    pk = (raw or "").strip()
+    if pk and not pk.startswith("0x"):
+        pk = "0x" + pk
+    return pk
 
 
 def load_env() -> Env:
@@ -221,7 +229,8 @@ def load_env() -> Env:
         data_dir=os.getenv("DATA_DIR", "./data"),
         trading_mode=os.getenv("TRADING_MODE", "paper").strip().lower(),
         engine_autostart=os.getenv("ENGINE_AUTOSTART", "true").lower() in {"1", "true", "yes"},
-        private_key=os.getenv("POLYMARKET_PRIVATE_KEY", "").strip(),
+        private_key=normalize_private_key(os.getenv("POLYMARKET_PRIVATE_KEY", "")),
+        wallet=os.getenv("POLYMARKET_WALLET", "").strip(),
         clob_api_key=os.getenv("CLOB_API_KEY", "").strip(),
         clob_secret=os.getenv("CLOB_SECRET", "").strip(),
         clob_passphrase=os.getenv("CLOB_PASSPHRASE", "").strip(),

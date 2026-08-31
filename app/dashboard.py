@@ -41,6 +41,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "live_trading": bool(s.get("live_trading")),
             "force_paper": bool(rt.env.force_paper),
             "keys_ready": live_keys_ready(rt.env),
+            "wallet_set": bool(rt.env.wallet),
             "live_blockers": live_switch_blockers(rt.env, rt.geo),
             "engine_running": bool(s.get("engine_running")),
             "killed": bool(s.get("killed")),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.config import format_share_qty
+from app.config import format_share_qty, normalize_private_key
 from app.hunter import Setup
 from app.paper_sim import simulate_taker
 
@@ -178,8 +178,9 @@ class PaperBroker:
 class LiveBroker:
     mode = "live"
 
-    def __init__(self, private_key: str):
-        self.private_key = private_key
+    def __init__(self, private_key: str, wallet: str | None = None):
+        self.private_key = normalize_private_key(private_key)
+        self.wallet = (wallet or "").strip() or None
         self._client = None
 
     async def _client_ready(self):
@@ -189,7 +190,10 @@ class LiveBroker:
             from polymarket import AsyncSecureClient
         except ImportError as exc:
             raise RuntimeError("未安裝 polymarket-client，無法實盤") from exc
-        self._client = await AsyncSecureClient.create(private_key=self.private_key)
+        kw: dict[str, Any] = {"private_key": self.private_key}
+        if self.wallet:
+            kw["wallet"] = self.wallet
+        self._client = await AsyncSecureClient.create(**kw)
         return self._client
 
     async def execute_pair(self, setup: Setup) -> FillResult:

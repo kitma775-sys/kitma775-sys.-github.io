@@ -45,7 +45,7 @@ async def arm_live_wallet(rt: Runtime) -> str | None:
     if blockers:
         return "；".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers)
     try:
-        broker = LiveBroker(rt.env.private_key)
+        broker = LiveBroker(rt.env.private_key, wallet=rt.env.wallet)
         client = await broker._client_ready()
         try:
             await client.setup_trading_approvals()
@@ -494,7 +494,7 @@ class Runtime:
     def broker(self):
         mode = self.mode()
         if self._broker is None or self._broker_mode != mode:
-            self._broker = LiveBroker(self.env.private_key) if mode == "live" else PaperBroker()
+            self._broker = LiveBroker(self.env.private_key, wallet=self.env.wallet) if mode == "live" else PaperBroker()
             self._broker_mode = mode
         return self._broker
 
@@ -565,6 +565,7 @@ class Runtime:
         return {
             "mode": self.mode(),
             "keys_ready": live_keys_ready(self.env),
+            "wallet_set": bool(self.env.wallet),
             "force_paper": self.env.force_paper,
             "live_blockers": live_switch_blockers(self.env, self.geo),
             "uptime_s": int(time.time() - self.started_at),
