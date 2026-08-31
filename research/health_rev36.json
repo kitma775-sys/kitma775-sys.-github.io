@@ -37,6 +37,15 @@
       "inband_off_ws": [],
       "gate": "sol 0.52 twap_wide lead -3.9bps",
       "reconnect": "one 8+6 swap after boot 8+4, not a storm"
+    },
+    "second_prewarm_Tminus36s": {
+      "wanted_n": 14,
+      "next_window": "1788158100 all 7 on WS; BTC 0.50 ETH 0.45 SOL 0.51",
+      "current_pennies_off_ws": true,
+      "gate": "btc 0.095 twap_ws_slot",
+      "paper_equity": 474.172396,
+      "ptb_n": 7,
+      "inband_off_ws": []
     }
   },
   "keep": ["45-55c", "min_lead_bps=6", "scratch", "max_usd=5", "paper", "no live", "no 15m/1H"]

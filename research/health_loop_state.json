@@ -1,8 +1,10 @@
 {
   "goal": "Autonomous health loop until two clean 5m windows, then notify the user in Cantonese.",
   "live_rev": 36,
-  "clean_probes": 1,
-  "last_probe_utc": "2026-08-31T06:28:00Z",
+  "clean_probes": 2,
+  "last_probe_utc": "2026-08-31T06:34:30Z",
+  "status": "done",
+  "covered": ["A_prewarm", "B_mid_window"],
   "constraints": [
     "Do not enable live trading",
     "Do not paper-reset",
