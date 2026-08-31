@@ -56,6 +56,23 @@ STATUS_ZH = {
 
 NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
 
+_REDEEM_WAIT_LOG = (
+    "no market found",
+    "market not found",
+    "builder api key",
+    "relayer api key",
+    "not resolved",
+    "condition not found",
+)
+
+
+def _is_redeem_wait_log(message: str) -> bool:
+    """Hide the CLOB-delist retry spam; one-shot 等結算 stays visible."""
+    text = str(message or "").lower()
+    if not text.startswith("redeem fail"):
+        return False
+    return any(n in text for n in _REDEEM_WAIT_LOG)
+
 CURVE_STATUSES = frozenset(
     {"redeemed", "paper_settled", "dumped", "paper_dumped", "paper_hedged", "merged"}
 )
@@ -412,12 +429,15 @@ def _journal(rt, board: dict) -> list[dict]:
     for e in rt.store.recent_events(30):
         if started and float(e.get("ts") or 0) < started - 30:
             continue
+        msg = str(e.get("message") or "")
+        if _is_redeem_wait_log(msg):
+            continue
         rows.append(
             {
                 "ts": e.get("ts"),
                 "kind": str(e.get("level") or "info"),
                 "ok": str(e.get("level") or "") != "warn",
-                "text": str(e.get("message") or "")[:180],
+                "text": msg[:180],
             }
         )
     rows.sort(key=lambda r: float(r.get("ts") or 0), reverse=True)

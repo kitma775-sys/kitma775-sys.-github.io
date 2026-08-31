@@ -2546,13 +2546,16 @@ def test_dashboard_kill_cancels_resting(tmp_path):
 
 
 def test_already_redeemed_helper():
-    from app.broker import already_redeemed
+    from app.broker import already_redeemed, redeem_not_ready
 
     assert already_redeemed("UserInputError: You have no positions")
     assert already_redeemed("nothing to redeem")
     assert not already_redeemed("nonce too low")
     assert not already_redeemed("")
     assert not already_redeemed("Gasless transactions require a Builder API Key")
+    assert redeem_not_ready("No market found for condition 0xabc")
+    assert redeem_not_ready("Gasless transactions require a Builder API Key or Relayer API Key.")
+    assert not redeem_not_ready("nonce too low")
 
 
 def test_live_redeem_empty_position_counts_as_settled():
@@ -2564,11 +2567,17 @@ def test_live_redeem_empty_position_counts_as_settled():
         pass
 
     class FakeClient:
+        def __init__(self):
+            self.calls = 0
+            self.msg = "Gasless transactions require a Builder API Key or Relayer API Key."
+
         async def redeem_positions(self, condition_id):
-            raise Boom("Gasless transactions require a Builder API Key or Relayer API Key.")
+            self.calls += 1
+            raise Boom(self.msg)
 
     broker = LiveBroker("0xabc", wallet="0xC8a8dEF991F2FC0fa7322b9374A682848615b3db")
-    broker._client = FakeClient()
+    client = FakeClient()
+    broker._client = client
 
     async def empty(_cid):
         return 0.0
@@ -2577,14 +2586,18 @@ def test_live_redeem_empty_position_counts_as_settled():
     result = asyncio.run(broker.redeem("0xdfb67e96ca73a866757ddfda21ca9be1a4c9cb4d7483d945d77f0ae668237200"))
     assert result.ok is True
     assert result.payload["already"] is True
+    assert client.calls == 0
 
     async def held(_cid):
         return 6.8
 
     broker.condition_token_size = held
+    client.msg = "No market found for condition 0x601e6540403f71a02a3bbec796423f006c2df9eaf4545b4100376f9981b769ae"
     stuck = asyncio.run(broker.redeem("0x601e6540403f71a02a3bbec796423f006c2df9eaf4545b4100376f9981b769ae"))
     assert stuck.ok is False
-    assert "Builder API Key" in stuck.detail
+    assert stuck.status == "redeem_wait"
+    assert "No market found" in stuck.detail
+    assert client.calls == 1
 
 
 def test_live_redeem_already_empty_clears_twap_live(tmp_path):
@@ -2633,6 +2646,87 @@ def test_live_redeem_already_empty_clears_twap_live(tmp_path):
     trade = st.recent_trades(1)[0]
     assert trade["status"] == "redeemed"
     assert abs(float(trade["net"]) - (6.857141 - 2.88)) < 1e-5
+
+
+def test_redeem_wait_logs_once_then_settles_when_empty(tmp_path):
+    import asyncio
+
+    from app.broker import FillResult
+    from app.config import Env
+    from app.runtime import Runtime, _redeem_resolved, operator_board
+    from app.wall import operator_wall
+
+    class WaitThenEmpty:
+        mode = "live"
+
+        def __init__(self):
+            self.redeem_calls = 0
+            self.held = 5.3
+
+        async def redeem(self, condition_id):
+            self.redeem_calls += 1
+            return FillResult(
+                False,
+                "redeem_wait",
+                "live",
+                f"No market found for condition {condition_id}",
+                {"condition_id": condition_id, "wait": True},
+            )
+
+        async def condition_token_size(self, condition_id):
+            return self.held
+
+        async def list_redeemable(self):
+            return [
+                {
+                    "condition_id": "0xweather",
+                    "slug": "highest-temperature-in-nyc",
+                    "size": 12.0,
+                }
+            ]
+
+    st = Store(tmp_path / "redeem-wait.sqlite")
+    st.ensure_paper(500)
+    st.add_inventory(
+        "0xxrp",
+        "xrp-updown-5m-1788178800",
+        0.0,
+        5.3,
+        kind="twap_live",
+        cost=2.65,
+    )
+    st.patch_settings(live_trading=True, auto_redeem=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.skip_live_preflight = True
+    spy = WaitThenEmpty()
+    rt._broker = spy
+    rt._broker_mode = "live"
+    rt.data = _FakeGamma(
+        {"xrp-updown-5m-1788178800": {"closed": True, "markets": [{"closed": True, "outcomePrices": ["1", "0"]}]}}
+    )
+    assert asyncio.run(_redeem_resolved(rt)) == 0
+    assert asyncio.run(_redeem_resolved(rt)) == 0
+    assert spy.redeem_calls == 1
+    notes = [e["message"] for e in st.recent_events(20) if "redeem" in str(e.get("message") or "")]
+    assert len(notes) == 1
+    assert notes[0].startswith("redeem 等結算")
+    assert "fail" not in notes[0]
+    assert st.inventory_one("0xxrp")["down"] == 5.3
+    st.add_event("warn", "redeem fail xrp-updown-5m-1788178800: No market found for condition 0xabc")
+    wall = operator_wall(rt, operator_board(rt))
+    texts = " ".join(row.get("text") or "" for row in wall["log"])
+    assert "No market found" not in texts
+    assert "等結算" in texts
+
+    spy.held = 0.0
+    rt.cooldown.clear()
+    n = asyncio.run(_redeem_resolved(rt))
+    assert n == 1
+    assert spy.redeem_calls == 1
+    assert st.inventory_open() == []
+    trade = st.recent_trades(1)[0]
+    assert trade["status"] == "redeemed"
+    assert abs(float(trade["net"]) - (0.0 - 2.65)) < 1e-5
 
 
 def test_is_redeemable_market_waits_for_decided_prices():

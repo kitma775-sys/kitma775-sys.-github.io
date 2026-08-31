@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
+from app.broker import FillResult, LiveBroker, PaperBroker, redeem_not_ready, setup_buy_orders
 from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
@@ -728,6 +728,7 @@ class Runtime:
         self._clob_halt_reason = ""
         self._clob_halt_announced = False
         self.wall_tape: list[dict] = []
+        self._redeem_wait_logged: set[str] = set()
         load_live_usdc(self)
 
     def clob_halted(self) -> bool:
@@ -2620,12 +2621,15 @@ async def _redeem_resolved(rt: Runtime) -> int:
             extra = []
         for row in extra:
             cid = str((row or {}).get("condition_id") or "")
+            slug = str((row or {}).get("slug") or "")
             if not cid or cid in seen:
+                continue
+            if not parse_window(slug):
                 continue
             jobs.append(
                 {
                     "condition_id": cid,
-                    "slug": str((row or {}).get("slug") or ""),
+                    "slug": slug,
                     "up": 0.0,
                     "down": 0.0,
                     "cost": 0.0,
@@ -2651,17 +2655,47 @@ async def _redeem_resolved(rt: Runtime) -> int:
                 except Exception:
                     pass
         paper_books = bool(job.get("tracked")) and not is_live_inventory_kind(job.get("kind"))
+        waiting = cid in rt._redeem_wait_logged
         if paper_books and not paper_mode:
             result = FillResult(True, "paper_settled", "paper", "紙盤 redeem 入帳", {"condition_id": cid})
+        elif waiting:
+            held = None
+            size_fn = getattr(rt.broker(), "condition_token_size", None)
+            if callable(size_fn):
+                try:
+                    held = await size_fn(cid)
+                except Exception:
+                    held = None
+            if held is not None and held < 0.01:
+                result = FillResult(
+                    True,
+                    "redeemed",
+                    "live",
+                    "already empty",
+                    {"condition_id": cid, "already": True},
+                )
+            else:
+                rt.cooldown[f"redeem:{cid}"] = now + 45.0
+                continue
         else:
             result = await rt.broker().redeem(cid)
         if not result.ok:
             detail = str(result.detail or "")
-            wait = 120.0 if ("builder api key" in detail.lower() or "relayer api key" in detail.lower()) else 20.0
+            waiting_now = result.status == "redeem_wait" or redeem_not_ready(detail)
+            wait = 45.0 if waiting_now else 20.0
             rt.cooldown[f"redeem:{cid}"] = now + wait
-            rt.store.add_event("warn", f"redeem fail {job['slug'] or cid}: {result.detail}"[:220])
+            if waiting_now:
+                if cid not in rt._redeem_wait_logged:
+                    rt._redeem_wait_logged.add(cid)
+                    rt.store.add_event(
+                        "info",
+                        f"redeem 等結算 {job['slug'] or cid}（CLOB 已除牌，等鏈上 auto-redeem）",
+                    )
+            else:
+                rt.store.add_event("warn", f"redeem fail {job['slug'] or cid}: {result.detail}"[:220])
             continue
         rt.cooldown.pop(f"redeem:{cid}", None)
+        rt._redeem_wait_logged.discard(cid)
         up, down = float(job["up"]), float(job["down"])
         cost = float(job["cost"])
         fav = is_favorite_inventory(job["kind"])

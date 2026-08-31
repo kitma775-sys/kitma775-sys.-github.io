@@ -112,6 +112,26 @@ def already_redeemed(detail: str) -> bool:
     return any(n in text for n in needles)
 
 
+def redeem_not_ready(detail: str) -> bool:
+    """CLOB already delisted the 5m book, or gasless redeem needs a Builder key.
+
+    Tokens are still in the Safe; Polymarket auto-redeems on-chain. Retrying
+    redeem_positions every loop only spams the journal.
+    """
+    text = (detail or "").lower()
+    needles = (
+        "no market found",
+        "market not found",
+        "builder api key",
+        "relayer api key",
+        "too early",
+        "not resolved",
+        "not yet resolved",
+        "condition not found",
+    )
+    return any(n in text for n in needles)
+
+
 def _looks_eth_address(raw: str | None) -> bool:
     text = str(raw or "").strip()
     return text.startswith("0x") and len(text) == 42
@@ -440,10 +460,25 @@ class LiveBroker:
                 return held
         return None
 
+    async def _held_or_none(self, cid: str) -> float | None:
+        try:
+            return await self.condition_token_size(cid)
+        except Exception:
+            return None
+
     async def redeem(self, condition_id: str) -> FillResult:
         cid = str(condition_id or "").strip()
         if not cid:
             return FillResult(False, "redeem_error", "live", "missing condition_id", {})
+        held = await self._held_or_none(cid)
+        if held is not None and held < 0.01:
+            return FillResult(
+                True,
+                "redeemed",
+                "live",
+                "already empty",
+                {"condition_id": cid, "already": True},
+            )
         try:
             client = await self._client_ready()
             tx = await client.redeem_positions(condition_id=cid)
@@ -459,10 +494,8 @@ class LiveBroker:
                     "already empty",
                     {"condition_id": cid, "already": True},
                 )
-            try:
-                held = await self.condition_token_size(cid)
-            except Exception:
-                held = None
+            if held is None:
+                held = await self._held_or_none(cid)
             if held is not None and held < 0.01:
                 return FillResult(
                     True,
@@ -470,6 +503,14 @@ class LiveBroker:
                     "live",
                     "already empty",
                     {"condition_id": cid, "already": True},
+                )
+            if redeem_not_ready(detail):
+                return FillResult(
+                    False,
+                    "redeem_wait",
+                    "live",
+                    detail,
+                    {"condition_id": cid, "wait": True, "held": held},
                 )
             return FillResult(False, "redeem_error", "live", detail, {"condition_id": cid})
 
