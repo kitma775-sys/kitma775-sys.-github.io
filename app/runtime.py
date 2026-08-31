@@ -975,25 +975,27 @@ async def _hunt_loop(rt: Runtime) -> None:
 
 
 async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
-    """Sell weak BTC 5m TWAP inventory at the bid-walk VWAP. Never hedge the other side."""
+    """Sell weak 5m TWAP inventory at the bid-walk VWAP. Never hedge the other side.
+
+    Paper `twap` and live `twap_live` stay on separate rows. Scratch only
+    walks the current mode's inventory so a Telegram live flip cannot dump
+    paper leftovers through the CLOB.
+    """
     s = rt.settings()
     params = default_params(s)
     rescore = setting_num(s, "twap_rescore_seconds", 15.0)
-    live = {ev["condition_id"]: ev for ev in events if ev.get("condition_id")}
+    by_cid = {ev["condition_id"]: ev for ev in events if ev.get("condition_id")}
     n = 0
     now = time.time()
-    live = rt.mode() == "live"
-    for inv in list(rt.store.inventory_open()):
+    for inv in list(mode_inventory(rt)):
         kind = str(inv.get("kind") or "")
         if not kind.startswith("twap"):
-            continue
-        if is_live_inventory_kind(kind) != live:
             continue
         cid = str(inv.get("condition_id") or "")
         if now - rt._twap_scored.get(cid, 0.0) < rescore:
             continue
         rt._twap_scored[cid] = now
-        ev = live.get(cid)
+        ev = by_cid.get(cid)
         if ev is None:
             continue
         up, down = float(inv.get("up") or 0), float(inv.get("down") or 0)

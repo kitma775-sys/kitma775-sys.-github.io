@@ -646,6 +646,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev37 live-ready: persist TG live across restart when keys ready; isolate paper vs live inventory; FAK actual fill size; live circuit uses live dump/settle",
         )
+    if rev < 38:
+        store.patch_settings(strategy_rev=38)
+        store.add_event(
+            "info",
+            "rev38 TWAP scratch uses the event map again (do not overwrite it with the live bool); paper leftover stays isolated; keep stake and 6bps",
+        )
     return n
 
 
