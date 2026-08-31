@@ -1,0 +1,51 @@
+{
+  "researched_at_utc": "2026-08-31T05:18:25Z",
+  "live_rev": 32,
+  "ship_rev": 33,
+  "mode": "paper",
+  "force_paper": true,
+  "live_trading": false,
+  "paper": {
+    "equity": 509.783753,
+    "starting": 500.0,
+    "today_pnl": 0.618262
+  },
+  "rev32_ok": {
+    "uptime_s": 517,
+    "shards": "8+6",
+    "last_ws_error": null,
+    "http_pairs": 0,
+    "ws_pairs": 7,
+    "chainlink_age_ms_max": 400,
+    "ptb_n": 14,
+    "no_1013": true
+  },
+  "clob_vs_gamma": {
+    "note": "Gamma bestAsk is a stale mid. Live 5m pennies still print 0.50-0.68 while CLOB is 0.99/0.01.",
+    "bnb_5m": {"gamma_ask": 0.50, "outcome": [0.885, 0.115], "clob": [0.95, 0.08]},
+    "btc_15m": {"gamma_ask": 0.55, "outcome": [0.695, 0.305], "clob": [0.73, 0.28]},
+    "hype_15m": {"gamma_ask": 0.55, "outcome": [0.54, 0.46], "clob": [0.61, 0.50], "left": 695}
+  },
+  "holes": {
+    "ws_slots_locked_5m": {
+      "now": "all 7 current 5m off-band on CLOB; 15m left 695 so twap_window is correct",
+      "when_15m_hits_280s": "Rev 32 still fills 14 slots with 5m pennies; in-band 15m gets twap_ws_slot"
+    },
+    "gamma_best_ask_lie": {
+      "fix": "rank CLOB WS by outcomePrices (any leg in 45-55), not Gamma bestAsk"
+    }
+  },
+  "gate": {
+    "slug": "xrp-updown-5m-1788153300",
+    "ask": 1.0,
+    "reason": "twap_band",
+    "note": "WS CLOB is honest; Gamma would have shown ~0.68"
+  },
+  "do_not": [
+    "rank WS by Gamma bestAsk",
+    "raise 15m max_left without a 15m tape grid",
+    "copy pair-lock as $5 taker",
+    "drop 6bps / widen 45-55 / raise $5",
+    "enable live or reset paper"
+  ]
+}

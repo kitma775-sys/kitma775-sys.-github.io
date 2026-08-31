@@ -59,6 +59,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 33**：15m 入 12–280s 而且真正 45–55 時，唔好俾鎖死 1.00 嘅 5m 佔晒 14 個 CLOB 槽。訂閱改 **價帶優先**（`outcomePrices`，唔信 stale Gamma `bestAsk`；先 5m 再 15m）。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。
 - **Rev 32**：Rev 31 喺 **16 token 同之後 14 token** 仍然 1013。CLOB 拆 **兩條 socket × 8 token**、關掉 `initial_dump`、總 cap 14（7 隻 5m 唔再加 15m）、遠 15m 唔配對。規則仍然 45–55¢ / 6bps / scratch / $5。唔抄雙邊鎖倉。紙盤未重置、未開實盤。
 - **Rev 31**：Rev 30 喺 15m 入獵窗之後仍然訂 **28 token**，JP host ~2.5 分鐘後再 1013。而家 CLOB **有 PTB 先訂**、優先 5m、**最多 16 token**；下一窗唔再 HTTP 狂拉。規則仍然 45–55¢ / 6bps / scratch / $5。唔抄雙邊鎖倉。紙盤未重置、未開實盤。
 - **Rev 30**：頂級健康洞係 **CLOB 一次訂 70 token → 1013 slow consumer**、同 `twap_gate` 永遠揀最近完場（鎖死 1.00／15m 無 PTB）掩蓋真正 45–55 近成交。而家 CLOB 只訂獵窗（12–280s +45s 預熱）＋持倉／掛單；閘口揀 signal／lead／價帶而唔係最近盤；PTB 寫入 sqlite 跨重啟。規則仍然 45–55¢ / 6bps / scratch / $5。唔抄雙邊鎖倉。紙盤未重置、未開實盤。

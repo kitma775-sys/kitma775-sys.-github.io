@@ -15,7 +15,7 @@ from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import chainlink_symbols_for, default_params, future_listing, parse_window, should_scratch, slug_allowed, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
-from app.rescue import is_redeemable_market, plan_rescue, walk_dump
+from app.rescue import is_redeemable_market, parse_outcome_prices, plan_rescue, walk_dump
 from app.risk import approve
 from app.store import Store
 from app.universe import DEFAULT_ASSETS, DEFAULT_TAGS
@@ -90,6 +90,44 @@ _GATE_RANK = {
 }
 
 
+def ws_band_rank(ev: dict) -> int:
+    """Rank a book for scarce CLOB WS slots.
+
+    0 = either leg in 45–55, 1 = 40–60, 2 = unknown, 3 = locked/off-band.
+    Gamma bestAsk is a stale mid (live 5m pennies still print 0.50). Prefer
+    outcomePrices; fall back to bestAsk only when outcomes are missing.
+    """
+    prices: list[float] = []
+    raw = ev.get("outcome_prices")
+    if raw is None:
+        parsed = parse_outcome_prices(ev.get("outcomePrices"))
+        raw = None if parsed is None else [parsed[0], parsed[1]]
+    if isinstance(raw, (list, tuple)):
+        for x in raw:
+            try:
+                p = float(x)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 < p < 1.5:
+                prices.append(p)
+    if not prices:
+        try:
+            px = ev.get("best_ask")
+            if px is not None and px != "":
+                p = float(px)
+                if 0.0 < p < 1.5:
+                    prices.append(p)
+        except (TypeError, ValueError):
+            pass
+    if not prices:
+        return 2
+    if any(0.45 - 1e-12 <= p <= 0.55 + 1e-12 for p in prices):
+        return 0
+    if any(0.40 - 1e-12 <= p <= 0.60 + 1e-12 for p in prices):
+        return 1
+    return 3
+
+
 def ws_wanted_tokens(
     events: list[dict],
     *,
@@ -102,8 +140,8 @@ def ws_wanted_tokens(
 ) -> list[str]:
     """CLOB market WS: scarce slots for books we can actually lift.
 
-    28 tokens (7×5m + 7×15m) still 1013'd on the JP host after ~2.5 min.
-    Require a locked PTB (inventory always), prefer 5m, cap at 16 tokens.
+    14 tokens on two sockets. Require a locked PTB (inventory always).
+    Prefer in-band 45–55 books (5m then 15m) over locked 5m pennies.
     """
     hold = {str(x) for x in (hold_condition_ids or ()) if x}
     ptb = None if ptb_slugs is None else {str(x) for x in ptb_slugs if x}
@@ -127,8 +165,7 @@ def ws_wanted_tokens(
         return True
 
     must: list[dict] = []
-    five: list[dict] = []
-    fifteen: list[dict] = []
+    rest: list[tuple[int, int, dict]] = []
     for ev in events:
         cid = str(ev.get("condition_id") or "")
         if cid and cid in hold:
@@ -149,16 +186,13 @@ def ws_wanted_tokens(
             key = parsed.slug if parsed else ""
             if key not in ptb:
                 continue
-        if parsed is not None and parsed.horizon == "15m":
-            fifteen.append(ev)
-        else:
-            five.append(ev)
+        hz = 1 if parsed is not None and parsed.horizon == "15m" else 0
+        rest.append((ws_band_rank(ev), hz, ev))
 
     for ev in must:
         add_ev(ev)
-    for ev in five:
-        add_ev(ev)
-    for ev in fifteen:
+    rest.sort(key=lambda row: (row[0], row[1]))
+    for _rank, _hz, ev in rest:
         add_ev(ev)
     for tok in extra_tokens or []:
         t = str(tok or "")
@@ -1388,6 +1422,16 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["twap_skips"] = twap_skips
     tape["twap_gate"] = twap_gate
     tape["clob_ws_wanted_n"] = len(rt.books.wanted)
+    wanted_toks = set(rt.books.wanted)
+    tape["clob_ws_slugs"] = [
+        str(ev.get("slug") or "")
+        for ev in events
+        if str(ev.get("slug") or "")
+        and (
+            str(ev.get("up_token") or "") in wanted_toks
+            or str(ev.get("down_token") or "") in wanted_toks
+        )
+    ][:16]
     tape["last_ws_error"] = rt.last_ws_error or None
     tape["twap_ptb_n"] = len(rt.chainlink.ptb)
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.97)

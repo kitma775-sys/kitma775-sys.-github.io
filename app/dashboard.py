@@ -63,6 +63,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_gate": ((rt.last_loop or {}).get("tape") or {}).get("twap_gate"),
             "twap_skips": ((rt.last_loop or {}).get("tape") or {}).get("twap_skips"),
             "clob_ws_wanted_n": ((rt.last_loop or {}).get("tape") or {}).get("clob_ws_wanted_n", len(rt.books.wanted)),
+            "clob_ws_slugs": ((rt.last_loop or {}).get("tape") or {}).get("clob_ws_slugs") or [],
             "last_ws_error": rt.last_ws_error or None,
             "twap_ptb_n": len(rt.chainlink.ptb),
             "clob_rtt_ms": s.get("clob_rtt_ms"),

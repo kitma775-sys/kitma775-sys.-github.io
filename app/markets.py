@@ -8,6 +8,7 @@ import httpx
 
 from app.geo import interpret
 from app.hunter import Level
+from app.rescue import parse_outcome_prices
 from app.twap import parse_window
 from app.universe import (
     DEFAULT_ASSETS,
@@ -112,6 +113,7 @@ class MarketData:
                 continue
             fs = m.get("feeSchedule") if isinstance(m.get("feeSchedule"), dict) else {}
             parsed = parse_window(slug)
+            outcomes = parse_outcome_prices(m.get("outcomePrices"))
             picked.append(
                 {
                     "slug": slug,
@@ -126,6 +128,7 @@ class MarketData:
                     "neg_risk": bool(m.get("negRisk")),
                     "tag": tag,
                     "best_ask": m.get("bestAsk"),
+                    "outcome_prices": None if outcomes is None else [outcomes[0], outcomes[1]],
                     "volume24hr": float(m.get("volume24hr") or ev.get("volume24hr") or 0),
                     "seconds_left": seconds_left(end, now=now),
                     "twap_ok": parsed is not None,
