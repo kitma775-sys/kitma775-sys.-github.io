@@ -582,6 +582,35 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev34 5m-only multi-coin Chainlink TWAP; drop 15m/1H scan; keep 6bps scratch; keep paper; no live",
         )
+    if rev < 35:
+        store.patch_settings(
+            strategy_rev=35,
+            strategy_mode="twap",
+            maker_first=False,
+            maker_window_seconds=0.0,
+            taker_fok=True,
+            favorite_maker=False,
+            min_edge=0.02,
+            max_usd_per_trade=5.0,
+            twap_min_price=0.45,
+            twap_max_price=0.55,
+            twap_min_lead_bps=6.0,
+            twap_min_edge=0.04,
+            twap_min_left=12.0,
+            twap_max_left=280.0,
+            twap_scratch_p=0.48,
+            twap_lookback=60.0,
+            twap_rescore_seconds=15.0,
+            clob_rtt_ms=150.0,
+            tag="5M",
+            tags=["5M"],
+            twap_horizons=["5m"],
+            live_trading=False,
+        )
+        store.add_event(
+            "info",
+            "rev35 CLOB pre-warms next 5m in last 45s; drop locked-penny slots and leftover 15m PTB; keep 6bps scratch; keep paper; no live",
+        )
     return n
 
 

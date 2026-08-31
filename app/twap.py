@@ -154,7 +154,7 @@ def hunt_assets(s: dict | None = None) -> tuple[str, ...]:
 
 
 def hunt_horizons(s: dict | None = None) -> tuple[str, ...]:
-    """5M tag ∩ pinned TWAP horizons. Rev 34 pins 5m-only. 1H never hunts."""
+    """5M tag ∩ pinned TWAP horizons. Rev 34+ pins 5m-only. 1H never hunts."""
     d = s or {}
     pinned = set(_token_tuple(d.get("twap_horizons"), DEFAULT_TWAP_HORIZONS))
     tags = d.get("tags")

@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
-from app.twap import chainlink_symbols_for, default_params, future_listing, parse_window, should_scratch, slug_allowed, twap_entry_reason
+from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, parse_outcome_prices, plan_rescue, walk_dump
@@ -62,6 +62,8 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
 
 
 CORR_CLOCK = frozenset({"btc", "eth"})
+# Seconds before T0 to subscribe the next 5m book. Hunt still skips future_listing.
+# +5s matches future_listing slack so a 45.1s-to-open print is not missed.
 WS_HUNT_BUFFER_S = 45.0
 WS_MAX_TOKENS = 14
 WS_TOKENS_PER_SOCKET = 8
@@ -128,6 +130,21 @@ def ws_band_rank(ev: dict) -> int:
     return 3
 
 
+def ws_prewarm_future(
+    left: float | None,
+    window_seconds: int,
+    buffer_s: float = WS_HUNT_BUFFER_S,
+) -> bool:
+    """Subscribe the next window in the last `buffer_s` before T0.
+
+    `left` is seconds until END, so time-to-open is `left - window`.
+    Hunt still skips `future_listing`; this is WS pre-warm only.
+    """
+    if not future_listing(left, window_seconds):
+        return False
+    return float(left) <= float(window_seconds) + float(buffer_s) + 5.0
+
+
 def ws_wanted_tokens(
     events: list[dict],
     *,
@@ -140,8 +157,10 @@ def ws_wanted_tokens(
 ) -> list[str]:
     """CLOB market WS: scarce slots for books we can actually lift.
 
-    14 tokens on two sockets. Require a locked PTB (inventory always).
-    Prefer in-band 45–55 5m books. 15m/1H are not in the hunt set.
+    14 tokens on two sockets. Inventory always.
+    Next 5m: last 45s before T0, no PTB (open print does not exist yet).
+    Current: need PTB; drop locked pennies so they cannot occupy all 14.
+    Hunt still skips future_listing / twap_no_ptb. 15m/1H are not in the hunt set.
     """
     hold = {str(x) for x in (hold_condition_ids or ()) if x}
     ptb = None if ptb_slugs is None else {str(x) for x in ptb_slugs if x}
@@ -165,7 +184,7 @@ def ws_wanted_tokens(
         return True
 
     must: list[dict] = []
-    rest: list[tuple[int, int, dict]] = []
+    rest: list[tuple[int, int, int, dict]] = []
     for ev in events:
         cid = str(ev.get("condition_id") or "")
         if cid and cid in hold:
@@ -176,9 +195,18 @@ def ws_wanted_tokens(
             continue
         parsed = parse_window(slug)
         left = seconds_left(ev.get("end"))
-        if parsed is not None and future_listing(left, parsed.window_seconds):
-            continue
         if left is None:
+            continue
+        rank = ws_band_rank(ev)
+        hz = 1 if parsed is not None and parsed.horizon == "15m" else 0
+        win = parsed.window_seconds if parsed is not None else 300
+        if parsed is not None and future_listing(left, win):
+            if not ws_prewarm_future(left, win, buffer_s):
+                continue
+            if rank == 3:
+                continue
+            # Pre-warm first so locked current pennies cannot fill the cap.
+            rest.append((0, rank, hz, ev))
             continue
         if float(left) > float(params.max_left) + float(buffer_s):
             continue
@@ -186,13 +214,14 @@ def ws_wanted_tokens(
             key = parsed.slug if parsed else ""
             if key not in ptb:
                 continue
-        hz = 1 if parsed is not None and parsed.horizon == "15m" else 0
-        rest.append((ws_band_rank(ev), hz, ev))
+        if rank == 3:
+            continue
+        rest.append((1, rank, hz, ev))
 
     for ev in must:
         add_ev(ev)
-    rest.sort(key=lambda row: (row[0], row[1]))
-    for _rank, _hz, ev in rest:
+    rest.sort(key=lambda row: (row[0], row[1], row[2]))
+    for _tier, _rank, _hz, ev in rest:
         add_ev(ev)
     for tok in extra_tokens or []:
         t = str(tok or "")
@@ -419,13 +448,19 @@ class Runtime:
             return
         self.store.kv_set(f"ptb:{parsed.slug}", json.dumps({"px": float(px), "ts": time.time()}))
 
+    def _ptb_horizon_ok(self, parsed) -> bool:
+        if parsed is None:
+            return False
+        allowed = set(hunt_horizons(self.settings()) or ("5m",))
+        return parsed.horizon in allowed
+
     def _load_persisted_ptb(self) -> None:
         now = time.time()
         mapping: dict[str, float] = {}
         for key, raw in self.store.kv_prefix("ptb:").items():
             slug = key[4:]
             parsed = parse_window(slug)
-            if parsed is None:
+            if parsed is None or not self._ptb_horizon_ok(parsed):
                 self.store.kv_delete(key)
                 continue
             end = parsed.start + parsed.window_seconds
@@ -445,7 +480,8 @@ class Runtime:
         now = time.time()
         for slug in list(self.chainlink.ptb):
             parsed = parse_window(slug)
-            if parsed is None or parsed.start + parsed.window_seconds < now - 120:
+            stale = parsed is None or parsed.start + parsed.window_seconds < now - 120
+            if stale or not self._ptb_horizon_ok(parsed):
                 self.chainlink.ptb.pop(slug, None)
                 self.store.kv_delete(f"ptb:{slug}")
 
