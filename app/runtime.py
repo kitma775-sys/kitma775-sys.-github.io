@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
-from app.twap import CHAINLINK_SYMBOL, default_params, is_btc_5m, parse_5m, should_scratch, twap_entry_reason
+from app.twap import CHAINLINK_SYMBOL, default_params, parse_5m, should_scratch, slug_allowed, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue, walk_dump
@@ -455,7 +455,8 @@ async def _chainlink_loop(rt: Runtime) -> None:
                 rt.chainlink_status = "connected"
                 rt.chainlink.last_error = ""
                 backoff = 1.0
-                await ws.send(rt.chainlink.subscribe_frame())
+                for frame in rt.chainlink.subscribe_frames():
+                    await ws.send(frame)
                 ping = asyncio.create_task(_rtds_ping(ws))
                 last_mode_check = 0.0
                 try:
@@ -673,9 +674,13 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if circuit:
             continue
-        if not is_btc_5m(str(ev.get("slug") or "")):
+        slug = str(ev.get("slug") or "")
+        if not slug_allowed(slug, twap_params):
             continue
-        if favorite_same_window_open(rt, str(ev.get("slug") or "")):
+        left_now = seconds_left(ev.get("end"))
+        if left_now is not None and left_now > 305:
+            continue
+        if favorite_same_window_open(rt, slug):
             continue
         inv = rt.store.inventory_one(ev["condition_id"])
         max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))
@@ -713,7 +718,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         except Exception as exc:
             rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
             continue
-        if is_btc_5m(str(ev.get("slug") or "")):
+        if slug_allowed(str(ev.get("slug") or ""), twap_params):
             gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup, chainlink=rt.chainlink)
             why = str(gate.get("reason") or "skip")
             twap_skips[why] = twap_skips.get(why, 0) + 1
@@ -776,7 +781,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             twap_min_price=setting_num(s, "twap_min_price", 0.45),
             twap_max_price=setting_num(s, "twap_max_price", 0.55),
             twap_min_left=setting_num(s, "twap_min_left", 12.0),
-            twap_max_left=setting_num(s, "twap_max_left", 180.0),
+            twap_max_left=setting_num(s, "twap_max_left", 280.0),
         )
         payload = {
             "title": setup.title,
@@ -891,7 +896,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 twap_min_price=setting_num(s, "twap_min_price", 0.45),
                 twap_max_price=setting_num(s, "twap_max_price", 0.55),
                 twap_min_left=setting_num(s, "twap_min_left", 12.0),
-                twap_max_left=setting_num(s, "twap_max_left", 180.0),
+                twap_max_left=setting_num(s, "twap_max_left", 280.0),
             )
             if not resized.ok:
                 fok_kills += 1
@@ -1028,6 +1033,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     cl = rt.chainlink.public()
     btc = (cl.get("symbols") or {}).get("btc/usd") or {}
     tape["chainlink_btc"] = btc.get("px")
+    eth = (cl.get("symbols") or {}).get("eth/usd") or {}
+    tape["chainlink_eth"] = eth.get("px")
     tape["chainlink_age_ms"] = cl.get("age_ms")
     tape["twap_skips"] = twap_skips
     tape["twap_gate"] = twap_gate

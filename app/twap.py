@@ -106,7 +106,7 @@ class TwapParams:
     min_lead_bps: float = 6.0
     min_edge: float = 0.04
     min_left: float = 12.0
-    max_left: float = 180.0
+    max_left: float = 280.0
     max_spread: float = 0.04
     max_age_ms: float = 3000.0
     min_ticks: int = 20
@@ -114,7 +114,7 @@ class TwapParams:
     scratch_p: float = 0.48
     scratch_min_bid: float = 0.38
     scratch_left_min: float = 8.0
-    assets: tuple[str, ...] = ("btc",)
+    assets: tuple[str, ...] = ("btc", "eth")
 
 
 def default_params(s: dict | None = None) -> TwapParams:
@@ -126,17 +126,17 @@ def default_params(s: dict | None = None) -> TwapParams:
             return float(fallback)
         return float(v)
 
-    assets = d.get("twap_assets") or ("btc",)
+    assets = d.get("twap_assets") or ("btc", "eth")
     if isinstance(assets, str):
         assets = [a.strip().lower() for a in assets.split(",") if a.strip()]
-    assets = tuple(str(a).lower() for a in assets if str(a).strip()) or ("btc",)
+    assets = tuple(str(a).lower() for a in assets if str(a).strip()) or ("btc", "eth")
     return TwapParams(
         min_price=num("twap_min_price", MID_LO),
         max_price=num("twap_max_price", MID_HI),
         min_lead_bps=num("twap_min_lead_bps", 6.0),
         min_edge=num("twap_min_edge", 0.04),
         min_left=num("twap_min_left", 12.0),
-        max_left=num("twap_max_left", 180.0),
+        max_left=num("twap_max_left", 280.0),
         max_spread=num("twap_max_spread", 0.04),
         max_age_ms=num("twap_max_age_ms", 3000.0),
         min_ticks=int(num("twap_min_ticks", 20)),

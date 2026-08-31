@@ -19,13 +19,15 @@ TG_MAX = 3900
 def _strategy_label(s: dict) -> str:
     lo = float(s.get("twap_min_price") or 0.45)
     hi = float(s.get("twap_max_price") or 0.55)
-    return f"TWAP 中間價 {lo:.2f}–{hi:.2f} BTC 5m"
+    assets = [str(a).upper() for a in (s.get("twap_assets") or ["btc", "eth"]) if str(a).strip()]
+    names = "+".join(assets) or "BTC+ETH"
+    return f"TWAP 中間價 {lo:.2f}–{hi:.2f} {names} 5m"
 
 
 def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
     return (
-        f"Rev {rev}：只做 BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘 12–180s，lead ≥6 bps，弱倉 scratch。"
+        f"Rev {rev}：BTC+ETH 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘 12–280s，lead ≥6 bps，弱倉 scratch。"
         "紙盤＝實盤 CLOB FAK dry-run（買 USDC amount+max_price，scratch 賣 shares+min_price，FOK 後 RTT 重走簿）。"
         "唔做 YES+NO 互補，唔做大熱 97–98。FOK 開、maker 關。Redeem 等官方 0/1。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。"
@@ -377,10 +379,10 @@ def _status_text(rt: Runtime) -> str:
         + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status} · Chainlink {rt.chainlink_status}\n"
         + f"{_strategy_label(s)}（鎖定，唔做互補／大熱）\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 180):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f}\n"
+        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 280):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f}\n"
         + f"FOK {'開' if s.get('taker_fok', True) else '關'} · RTT {float(s.get('clob_rtt_ms') or 150):.0f}ms · redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '5M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
-        + f"幣：{assets or '全部'}（TWAP 只入場 BTC 5m）"
+        + f"幣：{assets or '全部'}（TWAP 入場 BTC+ETH 5m）"
     )
 
 

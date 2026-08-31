@@ -121,7 +121,7 @@
         tile(s.taker_fok===false ? "關" : "開", "延遲確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
-        tile("TWAP BTC 5m", "策略"),
+        tile("TWAP " + ((s.twap_assets||["btc","eth"]).join("+").toUpperCase()) + " 5m", "策略"),
         tile(d.chainlink_status || "off", "Chainlink"),
         tile((function(){
           const g = tape.twap_gate || {};
@@ -132,7 +132,7 @@
           return (left + lead + ask + g.reason).trim();
         })(), "TWAP 閘"),
         tile((Number(s.twap_min_price||0.45)*100).toFixed(0) + "–" + (Number(s.twap_max_price||0.55)*100).toFixed(0) + "¢", "TWAP 價帶"),
-        tile("≥" + Number(s.twap_min_lead_bps||6).toFixed(0) + "bps / " + Number(s.twap_min_left||12).toFixed(0) + "–" + Number(s.twap_max_left||180).toFixed(0) + "s", "lead／剩餘窗"),
+        tile("≥" + Number(s.twap_min_lead_bps||6).toFixed(0) + "bps / " + Number(s.twap_min_left||12).toFixed(0) + "–" + Number(s.twap_max_left||280).toFixed(0) + "s", "lead／剩餘窗"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
         tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),

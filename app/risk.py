@@ -42,7 +42,7 @@ def approve(
     twap_min_price: float = 0.45,
     twap_max_price: float = 0.55,
     twap_min_left: float = 12.0,
-    twap_max_left: float = 180.0,
+    twap_max_left: float = 280.0,
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")

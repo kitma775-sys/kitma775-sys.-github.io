@@ -59,7 +59,8 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
-- **Rev 26**：引擎鎖定 **BTC 5m Chainlink TWAP**。唔再 hunt YES+NO 互補、唔再買大熱 97–98。Telegram／Dashboard 收乾舊策略掣。TWAP 規則（45–55¢、6bps、12–180s、scratch、CLOB FAK）唔改。紙盤未重置、未開實盤。
+- **Rev 27**：TWAP 剩餘窗開到 **280s**（頂級方向盤中位 ~165–183s；6bps 下 280s 唔係 2bps 垃圾單）。**ETH 5m** 用同一套 45–55¢ / 6bps / scratch。價帶唔放寬到 60¢（train PnL 差過 45–55）。唔降 6bps、唔抄雙邊鎖倉、唔開大熱。Chainlink 每個 symbol 獨立 subscribe。詳情 `research/twap_freq.json`。紙盤未重置、未開實盤。
+- **Rev 26**：引擎鎖定 **BTC 5m Chainlink TWAP**。唔再 hunt YES+NO 互補、唔再買大熱 97–98。Telegram／Dashboard 收乾舊策略掣。當時 TWAP 規則 45–55¢、6bps、12–180s。紙盤未重置、未開實盤。
 - **Rev 25**：紙盤成交＝實盤 CLOB FAK dry-run。BUY 用官方 **USDC `amount` + `max_price`**（唔再用 `shares`，真錢會被 client 拒絕）；scratch **SELL `shares` + `min_price`**（紙盤都會行同一條 dump，唔再只記帳）。FOK 確認後再等 **`clob_rtt_ms=150`** 重走簿、唔 requote；盤走咗就 `clob_rtt_miss`。TWAP 仍然 180s / 6bps / scratch。紙盤未重置、未開實盤。
 - **Rev 24**：TWAP 窗開到 **剩餘 180s**（抄頂級方向盤戶中位入場 ~160–210s），仍然 **lead ≥6 bps + scratch**。唔抄分時雙邊鎖倉（7% taker 費後 −EV）、唔延遲跟單。詳情 `research/copy_top.json`。紙盤未重置、未開實盤。
 - **Rev 23**：預設 **BTC 5m 官方 Chainlink 60s TWAP vs 窗開價**（`strategy_mode=twap`）。只喺 **45–55¢**、lead ≥6 bps、當時剩餘 12–120s、fair P 清 ask+費+0.04 先入場；每 15s 重估，弱倉 **scratch 出貨、唔對沖**。YES+NO 互補洞仍然會先吃（`min_edge=0.02`、FOK、maker 關）。大熱 97–98 仍停、Telegram 可切回。紙盤未重置、未開實盤。同源校準 `research/twap_engine.json`（train +$78 / holdout +$155）；**唔好用 Binance 減 Gamma PTB**（~9 bps 基差）。RTDS `wss://ws-live-data.polymarket.com` topic `crypto_prices_chainlink`。中途加入要等到下一個 5 分鐘開盤先鎖 PTB。
@@ -92,7 +93,7 @@ FORCE_PAPER=true
 - **30 日 BTC+ETH 97–98¢ 反轉解剖**：`python3 research/reverse_30d.py`（公開 Gamma／trades，cache `/tmp/reverse_30d_cache`）。尾 60s 第一手 97–98¢、$5、每 5 分鐘窗一注，費後反轉損益平衡 97¢ ≈ 2.80%、98¢ ≈ 1.86%。一個月樣本反轉 ~2.9%，PnL 略負。成交當刻 tape 同贏盤幾乎一樣；真反轉約 91% 係入場後先砸到 90¢。完場成交量高係砸盤結果（前視），唔好用嚟濾盤。Holdout 先轉正嘅 filter（跳過第一 tick、只做 BTC、跳過某幾個 UTC 鐘）全樣本唔穩，**唔好當 hunter 訊號**。詳情 `research/reverse_30d.json` 嘅 `findings`。
 - **預測反轉（PTB + 1s 現貨）**：`python3 research/reverse_predict.py`。官方 `priceToBeat`／`finalPrice` 加 Binance 1 秒路徑。同源 TWAP 收市方向同官方贏家一致 ~96.5%；Binance 減 Chainlink PTB 唔得（~9 bps 基差）。入場時贏／輸盤 lead 同 Brownian fair P 幾乎一樣（fair≈87% vs 付 97¢）。**冇高精度事前 skip**。詳情 `research/reverse_predict.json`。
 - **5 分鐘頂層贏家 vs TWAP 中間價**：`python3 research/top_5m.py`。CRYPTO 週榜真正打 5m 嘅錢包多數喺 **0.47–0.57 雙邊累積**，唔係抬 97¢。無 scratch 嘅 hold-to-settle follow（`follow_2bps`）train −EV、holdout 先轉正，**唔上線**。Rev 23 改用官方 Chainlink + scratch，校準 `python3 research/twap_engine.py` → `research/twap_engine.json`。同期大熱 97–98 仍然略負。
-- **複製頂級戶（閉倉拆 lock vs leftover）**：`python3 research/copy_top.py`。鎖倉收割機（1000monkeys 等）分時買齊兩面、pair VWAP<$1，但 **$5 taker 7% 費後 −EV**；延遲 2s 跟單亦 −EV。PnL 更大嘅係方向盤戶（honey-spot 等），中位剩餘 ~165s。Rev 24 只抄入場時間：TWAP max_left **180s**，keep 6bps+scratch。詳情 `research/copy_top.json`。
+- **複製頂級戶（閉倉拆 lock vs leftover）**：`python3 research/copy_top.py`。鎖倉收割機分時買齊兩面、pair VWAP<$1，但 **$5 taker 7% 費後 −EV**。PnL 更大嘅係方向盤戶，中位剩餘 ~165s。Rev 27 抄入場時間：TWAP max_left **280s** + ETH 5m，keep 6bps+scratch+45–55¢。詳情 `research/copy_top.json`、`research/twap_freq.json`。
 - 權益 = 現金 + 凍結掛單 + 可 merge 對數 × $1（互補未配對倉 = $0；大熱／TWAP 單腿按成本計到官方結算或 scratch）；累計 PnL = 權益 − 本金
 
 呢個唔係投資建議。遵守當地法律同 Polymarket geoblock。

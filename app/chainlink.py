@@ -58,22 +58,33 @@ class ChainlinkTape:
         self.last_error = ""
         self.msg_n = 0
 
-    def subscribe_frame(self) -> str:
+    def subscribe_frames(self) -> list[str]:
         # Compact filters are required. `json.dumps` default spacing
         # (`{"symbol": "btc/usd"}`) only gets a snapshot, no live updates.
-        return json.dumps(
-            {
-                "action": "subscribe",
-                "subscriptions": [
+        # One symbol per frame: a combined subscriptions array was leaving
+        # eth/usd stuck on the initial snapshot.
+        frames: list[str] = []
+        for sym in self.symbols:
+            frames.append(
+                json.dumps(
                     {
-                        "topic": CHAINLINK_TOPIC,
-                        "type": "*",
-                        "filters": json.dumps({"symbol": sym}, separators=(",", ":")),
-                    }
-                    for sym in self.symbols
-                ],
-            }
-        )
+                        "action": "subscribe",
+                        "subscriptions": [
+                            {
+                                "topic": CHAINLINK_TOPIC,
+                                "type": "*",
+                                "filters": json.dumps({"symbol": sym}, separators=(",", ":")),
+                            }
+                        ],
+                    },
+                    separators=(",", ":"),
+                )
+            )
+        return frames
+
+    def subscribe_frame(self) -> str:
+        frames = self.subscribe_frames()
+        return frames[0] if frames else "{}"
 
     def age_ms(self, symbol: str | None = None) -> float:
         if symbol:

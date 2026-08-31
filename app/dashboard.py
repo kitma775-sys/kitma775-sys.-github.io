@@ -28,6 +28,7 @@ def create_app(rt: Runtime) -> FastAPI:
         paper = rt.store.paper_state() if rt.mode() == "paper" else None
         cl = rt.chainlink.public()
         btc = (cl.get("symbols") or {}).get("btc/usd") or {}
+        eth = (cl.get("symbols") or {}).get("eth/usd") or {}
         return {
             "ok": True,
             "mode": rt.mode(),
@@ -35,6 +36,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "ws_status": rt.ws_status,
             "chainlink_status": rt.chainlink_status,
             "chainlink_btc": btc.get("px"),
+            "chainlink_eth": eth.get("px"),
             "chainlink_age_ms": cl.get("age_ms"),
             "live_trading": bool(s.get("live_trading")),
             "force_paper": bool(rt.env.force_paper),
@@ -51,6 +53,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_min_edge": s.get("twap_min_edge"),
             "twap_min_left": s.get("twap_min_left"),
             "twap_max_left": s.get("twap_max_left"),
+            "twap_assets": s.get("twap_assets") or ["btc", "eth"],
             "twap_gate": ((rt.last_loop or {}).get("tape") or {}).get("twap_gate"),
             "twap_skips": ((rt.last_loop or {}).get("tape") or {}).get("twap_skips"),
             "clob_rtt_ms": s.get("clob_rtt_ms"),
