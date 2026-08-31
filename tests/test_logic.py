@@ -2552,6 +2552,87 @@ def test_already_redeemed_helper():
     assert already_redeemed("nothing to redeem")
     assert not already_redeemed("nonce too low")
     assert not already_redeemed("")
+    assert not already_redeemed("Gasless transactions require a Builder API Key")
+
+
+def test_live_redeem_empty_position_counts_as_settled():
+    import asyncio
+
+    from app.broker import LiveBroker
+
+    class Boom(Exception):
+        pass
+
+    class FakeClient:
+        async def redeem_positions(self, condition_id):
+            raise Boom("Gasless transactions require a Builder API Key or Relayer API Key.")
+
+    broker = LiveBroker("0xabc", wallet="0xC8a8dEF991F2FC0fa7322b9374A682848615b3db")
+    broker._client = FakeClient()
+
+    async def empty(_cid):
+        return 0.0
+
+    broker.condition_token_size = empty
+    result = asyncio.run(broker.redeem("0xdfb67e96ca73a866757ddfda21ca9be1a4c9cb4d7483d945d77f0ae668237200"))
+    assert result.ok is True
+    assert result.payload["already"] is True
+
+    async def held(_cid):
+        return 6.8
+
+    broker.condition_token_size = held
+    stuck = asyncio.run(broker.redeem("0x601e6540403f71a02a3bbec796423f006c2df9eaf4545b4100376f9981b769ae"))
+    assert stuck.ok is False
+    assert "Builder API Key" in stuck.detail
+
+
+def test_live_redeem_already_empty_clears_twap_live(tmp_path):
+    import asyncio
+
+    from app.broker import FillResult
+    from app.config import Env
+    from app.runtime import Runtime, _redeem_resolved
+
+    class Spy:
+        mode = "live"
+
+        async def redeem(self, condition_id):
+            return FillResult(
+                True,
+                "redeemed",
+                "live",
+                "already empty",
+                {"condition_id": condition_id, "already": True},
+            )
+
+        async def list_redeemable(self):
+            return []
+
+    st = Store(tmp_path / "live-redeem-empty.sqlite")
+    st.ensure_paper(500)
+    st.add_inventory(
+        "0xhype",
+        "hype-updown-5m-1788174300",
+        0.0,
+        6.857141,
+        kind="twap_live",
+        cost=2.88,
+    )
+    st.patch_settings(live_trading=True, auto_redeem=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.skip_live_preflight = True
+    rt._broker = Spy()
+    rt._broker_mode = "live"
+    rt.data = _FakeGamma(
+        {"hype-updown-5m-1788174300": {"closed": True, "markets": [{"closed": True, "outcomePrices": ["0", "1"]}]}}
+    )
+    n = asyncio.run(_redeem_resolved(rt))
+    assert n == 1
+    assert st.inventory_open() == []
+    trade = st.recent_trades(1)[0]
+    assert trade["status"] == "redeemed"
+    assert abs(float(trade["net"]) - (6.857141 - 2.88)) < 1e-5
 
 
 def test_is_redeemable_market_waits_for_decided_prices():
@@ -3690,7 +3771,13 @@ def test_scratch_twap_dumps_live_inventory(tmp_path):
     assert spy.sells == [("d", 10.0, 0.5)]
     assert st.inventory_one("cid-btc")["down"] <= 0.01
     assert abs(float(st.inventory_one("cid-paper")["down"]) - 8.0) < 1e-9
-    assert st.recent_trades(1)[0]["status"] == "dumped"
+    trade = st.recent_trades(1)[0]
+    assert trade["status"] == "dumped"
+    from app.fees import taker_fee
+
+    fee = taker_fee(10.0, 0.48, 0.07)
+    assert abs(float(trade["net"]) - (4.8 - fee - 5.0)) < 1e-5
+    assert abs(float(trade["payload"]["proceeds"]) - (4.8 - fee)) < 1e-5
 
 
 def test_is_clob_unavailable_matches_503_and_disabled():
@@ -5442,18 +5529,24 @@ def test_chainlink_15m_ptb_and_sol_symbol():
 
 
 def test_twap_conflict_locks_same_asset_across_horizons(tmp_path):
+    import time
+
     from app.config import Env
     from app.runtime import Runtime, twap_conflict_open
 
     st = Store(tmp_path / "conflict.sqlite")
     st.ensure_paper(500)
-    st.add_inventory("c-btc5", "btc-updown-5m-1787981100", 5.0, 0.0, kind="twap", cost=5.0)
+    now = int(time.time())
+    start5 = now - (now % 300)
+    st.add_inventory("c-btc5", f"btc-updown-5m-{start5}", 5.0, 0.0, kind="twap", cost=5.0)
     rt = Runtime(st, Env())
-    assert twap_conflict_open(rt, "btc-updown-15m-1787980800") is True
-    assert twap_conflict_open(rt, "eth-updown-5m-1787981100") is True
-    assert twap_conflict_open(rt, "eth-updown-5m-1787981400") is False
-    assert twap_conflict_open(rt, "sol-updown-15m-1787980800") is False
-    assert twap_conflict_open(rt, "sol-updown-5m-1787981100") is False
+    assert twap_conflict_open(rt, f"btc-updown-15m-{start5}") is True
+    assert twap_conflict_open(rt, f"eth-updown-5m-{start5}") is True
+    assert twap_conflict_open(rt, f"eth-updown-5m-{start5 + 300}") is False
+    assert twap_conflict_open(rt, f"sol-updown-15m-{start5}") is False
+    assert twap_conflict_open(rt, f"sol-updown-5m-{start5}") is False
+    st.add_inventory("c-xrp-old", "xrp-updown-5m-1000", 5.0, 0.0, kind="twap", cost=2.6)
+    assert twap_conflict_open(rt, f"xrp-updown-5m-{start5}") is False
 
 
 def test_pick_markets_prefers_twap_window_over_penny_tail():

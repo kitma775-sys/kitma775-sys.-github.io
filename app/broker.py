@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -108,6 +110,39 @@ def already_redeemed(detail: str) -> bool:
         "insufficient token",
     )
     return any(n in text for n in needles)
+
+
+def _looks_eth_address(raw: str | None) -> bool:
+    text = str(raw or "").strip()
+    return text.startswith("0x") and len(text) == 42
+
+
+def _data_api_position_size(user: str, condition_id: str) -> float | None:
+    """Public positions. None = request failed; 0 = wallet no longer holds the cid."""
+    addr = str(user or "").strip()
+    cid = str(condition_id or "").strip().lower()
+    if not _looks_eth_address(addr) or not cid:
+        return None
+    url = f"https://data-api.polymarket.com/positions?user={addr}&sizeThreshold=0"
+    req = urllib.request.Request(url, headers={"User-Agent": "surf-arb"})
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:
+        return None
+    if not isinstance(data, list):
+        return None
+    total = 0.0
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        other = str(row.get("conditionId") or row.get("condition_id") or "").strip().lower()
+        if other == cid:
+            try:
+                total += float(row.get("size") or 0)
+            except (TypeError, ValueError):
+                continue
+    return total
 
 
 def buy_fak_kwargs(*, token_id: str, price: float, shares: float) -> dict:
@@ -367,6 +402,44 @@ class LiveBroker:
         except Exception as exc:
             return FillResult(False, "merge_error", "live", str(exc)[:300], {})
 
+    def _wallet_address(self, client=None) -> str | None:
+        if _looks_eth_address(self.wallet):
+            return str(self.wallet).strip()
+        obj = client if client is not None else self._client
+        if obj is None:
+            return None
+        ctx = getattr(obj, "_ctx", None)
+        wallet = getattr(ctx, "wallet", None) if ctx is not None else None
+        for cand in (wallet, getattr(obj, "wallet", None), getattr(obj, "funder", None)):
+            if cand is None:
+                continue
+            if isinstance(cand, str) and _looks_eth_address(cand):
+                return cand.strip()
+            for attr in ("address", "safe_address", "proxy_address", "funder"):
+                val = getattr(cand, attr, None)
+                if _looks_eth_address(str(val or "")):
+                    return str(val).strip()
+        return None
+
+    async def condition_token_size(self, condition_id: str) -> float | None:
+        """Shares still held for this condition. 0 means sqlite should settle."""
+        cid = str(condition_id or "").strip()
+        if not cid:
+            return None
+        client = self._client
+        addr = self._wallet_address(client)
+        if not addr and client is None:
+            try:
+                client = await self._client_ready()
+            except Exception:
+                client = None
+            addr = self._wallet_address(client)
+        if addr:
+            held = _data_api_position_size(addr, cid)
+            if held is not None:
+                return held
+        return None
+
     async def redeem(self, condition_id: str) -> FillResult:
         cid = str(condition_id or "").strip()
         if not cid:
@@ -379,6 +452,18 @@ class LiveBroker:
         except Exception as exc:
             detail = str(exc)[:300]
             if already_redeemed(detail):
+                return FillResult(
+                    True,
+                    "redeemed",
+                    "live",
+                    "already empty",
+                    {"condition_id": cid, "already": True},
+                )
+            try:
+                held = await self.condition_token_size(cid)
+            except Exception:
+                held = None
+            if held is not None and held < 0.01:
                 return FillResult(
                     True,
                     "redeemed",

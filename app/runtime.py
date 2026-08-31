@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
-from app.fees import taker_cash
+from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
@@ -541,10 +541,12 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
 
     SOL/XRP/BNB/HYPE/DOGE at the same 5m unix do not block each other — top
     directional books run many coins in parallel. Pair-lock taker stays off.
+    Ended leftover (pending website redeem) must not brick the next 5m.
     """
     parsed = parse_window(slug)
     if not parsed:
         return favorite_same_window_open(rt, slug)
+    now = time.time()
     for row in mode_inventory(rt):
         other = str(row.get("slug") or "")
         if not other or other == slug:
@@ -552,8 +554,11 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
         peer = parse_window(other)
         if not peer:
             continue
+        peer_live = now < float(peer.start + peer.window_seconds)
         if peer.asset == parsed.asset:
-            return True
+            if peer_live or peer.start == parsed.start:
+                return True
+            continue
         if peer.horizon == parsed.horizon and peer.start == parsed.start:
             if {peer.asset, parsed.asset} <= CORR_CLOCK:
                 return True
@@ -2457,14 +2462,24 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
             cash_out_f = float(cash_out) if cash_out is not None else round(float(plan.cash_out) * frac, 6)
         except (TypeError, ValueError):
             cash_out_f = round(float(plan.cash_out) * frac, 6)
-        pnl = round(float(plan.pnl) * frac, 6)
+        fee_rate = float(s.get("fee_rate") or 0.07)
+        fill_px = round(cash_out_f / sold, 4) if sold > 0 and cash_out is not None else round(float(plan.price or 0), 4)
+        sell_fee = float(plan.fees or 0)
+        if not paper_mode and cash_out is not None and sold > 0:
+            sell_fee = taker_fee(sold, cash_out_f / sold, fee_rate)
+            cash_out_f = round(max(0.0, cash_out_f - sell_fee), 6)
         up_take = sold if missing_side == "down" else 0.0
         dn_take = sold if missing_side == "up" else 0.0
+        before = rt.store.inventory_one(cid)
+        cost_before = float((before or {}).get("cost") or 0)
         rt.store.take_inventory(cid, up=up_take, down=dn_take)
+        after = rt.store.inventory_one(cid)
+        cost_taken = round(cost_before - float((after or {}).get("cost") or 0), 6)
+        pnl = round(cash_out_f - cost_taken, 6)
         if paper_mode:
             rt.store.paper_apply_credit(cash_out_f, realized=pnl)
         kind = str(row.get("kind") or "maker")
-        dump_px = round(float(plan.price or 0), 4)
+        dump_px = fill_px
         rt.store.add_trade(
             slug=slug,
             kind=kind,
@@ -2475,17 +2490,18 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
             mode=rt.mode(),
             status="paper_dumped" if paper_mode else "dumped",
             payload={
-                "detail": f"dump @{plan.price} floor {floor}",
-                "proceeds": cash_out_f,
-                "fees": plan.fees,
-                "floor_px": floor,
                 **(sell.payload or {}),
+                "detail": f"dump @{dump_px} floor {floor}",
+                "proceeds": cash_out_f,
+                "fees": sell_fee,
+                "floor_px": floor,
+                "cost_taken": cost_taken,
             },
         )
         if s.get("notify_signals"):
             flag = "🧪紙盤" if paper_mode else "🔴實盤"
             await rt.notify(
-                f"🧯 {flag} 單邊出貨 {slug}\n@{plan.price} 回籠 ${cash_out_f:.2f} · 淨 ${pnl:.2f}",
+                f"🧯 {flag} 單邊出貨 {slug}\n@{dump_px} 回籠 ${cash_out_f:.2f} · 淨 ${pnl:.2f}",
                 important=True,
             )
         return 1
@@ -2633,7 +2649,9 @@ async def _redeem_resolved(rt: Runtime) -> int:
         else:
             result = await rt.broker().redeem(cid)
         if not result.ok:
-            rt.cooldown[f"redeem:{cid}"] = now + 20.0
+            detail = str(result.detail or "")
+            wait = 120.0 if ("builder api key" in detail.lower() or "relayer api key" in detail.lower()) else 20.0
+            rt.cooldown[f"redeem:{cid}"] = now + wait
             rt.store.add_event("warn", f"redeem fail {job['slug'] or cid}: {result.detail}"[:220])
             continue
         rt.cooldown.pop(f"redeem:{cid}", None)
