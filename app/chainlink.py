@@ -61,6 +61,7 @@ class ChainlinkTape:
         self.last_msg_ts = 0.0
         self.last_error = ""
         self.msg_n = 0
+        self.persist_ptb = None
 
     def subscribe_frame_for(self, symbol: str) -> str:
         return json.dumps(
@@ -198,7 +199,28 @@ class ChainlinkTape:
         if after is None or after.ts > parsed.start + 5.0:
             return None
         self.ptb[key] = float(after.price)
+        if self.persist_ptb is not None:
+            try:
+                self.persist_ptb(key, self.ptb[key])
+            except Exception:
+                pass
         return self.ptb[key]
+
+    def load_ptb(self, mapping: dict[str, float]) -> int:
+        """Restore window-open PTB after a restart. Slugs are unique per T0."""
+        n = 0
+        for slug, px in (mapping or {}).items():
+            parsed = parse_window(str(slug or ""))
+            try:
+                price = float(px)
+            except (TypeError, ValueError):
+                continue
+            if parsed is None or price <= 0:
+                continue
+            if parsed.slug not in self.ptb:
+                self.ptb[parsed.slug] = price
+                n += 1
+        return n
 
     def _vol(self, symbol: str, now: float, window: int = 120) -> float | None:
         """1s log-return std in bps — same unit as research realized_vol_bps_sqrt_s."""

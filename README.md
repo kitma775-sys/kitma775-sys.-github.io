@@ -59,6 +59,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 30**：頂級健康洞係 **CLOB 一次訂 70 token → 1013 slow consumer**、同 `twap_gate` 永遠揀最近完場（鎖死 1.00／15m 無 PTB）掩蓋真正 45–55 近成交。而家 CLOB 只訂獵窗（12–280s +45s 預熱）＋持倉／掛單；閘口揀 signal／lead／價帶而唔係最近盤；PTB 寫入 sqlite 跨重啟。規則仍然 45–55¢ / 6bps / scratch / $5。唔抄雙邊鎖倉。紙盤未重置、未開實盤。
 - **Rev 29**：全幣 5m/15m 唔夠嘅唔係種類，係 **Chainlink 多 symbol 一條 socket 會停 feed**、`scan_limit=24` 同「尾 3 分鐘永遠第一」會擠走 15m 中間價、同鐘鎖死晒 8 個幣。而家每個幣獨立 RTDS、掃描 40、12–280s 兩面 TWAP 盤優先、只鎖同幣跨週期同 BTC/ETH 同鐘。規則仍然 45–55¢ / 6bps / scratch / $5。唔抄雙邊鎖倉。紙盤未重置、未開實盤。
 - **Rev 28**：頂級閘係**結算來源**。5m 同 15m Chainlink TWAP-60；1H Binance 收線永遠唔入場。Telegram 幣／週期＝掃描過濾。
 - **Rev 26**：引擎鎖定 **BTC 5m Chainlink TWAP**。唔再 hunt YES+NO 互補、唔再買大熱 97–98。Telegram／Dashboard 收乾舊策略掣。當時 TWAP 規則 45–55¢、6bps、12–180s。紙盤未重置、未開實盤。

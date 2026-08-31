@@ -113,6 +113,24 @@ class Store:
         self._conn.execute("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, v))
         self._conn.commit()
 
+    def kv_get(self, k: str) -> str | None:
+        with self._lock:
+            return self._get(k)
+
+    def kv_set(self, k: str, v: str) -> None:
+        with self._lock:
+            self._set(k, v)
+
+    def kv_delete(self, k: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM kv WHERE k=?", (k,))
+            self._conn.commit()
+
+    def kv_prefix(self, prefix: str) -> dict[str, str]:
+        with self._lock:
+            rows = self._conn.execute("SELECT k, v FROM kv WHERE k LIKE ?", (f"{prefix}%",)).fetchall()
+            return {str(r["k"]): str(r["v"]) for r in rows}
+
     def settings(self) -> dict[str, Any]:
         with self._lock:
             return json.loads(self._get("settings") or json.dumps(DEFAULT_SETTINGS))

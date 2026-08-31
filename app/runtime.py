@@ -62,6 +62,124 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
 
 
 CORR_CLOCK = frozenset({"btc", "eth"})
+WS_HUNT_BUFFER_S = 45.0
+_GATE_RANK = {
+    "signal": 0,
+    "ready": 1,
+    "twap_lead": 2,
+    "twap_edge": 3,
+    "twap_no_fair": 4,
+    "twap_wide": 5,
+    "twap_crossed": 6,
+    "twap_no_bid": 7,
+    "twap_stale": 8,
+    "twap_thin": 9,
+    "twap_band": 10,
+    "twap_window": 11,
+    "twap_no_ptb": 12,
+    "twap_no_feed": 13,
+    "twap_horizon": 14,
+    "twap_asset": 15,
+    "twap_oracle": 16,
+    "future_listing": 17,
+    "twap_conflict": 18,
+    "twap_budget": 19,
+}
+
+
+def ws_wanted_tokens(
+    events: list[dict],
+    *,
+    params,
+    hold_condition_ids: set[str] | None = None,
+    extra_tokens: list[str] | None = None,
+    buffer_s: float = WS_HUNT_BUFFER_S,
+) -> list[str]:
+    """CLOB market WS: hunt-window books + inventory/resting, not the full scan.
+
+    Subscribing 35 markets × 2 tokens (~70) fills the server send buffer and
+    the socket returns 1013 slow consumer — the book is blind at the 45–55 print.
+    """
+    hold = {str(x) for x in (hold_condition_ids or ()) if x}
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add_ev(ev: dict) -> None:
+        for key in ("up_token", "down_token"):
+            tok = str(ev.get(key) or "")
+            if tok and tok not in seen:
+                seen.add(tok)
+                out.append(tok)
+
+    for ev in events:
+        cid = str(ev.get("condition_id") or "")
+        if cid and cid in hold:
+            add_ev(ev)
+            continue
+        slug = str(ev.get("slug") or "")
+        if not slug_allowed(slug, params):
+            continue
+        parsed = parse_window(slug)
+        left = seconds_left(ev.get("end"))
+        if parsed is not None and future_listing(left, parsed.window_seconds):
+            continue
+        if left is None:
+            continue
+        if float(left) > float(params.max_left) + float(buffer_s):
+            continue
+        add_ev(ev)
+    for tok in extra_tokens or []:
+        t = str(tok or "")
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def _gate_in_band(gate: dict) -> bool:
+    ask = gate.get("ask")
+    if ask is None:
+        return False
+    try:
+        px = float(ask)
+    except (TypeError, ValueError):
+        return False
+    return 0.45 - 1e-12 <= px <= 0.55 + 1e-12
+
+
+def _gate_lead_abs(gate: dict) -> float:
+    lead = gate.get("lead_bps")
+    if lead is None:
+        return -1.0
+    try:
+        return abs(float(lead))
+    except (TypeError, ValueError):
+        return -1.0
+
+
+def gate_better(cur: dict | None, nxt: dict | None) -> bool:
+    """Prefer an actionable mid-band book over the nearest locked 1.00 / no-PTB."""
+    if nxt is None:
+        return False
+    if cur is None:
+        return True
+    r_n = _GATE_RANK.get(str(nxt.get("reason") or ""), 50)
+    r_c = _GATE_RANK.get(str(cur.get("reason") or ""), 50)
+    if r_n != r_c:
+        return r_n < r_c
+    n_band, c_band = _gate_in_band(nxt), _gate_in_band(cur)
+    if n_band != c_band:
+        return n_band
+    n_lead, c_lead = _gate_lead_abs(nxt), _gate_lead_abs(cur)
+    if abs(n_lead - c_lead) > 1e-9:
+        return n_lead > c_lead
+    ln, lc = nxt.get("left"), cur.get("left")
+    if ln is not None and lc is not None:
+        try:
+            return float(ln) < float(lc)
+        except (TypeError, ValueError):
+            return False
+    return False
 
 
 def twap_conflict_open(rt: Runtime, slug: str) -> bool:
@@ -166,8 +284,11 @@ class Runtime:
         self._last_loop_error_ts = 0.0
         self._last_ws_error_ts = 0.0
         self._last_ws_info_ts = 0.0
+        self.last_ws_error = ""
         self.books = BookCache()
         self.chainlink = ChainlinkTape()
+        self.chainlink.persist_ptb = self._persist_ptb
+        self._load_persisted_ptb()
         self.chainlink_status = "off"
         self._twap_scored: dict[str, float] = {}
         self._last_rtds_error_ts = 0.0
@@ -212,6 +333,34 @@ class Runtime:
             return False
         pnl = self.store.paper_state()["today_pnl"] if self.mode() == "paper" else self.store.today_pnl()
         return pnl <= -abs(limit)
+
+    def _persist_ptb(self, slug: str, px: float) -> None:
+        parsed = parse_window(slug)
+        if parsed is None or float(px) <= 0:
+            return
+        self.store.kv_set(f"ptb:{parsed.slug}", json.dumps({"px": float(px), "ts": time.time()}))
+
+    def _load_persisted_ptb(self) -> None:
+        now = time.time()
+        mapping: dict[str, float] = {}
+        for key, raw in self.store.kv_prefix("ptb:").items():
+            slug = key[4:]
+            parsed = parse_window(slug)
+            if parsed is None:
+                self.store.kv_delete(key)
+                continue
+            end = parsed.start + parsed.window_seconds
+            if end < now - 120:
+                self.store.kv_delete(key)
+                continue
+            try:
+                row = json.loads(raw)
+                px = float(row["px"] if isinstance(row, dict) else row)
+            except (TypeError, ValueError, json.JSONDecodeError, KeyError):
+                continue
+            if px > 0:
+                mapping[parsed.slug] = px
+        self.chainlink.load_ptb(mapping)
 
     def snapshot(self) -> dict[str, Any]:
         s = self.settings()
@@ -324,10 +473,17 @@ async def _refresh_universe(rt: Runtime) -> None:
         want=int(s.get("scan_limit") or 16),
         max_horizon=float(s.get("max_horizon_seconds") or 3600),
     )
-    tokens: list[str] = []
-    for ev in events:
-        tokens.append(str(ev.get("up_token") or ""))
-        tokens.append(str(ev.get("down_token") or ""))
+    hold_cids = {str(r.get("condition_id") or "") for r in rt.store.inventory_open() if r.get("condition_id")}
+    extra_tokens: list[str] = []
+    for row in rt.store.resting_open():
+        extra_tokens.append(str(row.get("up_token") or ""))
+        extra_tokens.append(str(row.get("down_token") or ""))
+    tokens = ws_wanted_tokens(
+        events,
+        params=default_params(s),
+        hold_condition_ids=hold_cids,
+        extra_tokens=extra_tokens,
+    )
     rt.universe = events
     rt.books.set_wanted(tokens)
     rescued = await _rescue_naked(rt, events)
@@ -421,11 +577,9 @@ async def _ws_loop(rt: Runtime) -> None:
                     async for raw in ws:
                         now_wanted = list(rt.books.wanted)
                         if now_wanted != wanted:
-                            if not now_wanted:
-                                break
-                            wanted = now_wanted
-                            await ws.send(_sub(wanted))
-                            continue
+                            # Replace the whole asset list by reconnecting.
+                            # A second subscribe can leave the old 70-token dump running.
+                            break
                         changed = rt.books.apply_message(raw)
                         if changed:
                             rt._hunt_event.set()
@@ -435,6 +589,7 @@ async def _ws_loop(rt: Runtime) -> None:
             rt.ws_status = "down"
             rt.books.connected = False
             detail = fmt_exc(exc)
+            rt.last_ws_error = detail
             now = time.time()
             if now - rt._last_ws_error_ts > 120:
                 rt._last_ws_error_ts = now
@@ -755,55 +910,59 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             continue
         left_now = seconds_left(ev.get("end"))
         parsed = parse_window(slug)
-        if parsed is not None and future_listing(left_now, parsed.window_seconds):
-            continue
-        if twap_conflict_open(rt, slug):
-            continue
+        is_future = parsed is not None and future_listing(left_now, parsed.window_seconds)
+        is_conflict = (not is_future) and twap_conflict_open(rt, slug)
         inv = rt.store.inventory_one(ev["condition_id"])
         max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))
-        if max_usd + 1e-9 < float(s["min_shares"]) * 0.90:
-            continue
-        snap = rt.chainlink.snapshot(
-            str(ev.get("slug") or ""),
-            lookback=int(twap_params.lookback),
-            left=seconds_left(ev.get("end")),
-        )
-        try:
-            setup = hunt(
-                slug=ev["slug"],
-                title=ev["title"],
-                condition_id=ev["condition_id"],
-                up_token=ev["up_token"],
-                down_token=ev["down_token"],
-                up_asks=up_book["asks"],
-                down_asks=dn_book["asks"],
-                up_bids=up_book["bids"],
-                down_bids=dn_book["bids"],
-                max_usd=max_usd,
-                min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
-                min_edge=float(s["min_edge"]),
-                fee_rate=fee_rate,
-                prefer_tail=False,
-                tail_confirm=float(s["tail_confirm"]),
-                maker_first=False,
-                end=ev.get("end"),
-                maker_window_seconds=0.0,
-                strategy_mode="twap",
-                twap_snap=snap,
-                twap_params=twap_params,
+        is_budget = max_usd + 1e-9 < float(s["min_shares"]) * 0.90
+        snap = None
+        setup = None
+        if not is_future:
+            snap = rt.chainlink.snapshot(
+                str(ev.get("slug") or ""),
+                lookback=int(twap_params.lookback),
+                left=seconds_left(ev.get("end")),
             )
-        except Exception as exc:
-            rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
-            continue
-        if slug_allowed(str(ev.get("slug") or ""), twap_params):
-            gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup, chainlink=rt.chainlink)
-            why = str(gate.get("reason") or "skip")
+        if not is_future and not is_conflict and not is_budget:
+            try:
+                setup = hunt(
+                    slug=ev["slug"],
+                    title=ev["title"],
+                    condition_id=ev["condition_id"],
+                    up_token=ev["up_token"],
+                    down_token=ev["down_token"],
+                    up_asks=up_book["asks"],
+                    down_asks=dn_book["asks"],
+                    up_bids=up_book["bids"],
+                    down_bids=dn_book["bids"],
+                    max_usd=max_usd,
+                    min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
+                    min_edge=float(s["min_edge"]),
+                    fee_rate=fee_rate,
+                    prefer_tail=False,
+                    tail_confirm=float(s["tail_confirm"]),
+                    maker_first=False,
+                    end=ev.get("end"),
+                    maker_window_seconds=0.0,
+                    strategy_mode="twap",
+                    twap_snap=snap,
+                    twap_params=twap_params,
+                )
+            except Exception as exc:
+                rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
+                continue
+        gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup, chainlink=rt.chainlink)
+        if is_future:
+            gate["reason"] = "future_listing"
+        elif is_conflict:
+            gate["reason"] = "twap_conflict"
+        elif is_budget:
+            gate["reason"] = "twap_budget"
+        why = str(gate.get("reason") or "skip")
+        if why not in {"signal", "ready"}:
             twap_skips[why] = twap_skips.get(why, 0) + 1
-            left = gate.get("left")
-            if twap_gate is None or (
-                left is not None and 0 < float(left) < float(twap_gate.get("left") or 9e9)
-            ):
-                twap_gate = gate
+        if gate_better(twap_gate, gate):
+            twap_gate = gate
         if not setup:
             continue
         if is_one_leg_setup(setup) and not favorite_ws_ok(rt.ws_status, src, up_book, dn_book):
@@ -1115,6 +1274,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["chainlink_age_ms"] = cl.get("age_ms")
     tape["twap_skips"] = twap_skips
     tape["twap_gate"] = twap_gate
+    tape["clob_ws_wanted_n"] = len(rt.books.wanted)
+    tape["last_ws_error"] = rt.last_ws_error or None
+    tape["twap_ptb_n"] = len(rt.chainlink.ptb)
     tape["favorite_min"] = setting_num(s, "favorite_min_price", 0.97)
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = favorite_window_of(s)

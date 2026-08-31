@@ -133,6 +133,13 @@
         })(), "TWAP 閘"),
         tile((Number(s.twap_min_price||0.45)*100).toFixed(0) + "–" + (Number(s.twap_max_price||0.55)*100).toFixed(0) + "¢", "TWAP 價帶"),
         tile("≥" + Number(s.twap_min_lead_bps||6).toFixed(0) + "bps / " + Number(s.twap_min_left||12).toFixed(0) + "–" + Number(s.twap_max_left||280).toFixed(0) + "s", "lead／剩餘窗"),
+        tile(tape.clob_ws_wanted_n==null ? "—" : String(tape.clob_ws_wanted_n), "CLOB 訂閱"),
+        tile((function(){
+          const sk = tape.twap_skips || {};
+          const keys = Object.keys(sk);
+          if (!keys.length) return "—";
+          return keys.slice(0,4).map(k => String(k).replace(/^twap_/, "") + " " + sk[k]).join(" · ");
+        })(), "TWAP 跳過"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
         tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),
