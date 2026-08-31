@@ -86,6 +86,7 @@ _GATE_RANK = {
     "twap_horizon": 14,
     "twap_asset": 15,
     "twap_oracle": 16,
+    "twap_ws_slot": 16,
     "future_listing": 17,
     "twap_conflict": 18,
     "twap_budget": 19,
@@ -159,7 +160,8 @@ def ws_wanted_tokens(
 
     14 tokens on two sockets. Inventory always.
     Next 5m: last 45s before T0, no PTB (open print does not exist yet).
-    Current: need PTB; drop locked pennies so they cannot occupy all 14.
+    Current: need PTB. Keep locked pennies on the socket so we do not
+    reconnect all cycle — drop them only when pre-warm needs the cap.
     Hunt still skips future_listing / twap_no_ptb. 15m/1H are not in the hunt set.
     """
     hold = {str(x) for x in (hold_condition_ids or ()) if x}
@@ -214,9 +216,9 @@ def ws_wanted_tokens(
             key = parsed.slug if parsed else ""
             if key not in ptb:
                 continue
-        if rank == 3:
-            continue
-        rest.append((1, rank, hz, ev))
+        # Keep off-band current for socket hysteresis. Pre-warm (tier 0)
+        # fills the cap first at T-45, so pennies only drop when slots are needed.
+        rest.append((1 if rank != 3 else 2, rank, hz, ev))
 
     for ev in must:
         add_ev(ev)
@@ -241,6 +243,35 @@ def ws_token_shards(
     toks = [t for t in tokens if t]
     n = max(1, int(per_socket))
     return [toks[i * n : (i + 1) * n] for i in range(max(1, int(sockets)))]
+
+
+def _event_ask_hint(ev: dict) -> float | None:
+    """Cheap ask from Gamma outcomePrices / bestAsk when CLOB is not on WS yet."""
+    prices: list[float] = []
+    raw = ev.get("outcome_prices")
+    if raw is None:
+        parsed = parse_outcome_prices(ev.get("outcomePrices"))
+        raw = None if parsed is None else [parsed[0], parsed[1]]
+    if isinstance(raw, (list, tuple)):
+        for x in raw:
+            try:
+                p = float(x)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 < p < 1.5:
+                prices.append(p)
+    if not prices:
+        try:
+            px = ev.get("best_ask")
+            if px is not None and px != "":
+                p = float(px)
+                if 0.0 < p < 1.5:
+                    prices.append(p)
+        except (TypeError, ValueError):
+            pass
+    if not prices:
+        return None
+    return round(min(prices), 4)
 
 
 def _gate_in_band(gate: dict) -> bool:
@@ -602,6 +633,7 @@ async def _refresh_universe(rt: Runtime) -> None:
         extra_tokens.append(str(row.get("up_token") or ""))
         extra_tokens.append(str(row.get("down_token") or ""))
     rt._prune_ptb()
+    prev_wanted = set(rt.books.wanted)
     tokens = ws_wanted_tokens(
         events,
         params=default_params(s),
@@ -611,6 +643,12 @@ async def _refresh_universe(rt: Runtime) -> None:
     )
     rt.universe = events
     rt.books.set_wanted(tokens)
+    added = [t for t in tokens if t not in prev_wanted]
+    if added:
+        try:
+            await _prime_ws_books(rt, events, added)
+        except Exception as exc:
+            rt.store.add_event("warn", f"ws prime {fmt_exc(exc)}")
     rescued = await _rescue_naked(rt, events)
     if rt.circuit_tripped():
         n = rt.store.cancel_all_resting("circuit")
@@ -1033,7 +1071,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     "slug": slug,
                     "left": None if left_now is None else round(float(left_now), 1),
                     "lead_bps": None,
-                    "ask": None,
+                    "ask": _event_ask_hint(ev),
                     "fair": None,
                     "reason": why,
                     "side": None,
@@ -1056,7 +1094,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     "slug": slug,
                     "left": None if left_now is None else round(float(left_now), 1),
                     "lead_bps": None,
-                    "ask": None,
+                    "ask": _event_ask_hint(ev),
                     "fair": None,
                     "reason": why,
                     "side": None,
@@ -1778,6 +1816,43 @@ async def _pair_books(rt: Runtime, ev: dict, *, max_age_ms: float) -> tuple[dict
     if cached:
         return cached["up"], cached["down"], "ws"
     return None, None, "stale"
+
+
+async def _prime_ws_books(rt: Runtime, events: list[dict], tokens: list[str]) -> int:
+    """One HTTP snapshot for newly subscribed tokens. initial_dump is off."""
+    wanted = {str(t) for t in tokens if t}
+    if not wanted or rt.data is None:
+        return 0
+    now = time.time()
+    n = 0
+    for ev in events:
+        up_t = str(ev.get("up_token") or "")
+        dn_t = str(ev.get("down_token") or "")
+        if up_t not in wanted and dn_t not in wanted:
+            continue
+        cached = rt.books.pair(up_t, dn_t, max_age_ms=60000.0)
+        if cached and (cached["up"].get("asks") or []) and (cached["down"].get("asks") or []):
+            continue
+        slug = str(ev.get("slug") or ev.get("condition_id") or "")
+        if now - rt._http_at.get(slug, 0.0) < 1.0:
+            continue
+        if not ev.get("up_token") or not ev.get("down_token"):
+            continue
+        try:
+            up_book, dn_book = await asyncio.gather(
+                rt.data.book(ev["up_token"]),
+                rt.data.book(ev["down_token"]),
+            )
+        except Exception:
+            continue
+        rt._http_at[slug] = time.time()
+        now_ms = time.time() * 1000.0
+        rt.books.put(ev["up_token"], up_book["asks"], up_book["bids"], ts_ms=now_ms, source="http")
+        rt.books.put(ev["down_token"], dn_book["asks"], dn_book["bids"], ts_ms=now_ms, source="http")
+        n += 1
+        if n >= 7:
+            break
+    return n
 
 
 async def _resting_pair_books(rt: Runtime, row: dict, *, max_age_ms: float) -> tuple[dict | None, dict | None]:

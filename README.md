@@ -59,6 +59,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 36**：Rev 35 一鎖仙價就即刻甩 WS，socket 成個 5 分鐘窗狂重連（`initial_dump` 關咗，簿會空）。而家 **仙價仍然掛住**，直到開盤前 45 秒預熱需要 14 槽先讓位。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。
 - **Rev 35**：5m-only 之後，下一 5 分鐘窗喺開盤前已係 45–55¢，但 14 個 CLOB 槽仍掛住而家啲 0.99 仙價（`future_listing` 喺 buffer 之前就 skip，PTB 要等到 T0）。而家 **開盤前 45 秒預熱下一窗**（唔要 PTB）、**鎖死仙價唔佔槽**（持倉除外）、清走 sqlite 剩低嘅 15m PTB。Hunt 仍然 skip `future_listing` / `twap_no_ptb`。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。
 - **Rev 34**：只做 **5 分鐘多幣種** Chainlink TWAP。15 分鐘同 5 分鐘搶 14 個 CLOB 槽、又冇獨立 15m 盤帶；1 小時係 Binance 收線，永遠唔入場。Telegram／Dashboard 週期鎖定 5M。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。
 - **Rev 33**：15m 入 12–280s 而且真正 45–55 時，唔好俾鎖死 1.00 嘅 5m 佔晒 14 個 CLOB 槽。訂閱改 **價帶優先**（`outcomePrices`，唔信 stale Gamma `bestAsk`；先 5m 再 15m）。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。

@@ -1,0 +1,21 @@
+{
+  "researched_at_utc": "2026-08-31T06:22:00Z",
+  "live_rev_before": 35,
+  "question": "After Rev 35 pre-warm, why is WS idle mid-hunt-window with a reconnect storm?",
+  "answer": "Dropping rank-3 current immediately empties wanted as coins lock. Sockets reconnect 8/6/4/2/0 all cycle; initial_dump is off so books go empty. Gate lies as future_listing. Keep pennies on WS until T-45 pre-warm needs the 14 slots.",
+  "live": {
+    "uptime_s": 844,
+    "wanted_n": 0,
+    "ws": "idle",
+    "current_left": 244.8,
+    "current_all_offband": true,
+    "skips": {"twap_ws_slot": 7, "future_listing": 14},
+    "gate": "btc next future_listing left=546 (lie)",
+    "reconnect_events": "ws connected 2/4/6/8 tokens repeatedly",
+    "paper_equity": 474.172396,
+    "force_paper": true,
+    "no_1013": true
+  },
+  "fix": "tier2 pennies fill remaining cap; tier0 prewarm still wins at T-45",
+  "keep": ["45-55c", "min_lead_bps=6", "scratch", "max_usd=5", "paper", "no live", "no 15m/1H"]
+}
