@@ -4062,6 +4062,79 @@ def test_operator_wall_tape_and_mode_money(tmp_path):
     assert "霓虹監察牆" not in home_text(rt)
 
 
+def test_wall_slots_keep_open_window_not_future_listing(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime, operator_board
+    from app.wall import format_tape_lines, note_wall_gate, operator_wall
+
+    st = Store(tmp_path / "wall-live.sqlite")
+    st.ensure_paper(500)
+    st.patch_settings(max_usd_per_trade=3, live_trading=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.live_usdc = 19.76
+    rt.ws_status = "connected"
+    rt.chainlink_status = "connected"
+    note_wall_gate(
+        rt,
+        {
+            "slug": "xrp-updown-5m-1788174000",
+            "reason": "twap_band",
+            "lead_bps": -9.2,
+            "ask": 0.80,
+            "left": 240,
+            "side": "down",
+        },
+    )
+    note_wall_gate(
+        rt,
+        {
+            "slug": "xrp-updown-5m-1788174600",
+            "reason": "future_listing",
+            "ask": 0.495,
+            "left": 840,
+        },
+    )
+    assert all(row["reason"] != "future_listing" for row in rt.wall_tape)
+    rt.wall_tape.append(
+        {
+            "ts": 1,
+            "slug": "btc-updown-5m-1788174600",
+            "asset": "btc",
+            "reason": "future_listing",
+            "reason_zh": "未開窗",
+            "ask": 0.495,
+            "lead_bps": None,
+            "left": 840,
+            "side": None,
+            "ok": False,
+        }
+    )
+    note_wall_gate(
+        rt,
+        {
+            "slug": "btc-updown-5m-1788174000",
+            "reason": "twap_lead",
+            "lead_bps": 1.2,
+            "ask": 0.48,
+            "left": 200,
+            "side": "up",
+        },
+    )
+    wall = operator_wall(rt, operator_board(rt))
+    xrp = next(s for s in wall["slots"] if s["asset"] == "xrp")
+    btc = next(s for s in wall["slots"] if s["asset"] == "btc")
+    assert xrp["reason"] == "twap_band"
+    assert xrp["reason_zh"] == "價帶外"
+    assert abs(float(xrp["ask"]) - 0.80) < 1e-9
+    assert btc["reason"] == "twap_lead"
+    assert btc["reason_zh"] == "lead 唔夠"
+    assert all(row["reason"] != "future_listing" for row in wall["tape"])
+    log = "\n".join(format_tape_lines(rt, 8))
+    assert "未開窗" not in log
+    assert "價帶外" in log
+    assert "lead 唔夠" in log
+
+
 def test_take_inventory_prorates_cost(tmp_path):
     st = Store(tmp_path / "take-cost.sqlite")
     st.add_inventory("c1", "btc", 0.0, 20.0, kind="twap", cost=10.0)

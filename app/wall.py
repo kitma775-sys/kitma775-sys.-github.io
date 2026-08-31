@@ -62,8 +62,16 @@ def reason_zh(code: str | None) -> str:
     return SKIP_ZH.get(key, key or "—")
 
 
+def _is_future_listing(reason: str | None) -> bool:
+    return str(reason or "") == "future_listing"
+
+
 def note_wall_gate(rt, gate: dict | None) -> None:
-    """Keep the latest row per slug so the tape moves without flooding."""
+    """Keep the latest row per slug so the tape moves without flooding.
+
+    Future listings are hunt-loop noise (every coin has a next window). They
+    must not overwrite the open 5m skip on the coin slots or scan tape.
+    """
     if not gate:
         return
     slug = str(gate.get("slug") or "").strip()
@@ -71,6 +79,8 @@ def note_wall_gate(rt, gate: dict | None) -> None:
         return
     parsed = parse_window(slug)
     reason = str(gate.get("reason") or "skip")
+    if _is_future_listing(reason):
+        return
     row = {
         "ts": time.time(),
         "slug": slug,
@@ -157,13 +167,38 @@ def _gauges(rt, board: dict, gate: dict, s: dict) -> list[dict]:
     ]
 
 
+def _prefer_live_slot(prev: dict | None, row: dict) -> dict:
+    """Open-window skip beats a later 未開窗 print for the same coin."""
+    if prev is None:
+        return row
+    prev_fut = _is_future_listing(prev.get("reason"))
+    nxt_fut = _is_future_listing(row.get("reason"))
+    if prev_fut and not nxt_fut:
+        return row
+    if not prev_fut and nxt_fut:
+        return prev
+    return row
+
+
+def _live_tape_rows(rt, n: int | None = None) -> list[dict]:
+    rows = [
+        r
+        for r in (getattr(rt, "wall_tape", None) or [])
+        if not _is_future_listing(r.get("reason"))
+    ]
+    if n is None:
+        return rows
+    return rows[-n:]
+
+
 def _slots(rt, board: dict) -> list[dict]:
     assets = [str(a) for a in hunt_assets(rt.settings()) if str(a).strip()]
     latest: dict[str, dict] = {}
     for row in getattr(rt, "wall_tape", None) or []:
         asset = str(row.get("asset") or "")
-        if asset:
-            latest[asset] = row
+        if not asset:
+            continue
+        latest[asset] = _prefer_live_slot(latest.get(asset), row)
     inv_by_asset: dict[str, dict] = {}
     for row in _mode_inv(rt):
         parsed = parse_window(str(row.get("slug") or ""))
@@ -257,7 +292,7 @@ def operator_wall(rt, board: dict) -> dict[str, Any]:
     tape = last.get("tape") or {}
     gate = tape.get("twap_gate") or {}
     s = rt.settings()
-    raw_tape = list(getattr(rt, "wall_tape", None) or [])[-24:]
+    raw_tape = _live_tape_rows(rt, 24)
     view_tape = list(reversed(raw_tape))
     return {
         "board": {
@@ -290,8 +325,7 @@ def operator_wall(rt, board: dict) -> dict[str, Any]:
 
 
 def format_tape_lines(rt, n: int = 6) -> list[str]:
-    rows = list(getattr(rt, "wall_tape", None) or [])[-n:]
-    rows.reverse()
+    rows = list(reversed(_live_tape_rows(rt, n)))
     lines = []
     for row in rows:
         stamp = format_log_ts(row.get("ts"))
