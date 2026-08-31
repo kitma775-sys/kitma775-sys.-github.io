@@ -162,11 +162,16 @@ class Store:
             self._conn.commit()
 
     def add_trade(self, **row: Any) -> None:
+        ts = row.get("ts")
+        try:
+            ts_f = float(ts) if ts is not None else time.time()
+        except (TypeError, ValueError):
+            ts_f = time.time()
         with self._lock:
             self._conn.execute(
                 "INSERT INTO trades(ts,slug,kind,shares,up_price,down_price,net,mode,status,payload) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (
-                    time.time(),
+                    ts_f,
                     row.get("slug"),
                     row.get("kind"),
                     row.get("shares"),

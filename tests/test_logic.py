@@ -4089,6 +4089,8 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "Asia/Hong_Kong" in html
     assert 'id="hero"' in html
     assert 'id="curve"' in html
+    assert 'id="todayPnl"' in html
+    assert 'id="curveLeg"' in html
     assert "掃描日誌" in html
     assert "運行日誌" in html
     assert "命中" in html
@@ -4207,6 +4209,83 @@ def test_performance_today_hit_rate_and_curve_align_telegram(tmp_path):
     assert paper["label"] == "今日權益"
     assert paper["wins"] == 1
     assert paper["hit_label"] == "1/1"
+
+
+def test_performance_today_curve_follows_window_close_not_batch_redeem(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.wall import performance_today, utc_day_start
+
+    st = Store(tmp_path / "curve-order.sqlite")
+    st.ensure_paper(500)
+    st.patch_settings(max_usd_per_trade=3, live_trading=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.live_usdc = 20.84
+    day = int(utc_day_start())
+    sol0 = day + 11 * 3600
+    hype_w = sol0 + 300
+    xrp_w = sol0 + 300
+    sol1 = sol0 + 900
+    batch = sol0 + 1760
+    st.add_trade(
+        ts=sol0 + 212,
+        slug=f"sol-updown-5m-{sol0}",
+        kind="twap_live",
+        shares=5,
+        up_price=0,
+        down_price=0.47,
+        net=-0.3372,
+        mode="live",
+        status="dumped",
+    )
+    st.add_trade(
+        ts=batch,
+        slug=f"sol-updown-5m-{sol1}",
+        kind="settle",
+        shares=6.3,
+        up_price=1,
+        down_price=0,
+        net=-2.9,
+        mode="live",
+        status="redeemed",
+    )
+    st.add_trade(
+        ts=batch + 0.03,
+        slug=f"xrp-updown-5m-{xrp_w}",
+        kind="settle",
+        shares=5.1,
+        up_price=0,
+        down_price=1,
+        net=-2.6,
+        mode="live",
+        status="redeemed",
+    )
+    st.add_trade(
+        ts=batch + 0.09,
+        slug=f"hype-updown-5m-{hype_w}",
+        kind="settle",
+        shares=6.86,
+        up_price=0,
+        down_price=1,
+        net=3.9771,
+        mode="live",
+        status="redeemed",
+    )
+    perf = performance_today(rt)
+    slugs = [p["slug"] for p in perf["points"] if p["mark"] != "start"]
+    assert slugs == [
+        f"sol-updown-5m-{sol0}",
+        f"xrp-updown-5m-{xrp_w}",
+        f"hype-updown-5m-{hype_w}",
+        f"sol-updown-5m-{sol1}",
+    ]
+    assert [p["mark"] for p in perf["points"] if p["mark"] != "start"] == ["scratch", "lose", "win", "lose"]
+    assert abs(float(perf["end"]) - (3.9771 - 2.6 - 2.9 - 0.3372)) < 1e-6
+    assert perf["hit_label"] == "1/3"
+    assert perf["scratch_n"] == 1
+    assert perf["points"][0]["mark"] == "start"
+    assert perf["points"][1]["ts"] > perf["points"][0]["ts"]
+    assert perf["points"][-1]["ts"] > perf["points"][2]["ts"]
 
 
 def test_wall_slots_keep_open_window_not_future_listing(tmp_path):

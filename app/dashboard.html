@@ -20,6 +20,7 @@
       padding:12px 12px calc(18px + env(safe-area-inset-bottom));
       max-width:1280px;
       margin:0 auto;
+      overflow-x:hidden;
       grid-template-columns: minmax(260px,1.1fr) minmax(220px,0.9fr);
       grid-template-areas:
         "head head"
@@ -52,8 +53,14 @@
     .cash { font-family:ui-monospace,monospace; font-size:clamp(32px,6vw,52px); font-weight:700; letter-spacing:.04em;
       text-shadow:0 0 18px rgba(61,255,154,.35); line-height:1.05; }
     .cash.bad { color:var(--bad); text-shadow:0 0 18px rgba(255,77,109,.35); }
+    .pnl { font-family:ui-monospace,monospace; font-size:clamp(18px,4.2vw,26px); font-weight:700; margin-top:6px; color:var(--ok);
+      text-shadow:0 0 12px rgba(61,255,154,.28); }
+    .pnl.bad { color:var(--bad); text-shadow:0 0 12px rgba(255,77,109,.28); }
     .label { font-size:11px; color:var(--dim); letter-spacing:.12em; text-transform:uppercase; }
     .meta { display:flex; flex-wrap:wrap; gap:8px 12px; margin-top:8px; font-family:ui-monospace,monospace; font-size:12px; color:var(--dim); }
+    .curve-leg { display:flex; flex-wrap:wrap; gap:8px 12px; margin-top:6px; font-size:11px; color:var(--dim); font-family:ui-monospace,monospace; }
+    .curve-leg i { font-style:normal; }
+    .curve-leg .w { color:var(--ok); } .curve-leg .l { color:var(--bad); } .curve-leg .s { color:var(--warn); }
     .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
     .chip { border:1px solid var(--line); border-radius:999px; padding:3px 9px; font-size:11px; font-family:ui-monospace,monospace; color:var(--dim); }
     .chip.ok { border-color:rgba(61,255,154,.45); color:var(--ok); box-shadow:0 0 10px rgba(61,255,154,.18); }
@@ -119,7 +126,9 @@
         padding:10px 10px calc(16px + env(safe-area-inset-bottom));
       }
       .hero { grid-template-columns: 1fr; }
-      .curve-wrap, .curve-svg { min-height:128px; height:128px; }
+      .curve-wrap, .curve-svg { min-height:140px; height:140px; }
+      .curve-col { order: 2; }
+      html, body { overflow-x: hidden; }
       .gauges { grid-template-columns:repeat(3,1fr); }
       .pipe { grid-template-columns:repeat(3,1fr); }
       .coins { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -147,6 +156,7 @@
       <div>
         <div class="label" id="cashLabel">可用 USDC</div>
         <div class="cash" id="cash">—</div>
+        <div class="pnl" id="todayPnl">—</div>
         <div class="meta" id="moneyMeta"></div>
         <div class="chips" id="chips"></div>
         <div class="note" id="notes"></div>
@@ -154,6 +164,7 @@
       <div class="curve-col">
         <div class="label" id="curveLabel">今日已實現</div>
         <div class="curve-wrap" id="curve"></div>
+        <div class="curve-leg" id="curveLeg"></div>
       </div>
     </section>
     <section class="panel tape">
@@ -221,24 +232,26 @@
     }
     function drawCurve(curve, bad) {
       const raw = (curve && curve.points) || [];
-      const pts = raw.length >= 2 ? raw : (raw.length === 1 ? [raw[0], raw[0]] : [{y:0, mark:"start"}, {y:0, mark:"start"}]);
-      const w=320, h=120, pad=14;
+      const pts = raw.length ? raw.slice() : [{ts:0, y:0, mark:"start"}];
+      if (pts.length === 1) pts.push(Object.assign({}, pts[0], {ts:(Number(pts[0].ts)||0)+60}));
+      const w=320, h=120, padL=10, padR=46, padY=16;
       const ys = pts.map(p => Number(p.y)||0);
-      if (!ys.length) ys.push(0);
+      const xs = pts.map(p => Number(p.ts)||0);
       let lo = Math.min(0, ...ys), hi = Math.max(0, ...ys);
       if (hi - lo < 0.05) { hi += 0.5; lo -= 0.5; }
-      const span = hi - lo || 1;
-      const n = Math.max(pts.length, 2);
-      function xy(i, y) {
-        const x = pad + (i / (n-1)) * (w - pad*2);
-        const py = pad + (1 - (y - lo) / span) * (h - pad*2);
+      const yspan = hi - lo || 1;
+      let x0 = Math.min(...xs), x1 = Math.max(...xs);
+      if (x1 - x0 < 30) x1 = x0 + 30;
+      function xy(p) {
+        const x = padL + ((Number(p.ts)-x0) / (x1-x0)) * (w - padL - padR);
+        const py = padY + (1 - ((Number(p.y)||0) - lo) / yspan) * (h - padY*2);
         return [x, py];
       }
-      const coords = pts.length ? pts.map((p,i) => xy(i, Number(p.y)||0)) : [xy(0,0), xy(1,0)];
+      const coords = pts.map(p => xy(p));
       const line = coords.map((p,i) => (i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
-      const last = coords[coords.length-1];
-      const base = xy(0, 0);
-      const fill = line + " L"+last[0].toFixed(1)+" "+(h-pad)+" L"+coords[0][0].toFixed(1)+" "+(h-pad)+" Z";
+      const first = coords[0], last = coords[coords.length-1];
+      const zeroY = padY + (1 - (0 - lo) / yspan) * (h - padY*2);
+      const fill = line + " L"+last[0].toFixed(1)+" "+zeroY.toFixed(1)+" L"+first[0].toFixed(1)+" "+zeroY.toFixed(1)+" Z";
       const ok = "#3dff9a", no = "#ff4d6d", sc = "#ffd166";
       const stroke = bad ? no : ok;
       const fillCol = bad ? "rgba(255,77,109,.22)" : "rgba(61,255,154,.22)";
@@ -247,14 +260,20 @@
         const c = coords[i];
         const col = p.mark==="win"?ok:(p.mark==="lose"?no:(p.mark==="scratch"?sc:stroke));
         const lastPt = i === pts.length-1;
+        const label = (p.asset || p.slug || "") + " " + signed(p.net);
         return '<circle class="pt'+(lastPt?" now":"")+'" cx="'+c[0].toFixed(1)+'" cy="'+c[1].toFixed(1)+'" r="'+(lastPt?4.2:3)+'" fill="'+col+'"><title>'
-          +esc((p.slug||"")+" "+signed(p.net))+'</title></circle>';
+          +esc(label)+'</title></circle>';
       }).join("");
+      const endY = Number(pts[pts.length-1].y)||0;
+      const endCol = endY < -0.005 ? no : ok;
+      const ly = Math.max(12, Math.min(h-6, last[1]+4));
       return '<svg class="curve-svg" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none">'
-        + '<path class="zero" d="M'+pad+' '+base[1].toFixed(1)+' L'+(w-pad)+' '+base[1].toFixed(1)+'"/>'
+        + '<path class="zero" d="M'+padL+' '+zeroY.toFixed(1)+' L'+(w-padR)+' '+zeroY.toFixed(1)+'"/>'
         + '<path class="fill" d="'+fill+'" fill="'+fillCol+'"/>'
         + '<path class="stroke" d="'+line+'" stroke="'+stroke+'"/>'
-        + dots + '</svg>';
+        + dots
+        + '<text x="'+(w-4)+'" y="'+ly.toFixed(1)+'" text-anchor="end" font-size="11" fill="'+endCol+'" font-family="ui-monospace,monospace">'+esc(signed(endY))+'</text>'
+        + '</svg>';
     }
     async function load() {
       const r = await api("/api/state");
@@ -277,8 +296,10 @@
       cashEl.textContent = (b.cash==null || b.cash==="") ? "—" : ("$" + Number(b.cash).toFixed(2));
       cashEl.className = "cash" + (pnlBad ? " bad" : "");
       document.getElementById("hero").className = "panel hero" + (pnlBad ? " bad" : "");
+      const pnlEl = document.getElementById("todayPnl");
+      pnlEl.textContent = "今日 " + signed(b.today_pnl);
+      pnlEl.className = "pnl" + (pnlBad ? " bad" : "");
       const moneyBits = [
-        "今日 " + signed(b.today_pnl),
         "單筆 $" + Number(b.stake||0).toFixed(0),
         "開倉 " + Number(b.open_n||0),
         "成本 $" + Number(b.open_cost||0).toFixed(2),
@@ -300,6 +321,10 @@
       const curve = w.curve || {};
       document.getElementById("curveLabel").textContent = curve.label || (live ? "今日已實現" : "今日權益");
       document.getElementById("curve").innerHTML = drawCurve(curve, pnlBad);
+      const cw = Number(curve.wins||b.hit_wins||0), cl = Number(curve.losses||b.hit_losses||0), cs = Number(curve.scratch_n||b.scratch_n||0);
+      document.getElementById("curveLeg").innerHTML =
+        '<i class="w">贏 '+cw+'</i><i class="l">輸 '+cl+'</i>'+(cs?'<i class="s">scratch '+cs+'</i>':'')
+        + '<i>命中 '+(curve.hit_label || b.hit_label || "—")+'</i>';
       document.getElementById("clearCircuit").style.display = d.circuit ? "inline-block" : "none";
       document.getElementById("bankBlock").style.display = live ? "none" : "flex";
       const p = d.paper || {};

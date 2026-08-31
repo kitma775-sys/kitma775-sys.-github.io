@@ -69,6 +69,34 @@ def utc_day_start(now: float | None = None) -> float:
     return t - (t % 86400)
 
 
+def _book_ts(row: dict, start_ts: float) -> float:
+    try:
+        ts = float(row.get("ts") or 0)
+    except (TypeError, ValueError):
+        ts = 0.0
+    return ts if ts > 0 else start_ts
+
+
+def _curve_event_ts(row: dict, start_ts: float) -> float:
+    """Plot settles at window close so a later batch-redeem does not rewrite history."""
+    sqlite_ts = _book_ts(row, start_ts)
+    status = str(row.get("status") or "")
+    parsed = parse_window(str(row.get("slug") or ""))
+    if parsed is None or status not in HELD_STATUSES:
+        return sqlite_ts
+    if parsed.start < 1_000_000_000:
+        return sqlite_ts
+    win_end = float(parsed.start + parsed.window_seconds)
+    if abs(win_end - sqlite_ts) > 86400:
+        return sqlite_ts
+    return win_end
+
+
+def _curve_asset(slug: str) -> str:
+    parsed = parse_window(slug)
+    return parsed.asset.upper() if parsed else ""
+
+
 def performance_today(rt) -> dict[str, Any]:
     """Mode-aware realized path + held-to-settle hit rate. Shared by TG, wall, engine."""
     live = rt.mode() == "live"
@@ -79,8 +107,7 @@ def performance_today(rt) -> dict[str, Any]:
         p = rt.store.paper_state()
         y0 = round(float(p.get("equity") or 0) - float(p.get("today_pnl") or 0), 6)
     rows = rt.store.trades_since(start_ts, mode=mode)
-    y = y0
-    points = [{"ts": start_ts, "y": round(y, 4), "net": 0.0, "slug": "", "status": "open", "mark": "start"}]
+    events: list[dict[str, Any]] = []
     wins = losses = scratch_n = 0
     for t in rows:
         status = str(t.get("status") or "")
@@ -90,7 +117,8 @@ def performance_today(rt) -> dict[str, Any]:
             net = float(t.get("net") or 0)
         except (TypeError, ValueError):
             net = 0.0
-        y = round(y + net, 6)
+        if abs(net) < 1e-9:
+            continue
         if status in SCRATCH_STATUSES:
             scratch_n += 1
             mark = "scratch"
@@ -105,14 +133,51 @@ def performance_today(rt) -> dict[str, Any]:
                 mark = "flat"
         else:
             mark = "flat"
-        points.append(
+        slug = str(t.get("slug") or "")
+        events.append(
             {
-                "ts": float(t.get("ts") or start_ts),
-                "y": round(y, 4),
+                "ts": _curve_event_ts(t, start_ts),
+                "book_ts": _book_ts(t, start_ts),
+                "id": t.get("id") or 0,
                 "net": round(net, 4),
-                "slug": str(t.get("slug") or ""),
+                "slug": slug,
+                "asset": _curve_asset(slug),
                 "status": status,
                 "mark": mark,
+            }
+        )
+    events.sort(key=lambda e: (float(e["ts"]), float(e["book_ts"]), int(e.get("id") or 0)))
+    y = y0
+    t0 = start_ts
+    if events:
+        t0 = max(start_ts, float(events[0]["ts"]) - 60.0)
+    points = [
+        {
+            "ts": t0,
+            "y": round(y0, 4),
+            "net": 0.0,
+            "slug": "",
+            "asset": "",
+            "status": "open",
+            "mark": "start",
+        }
+    ]
+    last_t = t0
+    for e in events:
+        ts = float(e["ts"])
+        if ts <= last_t:
+            ts = last_t + 1.0
+        last_t = ts
+        y = round(y + float(e["net"]), 6)
+        points.append(
+            {
+                "ts": ts,
+                "y": round(y, 4),
+                "net": e["net"],
+                "slug": e["slug"],
+                "asset": e["asset"],
+                "status": e["status"],
+                "mark": e["mark"],
             }
         )
     held = wins + losses
