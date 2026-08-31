@@ -61,11 +61,14 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
     return False
 
 
-def twap_conflict_open(rt: Runtime, slug: str) -> bool:
-    """One TWAP book per asset, and one asset per same-horizon clock.
+CORR_CLOCK = frozenset({"btc", "eth"})
 
-    BTC 5m open blocks BTC 15m (same Chainlink path). BTC 5m at T blocks ETH 5m at T
-    (they dump together). 5m vs 15m on different coins at different clocks can coexist.
+
+def twap_conflict_open(rt: Runtime, slug: str) -> bool:
+    """Same asset never stacks 5m+15m. BTC/ETH same clock dump together.
+
+    SOL/XRP/BNB/HYPE/DOGE at the same 5m unix do not block each other — top
+    directional books run many coins in parallel. Pair-lock taker stays off.
     """
     parsed = parse_window(slug)
     if not parsed:
@@ -80,7 +83,8 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
         if peer.asset == parsed.asset:
             return True
         if peer.horizon == parsed.horizon and peer.start == parsed.start:
-            return True
+            if {peer.asset, parsed.asset} <= CORR_CLOCK:
+                return True
     return False
 
 
@@ -452,80 +456,114 @@ async def _ws_ping(ws) -> None:
             return
 
 
+def _rtds_connect_kw() -> dict[str, Any]:
+    import websockets
+
+    kw: dict[str, Any] = {"ping_interval": None, "max_size": 2**20}
+    params = inspect.signature(websockets.connect).parameters
+    headers = {"Origin": "https://polymarket.com", "User-Agent": "surf-arb-bot/0.3"}
+    if "additional_headers" in params:
+        kw["additional_headers"] = headers
+    elif "extra_headers" in params:
+        kw["extra_headers"] = headers
+    if "close_timeout" in params:
+        kw["close_timeout"] = 5
+    if "open_timeout" in params:
+        kw["open_timeout"] = 15
+    return kw
+
+
 async def _chainlink_loop(rt: Runtime) -> None:
-    """Official Polymarket RTDS Chainlink USD stream (5m/15m settlement source)."""
+    """One RTDS websocket per Chainlink symbol.
+
+    Seven compact subscribe frames on a single socket freeze every feed except
+    one after a few minutes — the live 348s-stale BTC/ETH/SOL bug with all coins open.
+    """
+    workers: dict[str, asyncio.Task] = {}
+    try:
+        while True:
+            s = rt.settings()
+            mode = strategy_mode_of(s)
+            holding_twap = any(str(x.get("kind") or "").startswith("twap") for x in rt.store.inventory_open())
+            if s.get("killed") or not s.get("engine_running") or (mode != "twap" and not holding_twap):
+                for task in workers.values():
+                    task.cancel()
+                workers.clear()
+                rt.chainlink.connected = False
+                rt.chainlink_status = "idle"
+                await asyncio.sleep(1.0)
+                continue
+            wanted = chainlink_symbols_for(s, extra_assets=_holding_twap_assets(rt))
+            rt.chainlink.symbols = wanted
+            for sym in wanted:
+                task = workers.get(sym)
+                if task is None or task.done():
+                    workers[sym] = asyncio.create_task(_chainlink_symbol_loop(rt, sym))
+            for sym, task in list(workers.items()):
+                if sym not in set(wanted):
+                    task.cancel()
+                    workers.pop(sym, None)
+            fresh = [sym for sym in wanted if rt.chainlink.age_ms(sym) < 8000]
+            if fresh:
+                rt.chainlink.connected = True
+                rt.chainlink_status = "connected" if len(fresh) >= len(wanted) else "partial"
+            else:
+                rt.chainlink.connected = False
+                if workers:
+                    rt.chainlink_status = "connecting"
+            await asyncio.sleep(1.0)
+    finally:
+        for task in workers.values():
+            task.cancel()
+
+
+async def _chainlink_symbol_loop(rt: Runtime, symbol: str) -> None:
     backoff = 1.0
     while True:
         s = rt.settings()
-        mode = strategy_mode_of(s)
-        holding_twap = any(str(x.get("kind") or "").startswith("twap") for x in rt.store.inventory_open())
-        if s.get("killed") or not s.get("engine_running") or (mode != "twap" and not holding_twap):
-            rt.chainlink.connected = False
-            rt.chainlink_status = "idle"
+        wanted = chainlink_symbols_for(s, extra_assets=_holding_twap_assets(rt))
+        if symbol not in wanted:
+            return
+        if s.get("killed") or not s.get("engine_running"):
             await asyncio.sleep(1.0)
             continue
-        wanted = chainlink_symbols_for(s, extra_assets=_holding_twap_assets(rt))
-        if tuple(rt.chainlink.symbols) != wanted:
-            rt.chainlink.symbols = wanted
         try:
             import websockets
         except ImportError:
             rt.chainlink_status = "no_lib"
             await asyncio.sleep(15)
             continue
-        kw: dict[str, Any] = {"ping_interval": None, "max_size": 2**20}
-        params = inspect.signature(websockets.connect).parameters
-        headers = {"Origin": "https://polymarket.com", "User-Agent": "surf-arb-bot/0.3"}
-        if "additional_headers" in params:
-            kw["additional_headers"] = headers
-        elif "extra_headers" in params:
-            kw["extra_headers"] = headers
-        if "close_timeout" in params:
-            kw["close_timeout"] = 5
-        if "open_timeout" in params:
-            kw["open_timeout"] = 15
         try:
-            async with websockets.connect(RTDS_URL, **kw) as ws:
-                rt.chainlink.connected = True
-                rt.chainlink_status = "connected"
-                rt.chainlink.last_error = ""
+            async with websockets.connect(RTDS_URL, **_rtds_connect_kw()) as ws:
+                await ws.send(rt.chainlink.subscribe_frame_for(symbol))
                 backoff = 1.0
-                for frame in rt.chainlink.subscribe_frames():
-                    await ws.send(frame)
                 ping = asyncio.create_task(_rtds_ping(ws))
-                last_mode_check = 0.0
+                last_check = 0.0
                 try:
                     async for raw in ws:
                         if rt.chainlink.apply_message(raw):
                             rt._hunt_event.set()
                         now = time.time()
-                        if now - last_mode_check < 2.0:
+                        if now - last_check < 2.0:
                             continue
-                        last_mode_check = now
+                        last_check = now
                         s2 = rt.settings()
-                        holding = any(str(x.get("kind") or "").startswith("twap") for x in rt.store.inventory_open())
-                        if s2.get("killed") or not s2.get("engine_running") or (
-                            strategy_mode_of(s2) != "twap" and not holding
-                        ):
-                            break
                         nxt = chainlink_symbols_for(s2, extra_assets=_holding_twap_assets(rt))
-                        if nxt != tuple(rt.chainlink.symbols):
-                            break
+                        if s2.get("killed") or not s2.get("engine_running") or symbol not in nxt:
+                            return
                 finally:
                     ping.cancel()
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
-            rt.chainlink.connected = False
-            rt.chainlink_status = "down"
             rt.chainlink.last_error = fmt_exc(exc)
             now = time.time()
             if now - rt._last_rtds_error_ts > 120:
                 rt._last_rtds_error_ts = now
-                rt.store.add_event("warn", f"rtds {rt.chainlink.last_error}")
+                rt.store.add_event("warn", f"rtds {symbol} {rt.chainlink.last_error}")
             await asyncio.sleep(backoff)
             backoff = min(15.0, backoff * 2)
         else:
-            rt.chainlink.connected = False
-            rt.chainlink_status = "reconnect"
             await asyncio.sleep(0.4)
 
 
@@ -1061,7 +1099,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["http_pairs"] = http_pairs
     tape["empty_ask_legs"] = empty_asks
     tape["ws_status"] = rt.ws_status
-    tape["slugs"] = [ev.get("slug") for ev in events[:12] if ev.get("slug")]
+    tape["slugs"] = [ev.get("slug") for ev in events[:24] if ev.get("slug")]
     tape["tags"] = list(s.get("tags") or [s.get("tag") or "15M"])
     tape["taker_fok"] = bool(s.get("taker_fok", True))
     tape["snapshot_signals"] = snapshot_signals

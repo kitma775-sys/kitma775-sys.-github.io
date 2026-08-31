@@ -16,6 +16,8 @@ DEFAULT_ASSETS = ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"]
 EMPTY_YES_ASK = 0.99
 NEAR_EXPIRY_SECONDS = 180.0
 ONE_SIDED_ASK = 0.05
+TWAP_HUNT_LEFT_MIN = 12.0
+TWAP_HUNT_LEFT_MAX = 280.0
 # 5m/15m slugs are btc-updown-5m-… / btc-updown-15m-… ;
 # 1h slugs are bitcoin-up-or-down-…
 TAG_HORIZON = {
@@ -143,7 +145,7 @@ def looks_empty(best_ask: Any, seconds_left: float | None = None) -> bool:
 
 
 def _universe_rank(row: dict) -> tuple[int, float]:
-    """Last 3 minutes first. TWAP-60 5m/15m beat hourly Binance books so scan_limit cannot drown the engine."""
+    """TWAP 12–280s two-ask books first. Last-3-min pennies must not drown 15m mid-band."""
     try:
         left = float(row.get("seconds_left"))
     except (TypeError, ValueError):
@@ -154,13 +156,20 @@ def _universe_rank(row: dict) -> tuple[int, float]:
         ask = 0.5
     one_sided = ask <= ONE_SIDED_ASK or ask >= (1.0 - ONE_SIDED_ASK)
     twap_ok = bool(row.get("twap_ok"))
+    in_hunt = (
+        twap_ok
+        and not one_sided
+        and TWAP_HUNT_LEFT_MIN - 1e-9 <= left <= TWAP_HUNT_LEFT_MAX + 1e-9
+    )
+    if in_hunt:
+        return (0, left)
     if left <= NEAR_EXPIRY_SECONDS:
-        return (0 if twap_ok else 1, left)
+        return (1 if twap_ok else 2, left)
     if one_sided:
-        return (4, left)
+        return (5, left)
     if twap_ok:
-        return (2, left)
-    return (3, left)
+        return (3, left)
+    return (4, left)
 
 
 def pick_markets(

@@ -56,45 +56,49 @@ class ChainlinkTape:
         self.symbols = tuple(symbols)
         self.ticks: dict[str, deque[Tick]] = defaultdict(lambda: deque(maxlen=4000))
         self.ptb: dict[str, float] = {}
+        self.last_recv: dict[str, float] = {}
         self.connected = False
         self.last_msg_ts = 0.0
         self.last_error = ""
         self.msg_n = 0
 
+    def subscribe_frame_for(self, symbol: str) -> str:
+        return json.dumps(
+            {
+                "action": "subscribe",
+                "subscriptions": [
+                    {
+                        "topic": CHAINLINK_TOPIC,
+                        "type": "*",
+                        "filters": json.dumps({"symbol": symbol}, separators=(",", ":")),
+                    }
+                ],
+            },
+            separators=(",", ":"),
+        )
+
     def subscribe_frames(self) -> list[str]:
         # Compact filters are required. `json.dumps` default spacing
         # (`{"symbol": "btc/usd"}`) only gets a snapshot, no live updates.
-        # One symbol per frame: a combined subscriptions array was leaving
-        # eth/usd stuck on the initial snapshot.
-        frames: list[str] = []
-        for sym in self.symbols:
-            frames.append(
-                json.dumps(
-                    {
-                        "action": "subscribe",
-                        "subscriptions": [
-                            {
-                                "topic": CHAINLINK_TOPIC,
-                                "type": "*",
-                                "filters": json.dumps({"symbol": sym}, separators=(",", ":")),
-                            }
-                        ],
-                    },
-                    separators=(",", ":"),
-                )
-            )
-        return frames
+        # One symbol per *socket* at runtime: many frames on one RTDS
+        # connection freeze every feed except one after a few minutes.
+        return [self.subscribe_frame_for(sym) for sym in self.symbols]
 
     def subscribe_frame(self) -> str:
         frames = self.subscribe_frames()
         return frames[0] if frames else "{}"
 
     def age_ms(self, symbol: str | None = None) -> float:
+        """Receive-age of the feed, not exchange-print age.
+
+        Tick timestamps can lag wall clock; using them marked live XRP as
+        fresh and frozen BTC as 348s stale even while last_msg_ts was 1s.
+        """
         if symbol:
-            q = self.ticks.get(symbol)
-            if not q:
+            recv = self.last_recv.get(symbol)
+            if not recv:
                 return 9e9
-            return max(0.0, (time.time() - q[-1].ts) * 1000.0)
+            return max(0.0, (time.time() - recv) * 1000.0)
         if not self.last_msg_ts:
             return 9e9
         return max(0.0, (time.time() - self.last_msg_ts) * 1000.0)
@@ -155,7 +159,9 @@ class ChainlinkTape:
         cutoff = rows[-1][0] - KEEP_SECONDS
         while q and q[0].ts < cutoff:
             q.popleft()
-        self.last_msg_ts = time.time()
+        now = time.time()
+        self.last_recv[sym] = now
+        self.last_msg_ts = now
         self.msg_n += 1
         return True
 

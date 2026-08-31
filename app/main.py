@@ -18,7 +18,7 @@ from app.telegram_ui import run_telegram
 
 
 def apply_strategy_rev(store: Store) -> int:
-    """Patch live sqlite up to rev 28. Does not reset the paper ledger."""
+    """Patch live sqlite up to rev 29. Does not reset the paper ledger."""
     rev = int(store.settings().get("strategy_rev") or 0)
     n = 0
     if rev < 6:
@@ -416,6 +416,38 @@ def apply_strategy_rev(store: Store) -> int:
         store.add_event(
             "info",
             "rev28 settlement allowlist: 5m+15m Chainlink TWAP-60 any feed coin; 1H Binance never; scan tags/assets unchanged; keep paper; no live",
+        )
+    if rev < 29:
+        cur = store.settings()
+        try:
+            scan_n = int(float(cur.get("scan_limit") or 24))
+        except (TypeError, ValueError):
+            scan_n = 24
+        store.patch_settings(
+            strategy_rev=29,
+            strategy_mode="twap",
+            maker_first=False,
+            maker_window_seconds=0.0,
+            taker_fok=True,
+            favorite_maker=False,
+            min_edge=0.02,
+            max_usd_per_trade=5.0,
+            twap_min_price=0.45,
+            twap_max_price=0.55,
+            twap_min_lead_bps=6.0,
+            twap_min_edge=0.04,
+            twap_min_left=12.0,
+            twap_max_left=280.0,
+            twap_scratch_p=0.48,
+            twap_lookback=60.0,
+            twap_rescore_seconds=15.0,
+            clob_rtt_ms=150.0,
+            scan_limit=max(scan_n, 40),
+            live_trading=False,
+        )
+        store.add_event(
+            "info",
+            "rev29 per-symbol Chainlink sockets + scan 40 + TWAP-window rank; no all-coin same-clock lock; keep 6bps scratch; keep paper; no live",
         )
     return n
 
