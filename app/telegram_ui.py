@@ -11,6 +11,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from app.config import SETTING_STEPS, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready
 from app.geo import telegram_line
 from app.runtime import Runtime
+from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
 
 TG_MAX = 3900
@@ -19,17 +20,19 @@ TG_MAX = 3900
 def _strategy_label(s: dict) -> str:
     lo = float(s.get("twap_min_price") or 0.45)
     hi = float(s.get("twap_max_price") or 0.55)
-    assets = [str(a).upper() for a in (s.get("twap_assets") or ["btc", "eth"]) if str(a).strip()]
+    assets = [str(a).upper() for a in hunt_assets(s) if str(a).strip()]
     names = "+".join(assets) or "BTC+ETH"
-    return f"TWAP 中間價 {lo:.2f}–{hi:.2f} {names} 5m"
+    hz = "/".join(hunt_horizons(s) or ("5m",))
+    return f"TWAP 中間價 {lo:.2f}–{hi:.2f} {names} {hz}"
 
 
 def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
     return (
-        f"Rev {rev}：BTC+ETH 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘 12–280s，lead ≥6 bps，弱倉 scratch。"
-        "紙盤＝實盤 CLOB FAK dry-run（買 USDC amount+max_price，scratch 賣 shares+min_price，FOK 後 RTT 重走簿）。"
-        "唔做 YES+NO 互補，唔做大熱 97–98。FOK 開、maker 關。Redeem 等官方 0/1。"
+        f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5m／15m up/down。"
+        "45–55¢，剩餘 12–280s，lead ≥6 bps，弱倉 scratch。"
+        "1 小時 Binance 收線盤永遠唔入場。Telegram 幣／週期＝掃描；有 Chainlink feed 嘅 5m／15m 先會抬。"
+        "紙盤＝實盤 CLOB FAK dry-run。唔做 YES+NO 互補，唔做大熱 97–98。FOK 開、maker 關。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。"
     )
 
@@ -253,7 +256,11 @@ def tags_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     cur = set(s.get("tags") or [s.get("tag") or "15M"])
     rows = []
-    for tag, hint in (("5M", "5分鐘升跌"), ("15M", "15分鐘升跌"), ("1H", "1小時升跌")):
+    for tag, hint in (
+        ("5M", "5分鐘升跌 · TWAP"),
+        ("15M", "15分鐘升跌 · TWAP"),
+        ("1H", "1小時 Binance 收線 · 只掃唔入場"),
+    ):
         mark = "✅" if tag in cur else "⬜️"
         rows.append([InlineKeyboardButton(f"{mark} {tag} {hint}", callback_data=f"tag:{tag}")])
     rows.append([InlineKeyboardButton("↩️ 返設定", callback_data="set")])
@@ -382,7 +389,7 @@ def _status_text(rt: Runtime) -> str:
         + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 280):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f}\n"
         + f"FOK {'開' if s.get('taker_fok', True) else '關'} · RTT {float(s.get('clob_rtt_ms') or 150):.0f}ms · redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
         + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '5M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
-        + f"幣：{assets or '全部'}（TWAP 入場 BTC+ETH 5m）"
+        + f"幣：{assets or '全部'}（TWAP 入場＝有 Chainlink 嘅 5m／15m）"
     )
 
 
@@ -542,7 +549,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, 
             f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
-            f"策略鎖定 BTC 5m Chainlink TWAP。紙盤用同一套 CLOB FAK dry-run。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
+            f"策略鎖定 Chainlink 5m／15m TWAP（1H 唔入場）。紙盤用同一套 CLOB FAK dry-run。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
             "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，關 FORCE_PAPER，再撳兩次確認。",
             reply_markup=mode_kb(rt),
         )
@@ -607,7 +614,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, 
             "實盤會用你把匙簽名落單。\n"
-            "而家只做 BTC 5m Chainlink TWAP。紙盤同真錢同一套 CLOB FAK。\n"
+            "而家只做 Chainlink 5m／15m TWAP。1 小時 Binance 盤唔入場。紙盤同真錢同一套 CLOB FAK。\n"
             "紙盤係真錢 dry-run，但 queue／部分成交／延遲仍然會差一截。\n"
             "全自動模式下唔會逐單確認。FORCE_PAPER 開住永遠紙盤。確定轉？",
             reply_markup=kb,
@@ -630,8 +637,8 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(
             q,
-            "高階設定。策略鎖定 BTC 5m Chainlink TWAP，唔會切去互補或大熱。\n"
-            "加減只改倉位／風控／掃描。TWAP 只入場 BTC 5m。",
+            "高階設定。策略鎖定 Chainlink 5m／15m TWAP，唔會切去互補或大熱。\n"
+            "加減只改倉位／風控／掃描。1 小時週期只掃、永遠唔抬。",
             reply_markup=settings_kb(rt),
         )
         return
@@ -639,13 +646,13 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer("策略已鎖定 TWAP", show_alert=True)
         await _safe_edit(
             q,
-            "高階設定。策略鎖定 BTC 5m Chainlink TWAP，唔會切去互補或大熱。",
+            "高階設定。策略鎖定 Chainlink 5m／15m TWAP，唔會切去互補或大熱。",
             reply_markup=settings_kb(rt),
         )
         return
     if data == "assets":
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅幣。最少留一個。TWAP 只入場 BTC 5m。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, "揀要掃嘅幣。有 Chainlink TWAP-60 嘅 5m／15m 會入場。最少留一個。", reply_markup=assets_kb(rt))
         return
     if data.startswith("asset:"):
         coin = data.split(":", 1)[1]
@@ -659,11 +666,11 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             cur.append(coin)
         rt.store.patch_settings(assets=cur)
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅幣。最少留一個。TWAP 只入場 BTC 5m。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, "揀要掃嘅幣。有 Chainlink TWAP-60 嘅 5m／15m 會入場。最少留一個。", reply_markup=assets_kb(rt))
         return
     if data == "tags":
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。TWAP 只入場 5 分鐘 BTC。", reply_markup=tags_kb(rt))
+        await _safe_edit(q, "揀要掃嘅完場週期。5M／15M 會 TWAP；1H 係 Binance 收線，只掃唔入場。最少留一個。", reply_markup=tags_kb(rt))
         return
     if data.startswith("tag:"):
         tag = data.split(":", 1)[1]
@@ -677,14 +684,14 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             cur.append(tag)
         rt.store.patch_settings(tags=cur, tag=cur[0])
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。TWAP 只入場 5 分鐘 BTC。", reply_markup=tags_kb(rt))
+        await _safe_edit(q, "揀要掃嘅完場週期。5M／15M 會 TWAP；1H 係 Binance 收線，只掃唔入場。最少留一個。", reply_markup=tags_kb(rt))
         return
     if data.startswith("tog:"):
         key = data.split(":", 1)[1]
         if key in TOGGLES:
             rt.store.patch_settings(**{key: not bool(s.get(key))})
         await q.answer("已更新")
-        await _safe_edit(q, "高階設定。策略鎖定 BTC 5m Chainlink TWAP。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。策略鎖定 Chainlink 5m／15m TWAP。", reply_markup=settings_kb(rt))
         return
     if data.startswith("inc:") or data.startswith("dec:"):
         key = data.split(":", 1)[1]
@@ -700,7 +707,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})
         await q.answer()
-        await _safe_edit(q, "高階設定。策略鎖定 BTC 5m Chainlink TWAP。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。策略鎖定 Chainlink 5m／15m TWAP。", reply_markup=settings_kb(rt))
         return
     await q.answer()
 

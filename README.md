@@ -59,7 +59,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
-- **Rev 27**：TWAP 剩餘窗開到 **280s**（頂級方向盤中位 ~165–183s；6bps 下 280s 唔係 2bps 垃圾單）。**ETH 5m** 用同一套 45–55¢ / 6bps / scratch。價帶唔放寬到 60¢（train PnL 差過 45–55）。唔降 6bps、唔抄雙邊鎖倉、唔開大熱。Chainlink 每個 symbol 獨立 subscribe。詳情 `research/twap_freq.json`。紙盤未重置、未開實盤。
+- **Rev 28**：頂級閘係**結算來源**，唔係一次過打開所有 Telegram 掣。而家 5m **同** 15m `{asset}-updown-{5m|15m}-{unix}` 都係 Chainlink 60s TWAP vs 窗開價，同一套 45–55¢ / 6bps / 12–280s / scratch。有 RTDS feed 嘅幣（BTC ETH SOL XRP BNB HYPE DOGE ZEC）都可以入場，但只會抬你 Telegram 已開嘅幣。**1 小時 `*-up-or-down-*` 係 Binance 收線，永遠唔用呢套引擎**（唔好將 Chainlink TWAP 減 Gamma PTB 套上去）。掃描排序優先 TWAP 盤，避免打開 1H／多幣時 5m 被擠出 `scan_limit`。同一幣跨週期、同一鐘跨幣只開一倉。**唔改你而家嘅 5M + btc/eth 過濾**。紙盤未重置、未開實盤。詳情 `research/twap_universe.json`。
 - **Rev 26**：引擎鎖定 **BTC 5m Chainlink TWAP**。唔再 hunt YES+NO 互補、唔再買大熱 97–98。Telegram／Dashboard 收乾舊策略掣。當時 TWAP 規則 45–55¢、6bps、12–180s。紙盤未重置、未開實盤。
 - **Rev 25**：紙盤成交＝實盤 CLOB FAK dry-run。BUY 用官方 **USDC `amount` + `max_price`**（唔再用 `shares`，真錢會被 client 拒絕）；scratch **SELL `shares` + `min_price`**（紙盤都會行同一條 dump，唔再只記帳）。FOK 確認後再等 **`clob_rtt_ms=150`** 重走簿、唔 requote；盤走咗就 `clob_rtt_miss`。TWAP 仍然 180s / 6bps / scratch。紙盤未重置、未開實盤。
 - **Rev 24**：TWAP 窗開到 **剩餘 180s**（抄頂級方向盤戶中位入場 ~160–210s），仍然 **lead ≥6 bps + scratch**。唔抄分時雙邊鎖倉（7% taker 費後 −EV）、唔延遲跟單。詳情 `research/copy_top.json`。紙盤未重置、未開實盤。

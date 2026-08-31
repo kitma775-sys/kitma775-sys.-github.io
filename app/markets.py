@@ -8,6 +8,7 @@ import httpx
 
 from app.geo import interpret
 from app.hunter import Level
+from app.twap import parse_window
 from app.universe import (
     DEFAULT_ASSETS,
     DEFAULT_TAGS,
@@ -110,6 +111,7 @@ class MarketData:
             if len(tokens) < 2:
                 continue
             fs = m.get("feeSchedule") if isinstance(m.get("feeSchedule"), dict) else {}
+            parsed = parse_window(slug)
             picked.append(
                 {
                     "slug": slug,
@@ -126,6 +128,8 @@ class MarketData:
                     "best_ask": m.get("bestAsk"),
                     "volume24hr": float(m.get("volume24hr") or ev.get("volume24hr") or 0),
                     "seconds_left": seconds_left(end, now=now),
+                    "twap_ok": parsed is not None,
+                    "twap_horizon": None if parsed is None else parsed.horizon,
                 }
             )
         return picked

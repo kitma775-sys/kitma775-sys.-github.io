@@ -31,6 +31,7 @@ ASSET_ALIASES = {
     "bnb": ("bnb", "binance"),
     "hype": ("hype",),
     "doge": ("doge", "dogecoin"),
+    "zec": ("zec", "zcash"),
 }
 
 
@@ -142,7 +143,7 @@ def looks_empty(best_ask: Any, seconds_left: float | None = None) -> bool:
 
 
 def _universe_rank(row: dict) -> tuple[int, float]:
-    """Last 3 minutes always first. Mid-window penny books (winner ask pulled) go last."""
+    """Last 3 minutes first. TWAP-60 5m/15m beat hourly Binance books so scan_limit cannot drown the engine."""
     try:
         left = float(row.get("seconds_left"))
     except (TypeError, ValueError):
@@ -152,11 +153,14 @@ def _universe_rank(row: dict) -> tuple[int, float]:
     except (TypeError, ValueError):
         ask = 0.5
     one_sided = ask <= ONE_SIDED_ASK or ask >= (1.0 - ONE_SIDED_ASK)
+    twap_ok = bool(row.get("twap_ok"))
     if left <= NEAR_EXPIRY_SECONDS:
-        return (0, left)
+        return (0 if twap_ok else 1, left)
     if one_sided:
+        return (4, left)
+    if twap_ok:
         return (2, left)
-    return (1, left)
+    return (3, left)
 
 
 def pick_markets(

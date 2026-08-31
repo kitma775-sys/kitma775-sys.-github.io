@@ -121,7 +121,7 @@
         tile(s.taker_fok===false ? "關" : "開", "延遲確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
-        tile("TWAP " + ((s.twap_assets||["btc","eth"]).join("+").toUpperCase()) + " 5m", "策略"),
+        tile("TWAP " + ((s.assets||["btc","eth"]).join("+").toUpperCase()) + " " + ((s.tags||["5M"]).join("/")), "策略"),
         tile(d.chainlink_status || "off", "Chainlink"),
         tile((function(){
           const g = tape.twap_gate || {};

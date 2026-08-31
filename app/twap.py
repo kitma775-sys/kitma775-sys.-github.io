@@ -1,10 +1,11 @@
 """Chainlink 60s TWAP vs window-open PTB — mid-band directional engine.
 
-Live ticks must be the same Chainlink USD stream the 5m market settles on.
+Live ticks must be the same Chainlink USD stream the market settles on.
 Never subtract a Binance/USDT print from Gamma priceToBeat (≈9 bps basis).
 PTB is the first same-source tick at/after the window open.
 
-Settlement: last `lookback` seconds of Chainlink TWAP >= PTB → Up.
+Settlement (5m and 15m up/down): last `lookback` seconds of Chainlink TWAP >= PTB → Up.
+Hourly `*-up-or-down-*` and `*-above-*` settle on Binance candles — never this engine.
 """
 
 from __future__ import annotations
@@ -19,8 +20,23 @@ TWAP_LOOKBACK = 60
 MID_LO = 0.45
 MID_HI = 0.55
 BTC_5M_RE = re.compile(r"^btc-updown-5m-(\d+)$")
-CHAINLINK_SYMBOL = {"btc": "btc/usd", "eth": "eth/usd"}
+UPDOWN_RE = re.compile(r"^([a-z0-9]+)-updown-(5m|15m)-(\d+)$")
+HORIZON_SECONDS = {"5m": 300, "15m": 900}
+TAG_TO_HORIZON = {"5M": "5m", "15M": "15m"}
+CHAINLINK_SYMBOL = {
+    "btc": "btc/usd",
+    "eth": "eth/usd",
+    "sol": "sol/usd",
+    "xrp": "xrp/usd",
+    "doge": "doge/usd",
+    "bnb": "bnb/usd",
+    "hype": "hype/usd",
+    "zec": "zec/usd",
+}
+CHAINLINK_ASSETS = tuple(CHAINLINK_SYMBOL)
 WINDOW_SECONDS = 300
+DEFAULT_TWAP_ASSETS = ("btc", "eth")
+DEFAULT_TWAP_HORIZONS = ("5m", "15m")
 
 
 def phi(z: float) -> float:
@@ -56,15 +72,119 @@ def fee_per_share(px: float, fee_rate: float) -> float:
     return float(fee_rate) * p * (1.0 - p)
 
 
-def parse_5m(slug: str) -> tuple[str, int] | None:
-    m = re.match(r"^(btc|eth)-updown-5m-(\d+)$", str(slug or ""))
+@dataclass(frozen=True)
+class TwapWindow:
+    asset: str
+    horizon: str
+    start: int
+
+    @property
+    def window_seconds(self) -> int:
+        return int(HORIZON_SECONDS[self.horizon])
+
+    @property
+    def symbol(self) -> str | None:
+        return CHAINLINK_SYMBOL.get(self.asset)
+
+    @property
+    def slug(self) -> str:
+        return f"{self.asset}-updown-{self.horizon}-{self.start}"
+
+
+def parse_window(slug: str) -> TwapWindow | None:
+    """Only 5m/15m `{asset}-updown-{horizon}-{start}` with a live Chainlink feed.
+
+    Hourly `bitcoin-up-or-down-…` / `*-above-*` return None (Binance candle).
+    """
+    m = UPDOWN_RE.match(str(slug or "").strip().lower())
     if not m:
         return None
-    return m.group(1), int(m.group(2))
+    asset, horizon, start_s = m.group(1), m.group(2), m.group(3)
+    if asset not in CHAINLINK_SYMBOL or horizon not in HORIZON_SECONDS:
+        return None
+    return TwapWindow(asset=asset, horizon=horizon, start=int(start_s))
+
+
+def parse_5m(slug: str) -> tuple[str, int] | None:
+    parsed = parse_window(slug)
+    if not parsed or parsed.horizon != "5m":
+        return None
+    return parsed.asset, parsed.start
 
 
 def is_btc_5m(slug: str) -> bool:
     return bool(BTC_5M_RE.match(str(slug or "")))
+
+
+def is_hourly_updown(slug: str) -> bool:
+    text = str(slug or "").lower()
+    return "up-or-down" in text and "-updown-" not in text
+
+
+def asset_from_symbol(symbol: str) -> str | None:
+    key = str(symbol or "").strip().lower()
+    for asset, sym in CHAINLINK_SYMBOL.items():
+        if key == sym:
+            return asset
+    return None
+
+
+def _token_tuple(raw, fallback: tuple[str, ...]) -> tuple[str, ...]:
+    if raw is None or raw == "":
+        return fallback
+    if isinstance(raw, str):
+        items = [a.strip().lower() for a in raw.split(",") if a.strip()]
+    else:
+        items = [str(a).lower().strip() for a in raw if str(a).strip()]
+    return tuple(items) or fallback
+
+
+def hunt_assets(s: dict | None = None) -> tuple[str, ...]:
+    """Telegram scan coins ∩ Chainlink TWAP-60 allowlist.
+
+    `twap_assets` is the capability pin (what the engine may trade).
+    `assets` is what Telegram opened. Opening SOL only hunts SOL if both match.
+    """
+    d = s or {}
+    pinned = set(_token_tuple(d.get("twap_assets"), DEFAULT_TWAP_ASSETS))
+    scan_raw = d.get("assets")
+    scan = _token_tuple(scan_raw, tuple(pinned)) if scan_raw not in (None, "") else tuple(pinned)
+    return tuple(a for a in scan if a in CHAINLINK_SYMBOL and a in pinned)
+
+
+def hunt_horizons(s: dict | None = None) -> tuple[str, ...]:
+    """5M/15M tags ∩ TWAP horizons. 1H never hunts this engine."""
+    d = s or {}
+    pinned = set(_token_tuple(d.get("twap_horizons"), DEFAULT_TWAP_HORIZONS))
+    tags = d.get("tags")
+    if tags is None or tags == "":
+        tag_list = [d.get("tag") or "5M"]
+    elif isinstance(tags, str):
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    else:
+        tag_list = [str(t).strip() for t in tags if str(t).strip()]
+    out: list[str] = []
+    for tag in tag_list:
+        horizon = TAG_TO_HORIZON.get(str(tag).upper())
+        if horizon and horizon in pinned and horizon in HORIZON_SECONDS and horizon not in out:
+            out.append(horizon)
+    return tuple(out)
+
+
+def chainlink_symbols_for(s: dict | None = None, extra_assets: tuple[str, ...] = ()) -> tuple[str, ...]:
+    assets = list(hunt_assets(s))
+    for raw in extra_assets:
+        a = str(raw or "").lower()
+        if a in CHAINLINK_SYMBOL and a not in assets:
+            assets.append(a)
+    return tuple(CHAINLINK_SYMBOL[a] for a in assets if a in CHAINLINK_SYMBOL) or ("btc/usd",)
+
+
+def future_listing(left: float | None, window_seconds: int) -> bool:
+    """Skip books listed for the next window, not the live clock."""
+    if left is None:
+        return False
+    return float(left) > float(window_seconds) + 5.0
 
 
 def in_mid_band(px: float, lo: float = MID_LO, hi: float = MID_HI) -> bool:
@@ -114,7 +234,8 @@ class TwapParams:
     scratch_p: float = 0.48
     scratch_min_bid: float = 0.38
     scratch_left_min: float = 8.0
-    assets: tuple[str, ...] = ("btc", "eth")
+    assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
+    horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
 
 
 def default_params(s: dict | None = None) -> TwapParams:
@@ -126,10 +247,10 @@ def default_params(s: dict | None = None) -> TwapParams:
             return float(fallback)
         return float(v)
 
-    assets = d.get("twap_assets") or ("btc", "eth")
-    if isinstance(assets, str):
-        assets = [a.strip().lower() for a in assets.split(",") if a.strip()]
-    assets = tuple(str(a).lower() for a in assets if str(a).strip()) or ("btc", "eth")
+    assets = hunt_assets(d) or DEFAULT_TWAP_ASSETS
+    horizons = hunt_horizons(d)
+    if not horizons and d.get("twap_horizons") is None and d.get("tags") is None:
+        horizons = DEFAULT_TWAP_HORIZONS
     return TwapParams(
         min_price=num("twap_min_price", MID_LO),
         max_price=num("twap_max_price", MID_HI),
@@ -145,15 +266,17 @@ def default_params(s: dict | None = None) -> TwapParams:
         scratch_min_bid=num("twap_scratch_min_bid", 0.38),
         scratch_left_min=num("twap_scratch_left_min", 8.0),
         assets=assets,
+        horizons=horizons,
     )
 
 
 def slug_allowed(slug: str, params: TwapParams) -> bool:
-    parsed = parse_5m(slug)
+    parsed = parse_window(slug)
     if not parsed:
         return False
-    asset, _start = parsed
-    return asset in set(params.assets)
+    if parsed.asset not in set(params.assets):
+        return False
+    return parsed.horizon in set(params.horizons)
 
 
 def entry_edge(fair_p: float, px: float, fee_rate: float) -> float:
@@ -173,8 +296,13 @@ def twap_entry_reason(
     """None means enter. Otherwise a stable skip reason."""
     if snap is None or not snap.connected:
         return "twap_no_feed"
-    if not slug_allowed(slug, params):
-        return "twap_not_btc5m" if "btc" in params.assets and not is_btc_5m(slug) else "twap_asset"
+    parsed = parse_window(slug)
+    if parsed is None or not slug_allowed(slug, params):
+        if parsed is None:
+            return "twap_oracle"
+        if parsed.horizon not in set(params.horizons):
+            return "twap_horizon"
+        return "twap_asset"
     if snap.age_ms > params.max_age_ms:
         return "twap_stale"
     if snap.tick_n < params.min_ticks:

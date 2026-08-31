@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
-from app.twap import CHAINLINK_SYMBOL, default_params, parse_5m, should_scratch, slug_allowed, twap_entry_reason
+from app.twap import chainlink_symbols_for, default_params, future_listing, parse_window, should_scratch, slug_allowed, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, plan_rescue, walk_dump
@@ -61,8 +61,40 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
     return False
 
 
+def twap_conflict_open(rt: Runtime, slug: str) -> bool:
+    """One TWAP book per asset, and one asset per same-horizon clock.
+
+    BTC 5m open blocks BTC 15m (same Chainlink path). BTC 5m at T blocks ETH 5m at T
+    (they dump together). 5m vs 15m on different coins at different clocks can coexist.
+    """
+    parsed = parse_window(slug)
+    if not parsed:
+        return favorite_same_window_open(rt, slug)
+    for row in rt.store.inventory_open():
+        other = str(row.get("slug") or "")
+        if not other or other == slug:
+            continue
+        peer = parse_window(other)
+        if not peer:
+            continue
+        if peer.asset == parsed.asset:
+            return True
+        if peer.horizon == parsed.horizon and peer.start == parsed.start:
+            return True
+    return False
+
+
+def _holding_twap_assets(rt: Runtime) -> tuple[str, ...]:
+    out: list[str] = []
+    for row in rt.store.inventory_open():
+        parsed = parse_window(str(row.get("slug") or ""))
+        if parsed and parsed.asset not in out:
+            out.append(parsed.asset)
+    return tuple(out)
+
+
 def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float, params, setup, chainlink=None) -> dict:
-    """Why this BTC 5m did or did not produce a TWAP lift."""
+    """Why this TWAP book did or did not produce a lift."""
     left = seconds_left(ev.get("end"))
     up_ask = _top(up_book.get("asks") or [], asks=True)
     if is_twap_setup(setup):
@@ -70,8 +102,8 @@ def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float
         ask = float(setup.up_price or setup.down_price)
         bid = None
     elif snap is None:
-        parsed = parse_5m(str(ev.get("slug") or ""))
-        sym = CHAINLINK_SYMBOL.get(parsed[0]) if parsed else None
+        parsed = parse_window(str(ev.get("slug") or ""))
+        sym = None if parsed is None else parsed.symbol
         ticks = None if chainlink is None or not sym else chainlink.ticks.get(sym)
         if chainlink is not None and chainlink.connected and ticks:
             why = "twap_no_ptb"
@@ -421,7 +453,7 @@ async def _ws_ping(ws) -> None:
 
 
 async def _chainlink_loop(rt: Runtime) -> None:
-    """Official Polymarket RTDS Chainlink USD stream (5m settlement source)."""
+    """Official Polymarket RTDS Chainlink USD stream (5m/15m settlement source)."""
     backoff = 1.0
     while True:
         s = rt.settings()
@@ -432,6 +464,9 @@ async def _chainlink_loop(rt: Runtime) -> None:
             rt.chainlink_status = "idle"
             await asyncio.sleep(1.0)
             continue
+        wanted = chainlink_symbols_for(s, extra_assets=_holding_twap_assets(rt))
+        if tuple(rt.chainlink.symbols) != wanted:
+            rt.chainlink.symbols = wanted
         try:
             import websockets
         except ImportError:
@@ -472,6 +507,9 @@ async def _chainlink_loop(rt: Runtime) -> None:
                         if s2.get("killed") or not s2.get("engine_running") or (
                             strategy_mode_of(s2) != "twap" and not holding
                         ):
+                            break
+                        nxt = chainlink_symbols_for(s2, extra_assets=_holding_twap_assets(rt))
+                        if nxt != tuple(rt.chainlink.symbols):
                             break
                 finally:
                     ping.cancel()
@@ -678,9 +716,10 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         if not slug_allowed(slug, twap_params):
             continue
         left_now = seconds_left(ev.get("end"))
-        if left_now is not None and left_now > 305:
+        parsed = parse_window(slug)
+        if parsed is not None and future_listing(left_now, parsed.window_seconds):
             continue
-        if favorite_same_window_open(rt, slug):
+        if twap_conflict_open(rt, slug):
             continue
         inv = rt.store.inventory_one(ev["condition_id"])
         max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))

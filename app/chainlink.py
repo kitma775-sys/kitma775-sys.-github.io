@@ -1,10 +1,12 @@
-"""Polymarket RTDS Chainlink USD ticks — the 5m up/down settlement stream.
+"""Polymarket RTDS Chainlink USD ticks — 5m/15m up/down settlement stream.
 
 wss://ws-live-data.polymarket.com  topic=crypto_prices_chainlink
-No auth. PING every 5s. Symbols are slash pairs (btc/usd).
+No auth. PING every 5s. Symbols are slash pairs (btc/usd). One subscribe
+frame per symbol.
 
-Window-open PTB is the first tick at or after the 5m start on this same
-stream. Running TWAP is time-weighted over the last `lookback` seconds.
+Window-open PTB is the first tick at or after the 5m or 15m start on this
+same stream. Running TWAP is time-weighted over the last `lookback` seconds.
+Hourly Binance candles are not this topic.
 """
 
 from __future__ import annotations
@@ -16,19 +18,20 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 
 from app.twap import (
-    CHAINLINK_SYMBOL,
+    HORIZON_SECONDS,
     TWAP_LOOKBACK,
     TwapSnap,
+    asset_from_symbol,
     fair_p_up,
     lead_bps,
-    parse_5m,
+    parse_window,
     time_weighted_twap,
 )
 
 RTDS_URL = "wss://ws-live-data.polymarket.com"
 CHAINLINK_TOPIC = "crypto_prices_chainlink"
 CHAINLINK_TOPICS = {"crypto_prices_chainlink", "crypto_prices", "prices.crypto.chainlink"}
-KEEP_SECONDS = 900.0
+KEEP_SECONDS = 1800.0
 PING_EVERY = 5.0
 
 
@@ -156,37 +159,37 @@ class ChainlinkTape:
         self.msg_n += 1
         return True
 
-    def _window_key(self, asset: str, start: int) -> str:
-        return f"{asset}-updown-5m-{int(start)}"
+    def _window_key(self, asset: str, horizon: str, start: int) -> str:
+        return f"{asset}-updown-{horizon}-{int(start)}"
 
     def _maybe_ptb(self, symbol: str, ts: float, px: float) -> None:
-        asset = "btc" if symbol.startswith("btc") else "eth" if symbol.startswith("eth") else ""
+        asset = asset_from_symbol(symbol)
         if not asset:
             return
-        start = int(ts) - (int(ts) % 300)
-        self.ensure_ptb(self._window_key(asset, start))
+        for horizon, win in HORIZON_SECONDS.items():
+            start = int(ts) - (int(ts) % int(win))
+            self.ensure_ptb(self._window_key(asset, horizon, start))
 
     def ensure_ptb(self, slug: str) -> float | None:
         """PTB = first tick at/after T0, only if we saw a tick *before* T0.
 
         Joining mid-window would otherwise treat the first live print as the
-        open. Skip until the next 5m open.
+        open. Skip until the next window open.
         """
-        parsed = parse_5m(slug)
+        parsed = parse_window(slug)
         if not parsed:
             return None
-        asset, start = parsed
-        key = self._window_key(asset, start)
+        key = parsed.slug
         if key in self.ptb:
             return self.ptb[key]
-        symbol = CHAINLINK_SYMBOL.get(asset)
+        symbol = parsed.symbol
         if not symbol:
             return None
         q = list(self.ticks.get(symbol) or ())
-        if not any(t.ts < start - 1e-9 for t in q):
+        if not any(t.ts < parsed.start - 1e-9 for t in q):
             return None
-        after = next((t for t in q if t.ts + 1e-9 >= start), None)
-        if after is None or after.ts > start + 5.0:
+        after = next((t for t in q if t.ts + 1e-9 >= parsed.start), None)
+        if after is None or after.ts > parsed.start + 5.0:
             return None
         self.ptb[key] = float(after.price)
         return self.ptb[key]
@@ -219,11 +222,11 @@ class ChainlinkTape:
         return std * 10000.0
 
     def snapshot(self, slug: str, *, now: float | None = None, lookback: int = TWAP_LOOKBACK, left: float | None = None) -> TwapSnap | None:
-        parsed = parse_5m(slug)
+        parsed = parse_window(slug)
         if not parsed:
             return None
-        asset, start = parsed
-        symbol = CHAINLINK_SYMBOL.get(asset)
+        asset, start = parsed.asset, parsed.start
+        symbol = parsed.symbol
         if not symbol:
             return None
         now = time.time() if now is None else float(now)
@@ -241,7 +244,7 @@ class ChainlinkTape:
             return None
         vol = self._vol(symbol, now)
         if left is None:
-            left = float(start + 300) - now
+            left = float(start + parsed.window_seconds) - now
         fair = fair_p_up(lead, vol, float(left), lookback=lookback)
         return TwapSnap(
             symbol=symbol,

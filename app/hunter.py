@@ -416,7 +416,15 @@ def favorite_other_too_rich(other_ask: float | None) -> bool:
 
 
 def favorite_window_key(slug: str | None) -> str | None:
-    """btc-updown-5m-1787981100 → updown-5m-1787981100 (same 5m as eth)."""
+    """Same-clock lock: btc-updown-5m-T and eth-updown-5m-T share a key.
+
+    15m uses `updown-15m-T`. Hourly Binance slugs are not TWAP windows.
+    """
+    from app.twap import parse_window
+
+    parsed = parse_window(slug or "")
+    if parsed:
+        return f"updown-{parsed.horizon}-{parsed.start}"
     parts = str(slug or "").split("-")
     if len(parts) < 4:
         return None
