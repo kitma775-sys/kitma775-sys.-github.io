@@ -63,6 +63,7 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
 
 CORR_CLOCK = frozenset({"btc", "eth"})
 WS_HUNT_BUFFER_S = 45.0
+WS_MAX_TOKENS = 16
 _GATE_RANK = {
     "signal": 0,
     "ready": 1,
@@ -93,28 +94,43 @@ def ws_wanted_tokens(
     params,
     hold_condition_ids: set[str] | None = None,
     extra_tokens: list[str] | None = None,
+    ptb_slugs: set[str] | None = None,
     buffer_s: float = WS_HUNT_BUFFER_S,
+    max_tokens: int = WS_MAX_TOKENS,
 ) -> list[str]:
-    """CLOB market WS: hunt-window books + inventory/resting, not the full scan.
+    """CLOB market WS: scarce slots for books we can actually lift.
 
-    Subscribing 35 markets × 2 tokens (~70) fills the server send buffer and
-    the socket returns 1013 slow consumer — the book is blind at the 45–55 print.
+    28 tokens (7×5m + 7×15m) still 1013'd on the JP host after ~2.5 min.
+    Require a locked PTB (inventory always), prefer 5m, cap at 16 tokens.
     """
     hold = {str(x) for x in (hold_condition_ids or ()) if x}
+    ptb = None if ptb_slugs is None else {str(x) for x in ptb_slugs if x}
     seen: set[str] = set()
     out: list[str] = []
+    cap = max(2, int(max_tokens))
 
-    def add_ev(ev: dict) -> None:
+    def add_ev(ev: dict) -> bool:
+        needed: list[str] = []
         for key in ("up_token", "down_token"):
             tok = str(ev.get(key) or "")
             if tok and tok not in seen:
-                seen.add(tok)
-                out.append(tok)
+                needed.append(tok)
+        if not needed:
+            return False
+        if len(out) + len(needed) > cap:
+            return False
+        for tok in needed:
+            seen.add(tok)
+            out.append(tok)
+        return True
 
+    must: list[dict] = []
+    five: list[dict] = []
+    fifteen: list[dict] = []
     for ev in events:
         cid = str(ev.get("condition_id") or "")
         if cid and cid in hold:
-            add_ev(ev)
+            must.append(ev)
             continue
         slug = str(ev.get("slug") or "")
         if not slug_allowed(slug, params):
@@ -127,10 +143,24 @@ def ws_wanted_tokens(
             continue
         if float(left) > float(params.max_left) + float(buffer_s):
             continue
+        if ptb is not None:
+            key = parsed.slug if parsed else ""
+            if key not in ptb:
+                continue
+        if parsed is not None and parsed.horizon == "15m":
+            fifteen.append(ev)
+        else:
+            five.append(ev)
+
+    for ev in must:
+        add_ev(ev)
+    for ev in five:
+        add_ev(ev)
+    for ev in fifteen:
         add_ev(ev)
     for tok in extra_tokens or []:
         t = str(tok or "")
-        if t and t not in seen:
+        if t and t not in seen and len(out) < cap:
             seen.add(t)
             out.append(t)
     return out
@@ -483,6 +513,7 @@ async def _refresh_universe(rt: Runtime) -> None:
         params=default_params(s),
         hold_condition_ids=hold_cids,
         extra_tokens=extra_tokens,
+        ptb_slugs=set(rt.chainlink.ptb),
     )
     rt.universe = events
     rt.books.set_wanted(tokens)
@@ -568,6 +599,7 @@ async def _ws_loop(rt: Runtime) -> None:
                 rt.books.connected = True
                 backoff = 1.0
                 await ws.send(_sub(wanted))
+                rt.last_ws_error = ""
                 now = time.time()
                 if now - rt._last_ws_info_ts > 60:
                     rt.store.add_event("info", f"ws connected {len(wanted)} tokens")
@@ -875,12 +907,35 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     twap_params = default_params(s)
     twap_skips: dict[str, int] = {}
     twap_gate: dict | None = None
+    hold_cids = {str(r.get("condition_id") or "") for r in rt.store.inventory_open() if r.get("condition_id")}
     if not circuit:
         try:
             await _scratch_twap(rt, events)
         except Exception as exc:
             rt.store.add_event("warn", f"twap scratch {fmt_exc(exc)}")
     for ev in events:
+        slug = str(ev.get("slug") or "")
+        left_now = seconds_left(ev.get("end"))
+        parsed = parse_window(slug)
+        is_future = parsed is not None and future_listing(left_now, parsed.window_seconds)
+        cid = str(ev.get("condition_id") or "")
+        holding = bool(cid and cid in hold_cids)
+        if is_future and not holding:
+            if slug_allowed(slug, twap_params):
+                why = "future_listing"
+                twap_skips[why] = twap_skips.get(why, 0) + 1
+                gate = {
+                    "slug": slug,
+                    "left": None if left_now is None else round(float(left_now), 1),
+                    "lead_bps": None,
+                    "ask": None,
+                    "fair": None,
+                    "reason": why,
+                    "side": None,
+                }
+                if gate_better(twap_gate, gate):
+                    twap_gate = gate
+            continue
         up_book, dn_book, src = await _pair_books(rt, ev, max_age_ms=max_age)
         if up_book is None or dn_book is None:
             stale_pairs += 1

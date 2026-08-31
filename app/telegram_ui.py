@@ -31,7 +31,7 @@ def _rev_blurb(s: dict) -> str:
     return (
         f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5m／15m up/down。"
         "45–55¢，剩餘 12–280s，lead ≥6 bps，弱倉 scratch。"
-        "全幣各開一條 Chainlink socket。CLOB 只訂獵窗＋持倉，避免 1013。"
+        "全幣各開一條 Chainlink socket。CLOB 只訂有 PTB 嘅獵窗＋持倉，最多 16 token。"
         "1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。"
     )
