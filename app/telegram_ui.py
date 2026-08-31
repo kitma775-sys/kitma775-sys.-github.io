@@ -35,7 +35,8 @@ def _rev_blurb(s: dict) -> str:
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
         "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
         "主頁／而家狀況／Dashboard 跟盤口模式：實盤只睇可用 USDC 同實盤倉，紙盤只睇紙盤帳。"
-        "Dashboard 係霓虹監察牆：電腦三欄、手機直版自動疊；掃描日誌同運行日誌跟 bot 同一份，鐘用香港時間。"
+        "Dashboard 頭位係今日已實現曲線同命中率，掃描日誌同運行日誌留低；手機先錢同圖再下滑。"
+        "Telegram 主頁、Dashboard、運行 bot 用同一組 board 數字。鐘用香港時間。"
     )
 
 
@@ -209,13 +210,23 @@ def _paper_block(rt: Runtime) -> str:
     )
 
 
+def _hit_clause(b: dict) -> str:
+    held = int(b.get("hit_held") or 0)
+    scratch = int(b.get("scratch_n") or 0)
+    if held <= 0:
+        return "命中 —" if scratch <= 0 else f"命中 — · scratch {scratch}"
+    extra = f" · scratch {scratch}" if scratch else ""
+    return f"命中 {b.get('hit_label') or str(held)}{extra}"
+
+
 def _money_line(rt: Runtime) -> str:
     b = operator_board(rt)
+    hit = _hit_clause(b)
     if b["mode"] == "live":
         usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
-        return f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])}"
+        return f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])} · {hit}"
     return (
-        f"現金 ${b['cash']:.2f} · 權益 ${b['equity']:.2f} · 今日 {_signed(b['today_pnl'])}\n"
+        f"現金 ${b['cash']:.2f} · 權益 ${b['equity']:.2f} · 今日 {_signed(b['today_pnl'])} · {hit}\n"
         f"本金 ${b['starting']:.2f} · 單筆 ${b['stake']:.0f}"
     )
 
@@ -240,7 +251,7 @@ def mode_text(rt: Runtime) -> str:
         usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
         return (
             "而家：🔴 實盤\n"
-            f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])}\n"
+            f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])} · {_hit_clause(b)}\n"
             f"開倉 {b['open_n']} · 持倉成本 ${b['open_cost']:.2f}\n"
             "轉返紙盤會只睇紙盤帳，唔會改錢包。"
         )

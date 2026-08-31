@@ -14,7 +14,7 @@ from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_o
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
-from app.wall import note_wall_gate, operator_wall
+from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, parse_outcome_prices, plan_rescue, walk_dump
@@ -103,6 +103,7 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         notes.append("⏸ Polymarket CLOB 全站暫停 · status.polymarket.com")
     stake = float(s.get("max_usd_per_trade") or 5)
     open_cost = round(sum(float(r.get("cost") or 0) for r in inv), 2)
+    perf = performance_today(rt)
     base = {
         "mode": "live" if live else "paper",
         "state": state,
@@ -117,6 +118,12 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         "fills": last.get("fills"),
         "rev": int(s.get("strategy_rev") or 0),
         "leftover_paper_n": leftover_n,
+        "hit_rate": perf["hit_rate"],
+        "hit_wins": perf["wins"],
+        "hit_losses": perf["losses"],
+        "hit_held": perf["held"],
+        "scratch_n": perf["scratch_n"],
+        "hit_label": perf["hit_label"],
     }
     if live:
         usdc = rt.live_usdc

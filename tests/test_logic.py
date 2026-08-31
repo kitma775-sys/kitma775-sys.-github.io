@@ -4087,6 +4087,13 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "@media (max-width: 860px)" in html
     assert "SURF · 5M TWAP WALL" in html
     assert "Asia/Hong_Kong" in html
+    assert 'id="hero"' in html
+    assert 'id="curve"' in html
+    assert "掃描日誌" in html
+    assert "運行日誌" in html
+    assert "命中" in html
+    assert "drawCurve" in html
+    assert '"hero"' in html
 
 
 def test_format_log_ts_is_hong_kong():
@@ -4147,6 +4154,59 @@ def test_operator_wall_tape_and_mode_money(tmp_path):
     assert "Z" not in log
     assert "本金 $" not in home_text(rt)
     assert "霓虹監察牆" not in home_text(rt)
+    assert home_text(rt).count("命中") == 1
+    assert "命中 —" in home_text(rt)
+    assert wall["curve"]["hit_label"] == "—"
+    assert wall["curve"]["label"] == "今日已實現"
+    assert board["hit_held"] == 0
+
+
+def test_performance_today_hit_rate_and_curve_align_telegram(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime, operator_board
+    from app.telegram_ui import home_text, mode_text
+    from app.wall import performance_today, operator_wall
+
+    st = Store(tmp_path / "curve.sqlite")
+    st.ensure_paper(500)
+    st.patch_settings(max_usd_per_trade=3, live_trading=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.live_usdc = 20.84
+    st.add_trade(slug="sol-updown-5m-1", kind="twap_live", shares=5, up_price=0, down_price=0.47, net=-0.337, mode="live", status="dumped")
+    st.add_trade(slug="hype-updown-5m-1", kind="settle", shares=6.86, up_price=0, down_price=1, net=3.977, mode="live", status="redeemed")
+    st.add_trade(slug="xrp-updown-5m-1", kind="settle", shares=5.1, up_price=0, down_price=1, net=-2.6, mode="live", status="redeemed")
+    st.add_trade(slug="sol-updown-5m-2", kind="settle", shares=6.3, up_price=1, down_price=0, net=-2.9, mode="live", status="redeemed")
+    st.add_trade(slug="sol-updown-5m-2", kind="taker", shares=6.3, up_price=0, down_price=0.46, net=0.0, mode="live", status="filled")
+    st.add_trade(slug="eth-updown-5m-9", kind="settle", shares=5, up_price=1, down_price=0, net=2.0, mode="paper", status="paper_settled")
+    perf = performance_today(rt)
+    assert perf["wins"] == 1
+    assert perf["losses"] == 2
+    assert perf["held"] == 3
+    assert perf["scratch_n"] == 1
+    assert perf["hit_label"] == "1/3"
+    assert abs(float(perf["hit_rate"]) - (1 / 3)) < 1e-3
+    assert abs(float(perf["end"]) - (3.977 - 2.6 - 2.9 - 0.337)) < 1e-6
+    board = operator_board(rt)
+    assert board["hit_label"] == "1/3"
+    assert board["scratch_n"] == 1
+    assert abs(float(board["today_pnl"]) - float(perf["end"])) < 1e-6
+    home = home_text(rt)
+    assert "命中 1/3" in home
+    assert "scratch 1" in home
+    assert "本金 $" not in home
+    assert "可用 USDC $20.84" in home
+    assert "命中 1/3" in mode_text(rt)
+    wall = operator_wall(rt, board)
+    assert wall["curve"]["hit_label"] == "1/3"
+    marks = [p["mark"] for p in wall["curve"]["points"] if p["mark"] != "start"]
+    assert marks.count("win") == 1
+    assert marks.count("lose") == 2
+    assert marks.count("scratch") == 1
+    paper_rt = Runtime(st, Env(force_paper=True))
+    paper = performance_today(paper_rt)
+    assert paper["label"] == "今日權益"
+    assert paper["wins"] == 1
+    assert paper["hit_label"] == "1/1"
 
 
 def test_wall_slots_keep_open_window_not_future_listing(tmp_path):
@@ -4503,7 +4563,7 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "只做 5 分鐘" in essay
     assert "15 分鐘同 5 分鐘搶槽，已砍" in essay
     assert "主頁／而家狀況／Dashboard" in essay
-    assert "霓虹監察牆" in essay
+    assert "今日已實現曲線同命中率" in essay
     assert "唔係錢包" in _rev_blurb(rt.settings())
     home = home_text(rt)
     assert "唔做 YES+NO 互補" not in home

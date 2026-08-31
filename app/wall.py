@@ -56,6 +56,84 @@ STATUS_ZH = {
 
 NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
 
+CURVE_STATUSES = frozenset(
+    {"redeemed", "paper_settled", "dumped", "paper_dumped", "paper_hedged", "merged"}
+)
+HELD_STATUSES = frozenset({"redeemed", "paper_settled"})
+SCRATCH_STATUSES = frozenset({"dumped", "paper_dumped"})
+
+
+def utc_day_start(now: float | None = None) -> float:
+    """Same UTC-day bucket as store.today_pnl / daily-loss circuit."""
+    t = float(now if now is not None else time.time())
+    return t - (t % 86400)
+
+
+def performance_today(rt) -> dict[str, Any]:
+    """Mode-aware realized path + held-to-settle hit rate. Shared by TG, wall, engine."""
+    live = rt.mode() == "live"
+    mode = "live" if live else "paper"
+    start_ts = utc_day_start()
+    y0 = 0.0
+    if not live:
+        p = rt.store.paper_state()
+        y0 = round(float(p.get("equity") or 0) - float(p.get("today_pnl") or 0), 6)
+    rows = rt.store.trades_since(start_ts, mode=mode)
+    y = y0
+    points = [{"ts": start_ts, "y": round(y, 4), "net": 0.0, "slug": "", "status": "open", "mark": "start"}]
+    wins = losses = scratch_n = 0
+    for t in rows:
+        status = str(t.get("status") or "")
+        if status in NOISE_TRADE or status not in CURVE_STATUSES:
+            continue
+        try:
+            net = float(t.get("net") or 0)
+        except (TypeError, ValueError):
+            net = 0.0
+        y = round(y + net, 6)
+        if status in SCRATCH_STATUSES:
+            scratch_n += 1
+            mark = "scratch"
+        elif status in HELD_STATUSES:
+            if net > 0.005:
+                wins += 1
+                mark = "win"
+            elif net < -0.005:
+                losses += 1
+                mark = "lose"
+            else:
+                mark = "flat"
+        else:
+            mark = "flat"
+        points.append(
+            {
+                "ts": float(t.get("ts") or start_ts),
+                "y": round(y, 4),
+                "net": round(net, 4),
+                "slug": str(t.get("slug") or ""),
+                "status": status,
+                "mark": mark,
+            }
+        )
+    held = wins + losses
+    hit_rate = None if held <= 0 else round(wins / held, 4)
+    if held <= 0:
+        hit_label = "—"
+    else:
+        hit_label = f"{wins}/{held}"
+    return {
+        "label": "今日已實現" if live else "今日權益",
+        "start": round(y0, 4),
+        "end": round(y, 4),
+        "points": points,
+        "wins": wins,
+        "losses": losses,
+        "held": held,
+        "scratch_n": scratch_n,
+        "hit_rate": hit_rate,
+        "hit_label": hit_label,
+    }
+
 
 def reason_zh(code: str | None) -> str:
     key = str(code or "").strip()
@@ -294,6 +372,7 @@ def operator_wall(rt, board: dict) -> dict[str, Any]:
     s = rt.settings()
     raw_tape = _live_tape_rows(rt, 24)
     view_tape = list(reversed(raw_tape))
+    perf = performance_today(rt)
     return {
         "board": {
             "mode": b.get("mode"),
@@ -312,7 +391,14 @@ def operator_wall(rt, board: dict) -> dict[str, Any]:
             "leftover_paper_n": b.get("leftover_paper_n"),
             "equity": b.get("equity"),
             "starting": b.get("starting"),
+            "hit_rate": b.get("hit_rate"),
+            "hit_wins": b.get("hit_wins"),
+            "hit_losses": b.get("hit_losses"),
+            "hit_held": b.get("hit_held"),
+            "scratch_n": b.get("scratch_n"),
+            "hit_label": b.get("hit_label"),
         },
+        "curve": perf,
         "gate": gate,
         "gauges": _gauges(rt, b, gate, s),
         "pipeline": _pipeline(rt, last, tape),

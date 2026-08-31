@@ -194,6 +194,21 @@ class Store:
         rows = self._conn.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (n,)).fetchall()
         return [dict(r) | {"payload": json.loads(r["payload"])} for r in rows]
 
+    def trades_since(self, start_ts: float, *, mode: str | None = None, limit: int = 400) -> list[dict]:
+        """Oldest-first trades at/after start_ts. Same UTC-day window as today_pnl()."""
+        cap = max(1, int(limit))
+        if mode:
+            rows = self._conn.execute(
+                "SELECT * FROM trades WHERE ts>=? AND mode=? ORDER BY ts ASC, id ASC LIMIT ?",
+                (float(start_ts), str(mode), cap),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM trades WHERE ts>=? ORDER BY ts ASC, id ASC LIMIT ?",
+                (float(start_ts), cap),
+            ).fetchall()
+        return [dict(r) | {"payload": json.loads(r["payload"])} for r in rows]
+
     def recent_events(self, n: int = 30) -> list[dict]:
         rows = self._conn.execute("SELECT * FROM events ORDER BY id DESC LIMIT ?", (n,)).fetchall()
         return [dict(r) for r in rows]
