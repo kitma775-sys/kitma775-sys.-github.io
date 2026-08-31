@@ -645,7 +645,7 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     }
     text = home_text(rt)
     assert "FOK 影1/成0/殺1" in text
-    assert "Rev 37" in text
+    assert "Rev 38" in text
     assert "預熱" in text
     assert "TWAP" in text
     assert "280" in text
