@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
-from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
+from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_leg_prices, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
@@ -25,6 +25,42 @@ from app.ws_books import WS_MARKET, BookCache
 def fmt_exc(exc: BaseException) -> str:
     text = str(exc).strip() or repr(exc)
     return f"{type(exc).__name__}: {text}"[:300]
+
+
+def mode_inventory(rt: Runtime, *, open_only: bool = True) -> list[dict]:
+    live = rt.mode() == "live"
+    rows = rt.store.inventory_open() if open_only else rt.store.inventory()
+    return [r for r in rows if inventory_matches_mode(r.get("kind"), live=live)]
+
+
+async def arm_live_wallet(rt: Runtime) -> str | None:
+    """Create the CLOB client and run trading approvals. Returns an error string or None.
+
+    Does not set live_trading. Tests may set rt.skip_live_preflight = True.
+    """
+    if getattr(rt, "skip_live_preflight", False):
+        return None
+    blockers = live_switch_blockers(rt.env, rt.geo)
+    if blockers:
+        return "；".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers)
+    try:
+        broker = LiveBroker(rt.env.private_key)
+        client = await broker._client_ready()
+        try:
+            await client.setup_trading_approvals()
+        except Exception as exc:
+            return f"錢包授權失敗：{fmt_exc(exc)}"[:180]
+        try:
+            bal = await client.get_balance_allowance(asset_type="COLLATERAL")
+            usdc = int(getattr(bal, "balance", 0) or 0) / 1_000_000
+        except Exception as exc:
+            return f"讀唔到 USDC 餘額：{fmt_exc(exc)}"[:180]
+        rt.live_usdc = usdc
+        if usdc + 1e-9 < 5.0:
+            return f"錢包 USDC ≈ ${usdc:.2f}，少過最低一注 $5"
+    except Exception as exc:
+        return f"實盤匙／錢包起唔到：{fmt_exc(exc)}"[:180]
+    return None
 
 
 def http_book_due(*, missing: bool, flicker: bool) -> bool:
@@ -346,7 +382,7 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
 
 def _holding_twap_assets(rt: Runtime) -> tuple[str, ...]:
     out: list[str] = []
-    for row in rt.store.inventory_open():
+    for row in mode_inventory(rt):
         parsed = parse_window(str(row.get("slug") or ""))
         if parsed and parsed.asset not in out:
             out.append(parsed.asset)
@@ -436,6 +472,8 @@ class Runtime:
         self._hunt_event = asyncio.Event()
         self._lock = asyncio.Lock()
         self._http_at: dict[str, float] = {}
+        self.skip_live_preflight = False
+        self.live_usdc = None
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -470,7 +508,7 @@ class Runtime:
         limit = float(s.get("daily_loss_limit_usd") or 0)
         if limit <= 0:
             return False
-        pnl = self.store.paper_state()["today_pnl"] if self.mode() == "paper" else self.store.today_pnl()
+        pnl = self.store.paper_state()["today_pnl"] if self.mode() == "paper" else self.store.today_pnl(mode="live")
         return pnl <= -abs(limit)
 
     def _persist_ptb(self, slug: str, px: float) -> None:
@@ -527,6 +565,7 @@ class Runtime:
             "mode": self.mode(),
             "keys_ready": live_keys_ready(self.env),
             "force_paper": self.env.force_paper,
+            "live_blockers": live_switch_blockers(self.env, self.geo),
             "uptime_s": int(time.time() - self.started_at),
             "circuit": self.circuit_tripped(),
             "geo": self.geo,
@@ -627,7 +666,11 @@ async def _refresh_universe(rt: Runtime) -> None:
         want=int(s.get("scan_limit") or 16),
         max_horizon=float(s.get("max_horizon_seconds") or 3600),
     )
-    hold_cids = {str(r.get("condition_id") or "") for r in rt.store.inventory_open() if r.get("condition_id")}
+    hold_cids = {
+        str(r.get("condition_id") or "")
+        for r in mode_inventory(rt)
+        if r.get("condition_id")
+    }
     extra_tokens: list[str] = []
     for row in rt.store.resting_open():
         extra_tokens.append(str(row.get("up_token") or ""))
@@ -814,7 +857,7 @@ async def _chainlink_loop(rt: Runtime) -> None:
         while True:
             s = rt.settings()
             mode = strategy_mode_of(s)
-            holding_twap = any(str(x.get("kind") or "").startswith("twap") for x in rt.store.inventory_open())
+            holding_twap = any(str(x.get("kind") or "").startswith("twap") for x in mode_inventory(rt))
             if s.get("killed") or not s.get("engine_running") or (mode != "twap" and not holding_twap):
                 for task in workers.values():
                     task.cancel()
@@ -937,8 +980,12 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
     live = {ev["condition_id"]: ev for ev in events if ev.get("condition_id")}
     n = 0
     now = time.time()
+    live = rt.mode() == "live"
     for inv in list(rt.store.inventory_open()):
-        if not str(inv.get("kind") or "").startswith("twap"):
+        kind = str(inv.get("kind") or "")
+        if not kind.startswith("twap"):
+            continue
+        if is_live_inventory_kind(kind) != live:
             continue
         cid = str(inv.get("condition_id") or "")
         if now - rt._twap_scored.get(cid, 0.0) < rescore:
@@ -1004,7 +1051,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
             "down_price": filled_px if leg == "down" else 0.0,
             "up_token": ev["up_token"],
             "down_token": ev["down_token"],
-            "kind": "twap",
+            "kind": str(inv.get("kind") or "twap"),
         }
         missing = "down" if leg == "up" else "up"
         did = await _apply_rescue(rt, row, missing, plan)
@@ -1208,6 +1255,11 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         if paper_mode:
             paper = rt.store.paper_state()
         inv = rt.store.inventory_one(setup.condition_id)
+        if (
+            (float(inv.get("up") or 0) > 0.01 or float(inv.get("down") or 0) > 0.01)
+            and not inventory_matches_mode(inv.get("kind"), live=not paper_mode)
+        ):
+            continue
         decision = approve(
             setup,
             stale_leg=float(s["stale_leg"]),
@@ -1215,9 +1267,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             max_imbalance=float(s["max_imbalance_shares"]),
             inventory_up=float(inv["up"]),
             inventory_down=float(inv["down"]),
-            daily_pnl=paper["today_pnl"] if paper else rt.store.today_pnl(),
+            daily_pnl=paper["today_pnl"] if paper else rt.store.today_pnl(mode="live"),
             daily_loss_limit=float(s["daily_loss_limit_usd"]),
-            open_markets=rt.store.stats()["open_markets"],
+            open_markets=len({str(r.get("condition_id") or "") for r in mode_inventory(rt) if r.get("condition_id")}),
             max_open_markets=int(s["max_open_markets"]),
             killed=bool(s["killed"]),
             engine_running=bool(s["engine_running"]),
@@ -1388,6 +1440,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             fill_net = float((result.payload or {}).get("net", setup.net))
             fill_up = float((result.payload or {}).get("up_price", setup.up_price))
             fill_down = float((result.payload or {}).get("down_price", setup.down_price))
+            fill_shares = float((result.payload or {}).get("shares", setup.shares) or setup.shares)
             if paper_mode:
                 try:
                     rt.store.paper_apply_buy(fill_cost)
@@ -1396,8 +1449,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     continue
             if is_one_leg_setup(setup):
                 leg = str((setup.extra or {}).get("leg") or "up")
-                up_sh = setup.shares if leg == "up" else 0.0
-                dn_sh = setup.shares if leg == "down" else 0.0
+                up_sh = fill_shares if leg == "up" else 0.0
+                dn_sh = fill_shares if leg == "down" else 0.0
                 kind = "twap" if is_twap_setup(setup) else "favorite"
                 if not paper_mode:
                     kind = kind + "_live"
@@ -2077,25 +2130,35 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
         if not sell.ok:
             rt.store.add_event("warn", f"dump fail {slug}: {sell.detail}"[:220])
             return 0
-        up_take = shares if missing_side == "down" else 0.0
-        dn_take = shares if missing_side == "up" else 0.0
+        sold = float((sell.payload or {}).get("shares") or shares)
+        if sold <= 0.01:
+            return 0
+        frac = min(1.0, sold / shares) if shares else 1.0
+        cash_out = (sell.payload or {}).get("proceeds")
+        try:
+            cash_out_f = float(cash_out) if cash_out is not None else round(float(plan.cash_out) * frac, 6)
+        except (TypeError, ValueError):
+            cash_out_f = round(float(plan.cash_out) * frac, 6)
+        pnl = round(float(plan.pnl) * frac, 6)
+        up_take = sold if missing_side == "down" else 0.0
+        dn_take = sold if missing_side == "up" else 0.0
         rt.store.take_inventory(cid, up=up_take, down=dn_take)
         if paper_mode:
-            rt.store.paper_apply_credit(plan.cash_out, realized=plan.pnl)
+            rt.store.paper_apply_credit(cash_out_f, realized=pnl)
         kind = str(row.get("kind") or "maker")
         dump_px = round(float(plan.price or 0), 4)
         rt.store.add_trade(
             slug=slug,
             kind=kind,
-            shares=shares,
+            shares=sold,
             up_price=dump_px if missing_side == "down" else 0.0,
             down_price=dump_px if missing_side == "up" else 0.0,
-            net=plan.pnl,
+            net=pnl,
             mode=rt.mode(),
             status="paper_dumped" if paper_mode else "dumped",
             payload={
                 "detail": f"dump @{plan.price} floor {floor}",
-                "proceeds": plan.cash_out,
+                "proceeds": cash_out_f,
                 "fees": plan.fees,
                 "floor_px": floor,
                 **(sell.payload or {}),
@@ -2104,7 +2167,7 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
         if s.get("notify_signals"):
             flag = "🧪紙盤" if paper_mode else "🔴實盤"
             await rt.notify(
-                f"🧯 {flag} 單邊出貨 {slug}\n@{plan.price} 回籠 ${plan.cash_out:.2f} · 淨 ${plan.pnl:.2f}",
+                f"🧯 {flag} 單邊出貨 {slug}\n@{plan.price} 回籠 ${cash_out_f:.2f} · 淨 ${pnl:.2f}",
                 important=True,
             )
         return 1
@@ -2185,6 +2248,8 @@ async def _redeem_resolved(rt: Runtime) -> int:
         slug = str(inv.get("slug") or "")
         if not cid:
             continue
+        if paper_mode and is_live_inventory_kind(inv.get("kind")):
+            continue
         try:
             ev = await rt.data.event_by_slug(slug)
         except Exception as exc:
@@ -2244,7 +2309,11 @@ async def _redeem_resolved(rt: Runtime) -> int:
                     rt.store.cancel_resting(int(rest["id"]), "redeem")
                 except Exception:
                     pass
-        result = await rt.broker().redeem(cid)
+        paper_books = bool(job.get("tracked")) and not is_live_inventory_kind(job.get("kind"))
+        if paper_books and not paper_mode:
+            result = FillResult(True, "paper_settled", "paper", "紙盤 redeem 入帳", {"condition_id": cid})
+        else:
+            result = await rt.broker().redeem(cid)
         if not result.ok:
             rt.cooldown[f"redeem:{cid}"] = now + 20.0
             rt.store.add_event("warn", f"redeem fail {job['slug'] or cid}: {result.detail}"[:220])
@@ -2260,7 +2329,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
         settle_net = round(payout - cost, 6) if directional else payout
         if job["tracked"]:
             rt.store.take_inventory(cid, up=up, down=down)
-            if paper_mode:
+            if paper_books:
                 rt.store.paper_apply_credit(
                     payout, realized=settle_net if directional else 0.0
                 )
@@ -2271,8 +2340,8 @@ async def _redeem_resolved(rt: Runtime) -> int:
             up_price=up_p,
             down_price=dn_p,
             net=settle_net,
-            mode=rt.mode(),
-            status="paper_settled" if paper_mode else "redeemed",
+            mode="paper" if paper_books else rt.mode(),
+            status="paper_settled" if paper_books else "redeemed",
             payload={
                 "up": up,
                 "down": down,
@@ -2290,7 +2359,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
         n += 1
         if s.get("notify_signals"):
             extra = f" · 淨 ${settle_net:.2f}" if directional else ""
-            flag = "🧪紙盤" if paper_mode else "🔴實盤"
+            flag = "🧪紙盤" if paper_books else "🔴實盤"
             await rt.notify(
                 f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
                 f"Up {up:.2f}×{up_p} + Down {down:.2f}×{dn_p} = ${payout:.2f}{extra}",

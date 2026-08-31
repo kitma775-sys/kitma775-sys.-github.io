@@ -116,6 +116,27 @@ def sell_fak_kwargs(*, token_id: str, shares: float, min_price: float) -> dict:
     }
 
 
+def order_fill_amounts(resp, *, side: str, price: float, shares: float) -> dict:
+    """Read actual FAK fill from an AcceptedOrder. Mocks without amounts keep the request size."""
+    taking = getattr(resp, "taking_amount", None)
+    making = getattr(resp, "making_amount", None)
+    try:
+        taking_f = None if taking is None else float(taking)
+        making_f = None if making is None else float(making)
+    except (TypeError, ValueError):
+        taking_f = making_f = None
+    side_u = str(side or "").upper()
+    req = max(float(shares), 0.0)
+    px = max(float(price), 0.01)
+    if side_u == "SELL":
+        filled = making_f if making_f is not None else req
+        cash = taking_f if taking_f is not None else round(filled * px, 6)
+        return {"shares": round(max(filled, 0.0), 6), "proceeds": round(max(cash, 0.0), 6), "cost": 0.0}
+    filled = taking_f if taking_f is not None else req
+    spent = making_f if making_f is not None else round(filled * px, 6)
+    return {"shares": round(max(filled, 0.0), 6), "cost": round(max(spent, 0.0), 6), "proceeds": 0.0}
+
+
 def setup_buy_orders(setup: Setup) -> list[dict]:
     legs = []
     if float(setup.up_price) >= 0.01:
@@ -141,12 +162,15 @@ class PaperBroker:
         return []
 
     async def execute_sell(self, token_id: str, shares: float, min_price: float) -> FillResult:
+        order = sell_fak_kwargs(token_id=token_id, shares=shares, min_price=min_price)
+        payload = {"token": token_id, "min_price": min_price, **order}
+        payload["shares"] = float(shares)
         return FillResult(
             True,
             "paper_dumped",
             "paper",
             f"紙盤 dump {shares:.1f} @{min_price}",
-            {"token": token_id, "shares": shares, "min_price": min_price, **sell_fak_kwargs(token_id=token_id, shares=shares, min_price=min_price)},
+            payload,
         )
 
 
@@ -210,6 +234,9 @@ class LiveBroker:
                         str(getattr(resp, "message", status or "order rejected")),
                         {"legs": results},
                     )
+                fill = order_fill_amounts(resp, side="BUY", price=price, shares=setup.shares)
+                results[-1]["shares"] = fill["shares"]
+                results[-1]["cost"] = fill["cost"]
                 if setup.kind == "taker" and status != "matched":
                     if status == "live" and order_id:
                         try:
@@ -226,14 +253,29 @@ class LiveBroker:
                         f"taker FAK not matched ({status})",
                         {"legs": results},
                     )
+                if setup.kind == "taker" and fill["shares"] <= 0.01:
+                    return FillResult(
+                        False,
+                        "rejected",
+                        "live",
+                        "taker FAK matched 0 shares",
+                        {"legs": results},
+                    )
         except Exception as exc:
             return FillResult(False, "error", "live", str(exc)[:300], {"legs": results})
+        filled_shares = float(results[-1].get("shares") or setup.shares) if results else float(setup.shares)
+        filled_cost = float(results[-1].get("cost") or 0.0) if results else 0.0
         return FillResult(
             True,
             "filled" if setup.kind == "taker" else "resting",
             "live",
             "已提交",
-            {"legs": results, "orders": setup_buy_orders(setup) if setup.kind == "taker" else []},
+            {
+                "legs": results,
+                "orders": setup_buy_orders(setup) if setup.kind == "taker" else [],
+                "shares": filled_shares,
+                "cost": filled_cost,
+            },
         )
 
     async def execute_sell(self, token_id: str, shares: float, min_price: float) -> FillResult:
@@ -253,6 +295,8 @@ class LiveBroker:
             "id": order_id,
             "message": str(getattr(resp, "message", "") or ""),
         }
+        fill = order_fill_amounts(resp, side="SELL", price=min_price, shares=shares)
+        payload.update(fill)
         if not ok:
             return FillResult(False, "rejected", "live", str(getattr(resp, "message", status or "sell rejected")), payload)
         if status != "matched":
@@ -265,6 +309,8 @@ class LiveBroker:
                     except Exception:
                         pass
             return FillResult(False, "rejected", "live", f"sell FAK not matched ({status})", payload)
+        if fill["shares"] <= 0.01:
+            return FillResult(False, "rejected", "live", "sell FAK matched 0 shares", payload)
         return FillResult(True, "dumped", "live", "已出貨", payload)
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:

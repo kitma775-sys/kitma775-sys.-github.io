@@ -80,6 +80,7 @@
       document.getElementById("clearCircuit").style.display = circuit ? "inline-block" : "none";
       document.getElementById("sub").textContent =
         (d.force_paper ? "FORCE_PAPER 鎖實盤 · " : "") +
+        ((d.live_blockers && d.live_blockers.length && d.mode !== "live") ? ("實盤未就緒 " + d.live_blockers.join("/") + " · ") : "") +
         "keys " + (d.keys_ready ? "ready" : "missing") +
         " · WS " + (d.ws_status || "off") +
         " · CL " + (d.chainlink_status || "off") +

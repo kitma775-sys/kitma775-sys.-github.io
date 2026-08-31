@@ -8,9 +8,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import SETTING_STEPS, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready
+from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers
 from app.geo import telegram_line
-from app.runtime import Runtime
+from app.runtime import Runtime, arm_live_wallet
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
 
@@ -33,7 +33,7 @@ def _rev_blurb(s: dict) -> str:
         "45–55¢，剩餘 12–280s，lead ≥6 bps，弱倉 scratch。"
         "全幣各開一條 Chainlink socket。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
-        "FORCE_PAPER／兩步確認仍然鎖真錢。"
+        "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
     )
 
 
@@ -301,6 +301,9 @@ def home_text(rt: Runtime) -> str:
     keys = "匙已備" if live_keys_ready(rt.env) else "未交實盤匙"
     if rt.env.force_paper:
         keys = "FORCE_PAPER 鎖住實盤"
+    blockers = live_switch_blockers(rt.env, rt.geo)
+    if blockers and rt.mode() == "paper":
+        keys = "實盤未就緒：" + "／".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers)
     geo_line = telegram_line(rt.geo)
     last = rt.last_loop or {}
     return (
@@ -600,11 +603,9 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "live1":
-        if rt.env.force_paper:
-            await q.answer("FORCE_PAPER 開緊", show_alert=True)
-            return
-        if not live_keys_ready(rt.env):
-            await q.answer("未設定 POLYMARKET_PRIVATE_KEY", show_alert=True)
+        blockers = live_switch_blockers(rt.env, rt.geo)
+        if blockers:
+            await q.answer("；".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers), show_alert=True)
             return
         kb = InlineKeyboardMarkup(
             [
@@ -622,12 +623,16 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         )
         return
     if data == "live2":
-        if rt.env.force_paper:
-            await q.answer("FORCE_PAPER 開緊，未轉實盤", show_alert=True)
+        blockers = live_switch_blockers(rt.env, rt.geo)
+        if blockers:
+            await q.answer("；".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers) + "，未轉實盤", show_alert=True)
             await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
             return
-        if not live_keys_ready(rt.env):
-            await q.answer("未設定 POLYMARKET_PRIVATE_KEY", show_alert=True)
+        err = await arm_live_wallet(rt)
+        if err:
+            rt.store.add_event("warn", f"live preflight {err}"[:220])
+            await q.answer(err[:180], show_alert=True)
+            await _safe_edit(q, home_text(rt) + f"\n\n實盤預檢失敗：{err}", reply_markup=home_kb(rt))
             return
         rt.store.patch_settings(live_trading=True, killed=False, engine_running=True)
         rt.store.add_event("warn", "live trading enabled")

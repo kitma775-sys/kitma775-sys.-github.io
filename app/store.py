@@ -269,8 +269,24 @@ class Store:
             take_up = min(max(float(up), 0.0), float(cur["up"]))
             take_dn = min(max(float(down), 0.0), float(cur["down"]))
             nu, nd = float(cur["up"]) - take_up, float(cur["down"]) - take_dn
-            written = self._write_inventory_unlocked(condition_id, cur.get("slug") or "", nu, nd, kind=cur.get("kind"), cost=float(cur.get("cost") or 0))
-            return {"condition_id": condition_id, "up": written["up"], "down": written["down"], "took_up": take_up, "took_down": take_dn}
+            old_sh = float(cur.get("up") or 0) + float(cur.get("down") or 0)
+            new_sh = nu + nd
+            old_cost = float(cur.get("cost") or 0)
+            if new_sh <= 0.01 or old_sh <= 1e-12:
+                new_cost = 0.0
+            else:
+                new_cost = round(old_cost * (new_sh / old_sh), 6)
+            written = self._write_inventory_unlocked(
+                condition_id, cur.get("slug") or "", nu, nd, kind=cur.get("kind"), cost=new_cost
+            )
+            return {
+                "condition_id": condition_id,
+                "up": written["up"],
+                "down": written["down"],
+                "took_up": take_up,
+                "took_down": take_dn,
+                "cost": written.get("cost") or 0.0,
+            }
 
     def _write_inventory_unlocked(
         self,
@@ -312,13 +328,30 @@ class Store:
         ).fetchone()
         return None if row is None else self._decode_resting(row)
 
-    def today_pnl(self) -> float:
+    def today_pnl(self, mode: str | None = None) -> float:
         """UTC-day sum of recorded trade nets. Prefer paper_state()['today_pnl'] for the cash book."""
         start = time.time() - (time.time() % 86400)
-        row = self._conn.execute(
-            "SELECT COALESCE(SUM(net),0) AS s FROM trades WHERE ts>=? AND status IN ('filled','paper_filled','merged','paper_settled','redeemed')",
-            (start,),
-        ).fetchone()
+        statuses = (
+            "filled",
+            "paper_filled",
+            "merged",
+            "paper_settled",
+            "redeemed",
+            "paper_dumped",
+            "dumped",
+            "paper_hedged",
+        )
+        marks = ",".join("?" * len(statuses))
+        if mode:
+            row = self._conn.execute(
+                f"SELECT COALESCE(SUM(net),0) AS s FROM trades WHERE ts>=? AND mode=? AND status IN ({marks})",
+                (start, mode, *statuses),
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                f"SELECT COALESCE(SUM(net),0) AS s FROM trades WHERE ts>=? AND status IN ({marks})",
+                (start, *statuses),
+            ).fetchone()
         return float(row["s"] if row else 0.0)
 
     def paper_exists(self) -> bool:

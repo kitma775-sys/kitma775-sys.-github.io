@@ -34,7 +34,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 36,
+    "strategy_rev": 37,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -190,3 +190,35 @@ def load_env() -> Env:
 
 def live_keys_ready(env: Env) -> bool:
     return bool(env.private_key)
+
+
+def is_live_inventory_kind(kind) -> bool:
+    """True for on-chain inventory (`twap_live`, `favorite_live`)."""
+    return str(kind or "").endswith("_live")
+
+
+def inventory_matches_mode(kind, *, live: bool) -> bool:
+    return is_live_inventory_kind(kind) is bool(live)
+
+
+def live_switch_blockers(env: Env, geo: dict | None = None) -> list[str]:
+    """Why Telegram cannot arm live. Does not enable trading by itself."""
+    out: list[str] = []
+    if env.force_paper:
+        out.append("FORCE_PAPER")
+    if not live_keys_ready(env):
+        out.append("no_key")
+    status = str((geo or {}).get("api_status") or "")
+    if status == "full_block":
+        out.append("geo_full_block")
+    elif status == "close_only":
+        out.append("geo_close_only")
+    return out
+
+
+LIVE_BLOCKER_ZH = {
+    "FORCE_PAPER": "FORCE_PAPER 開緊",
+    "no_key": "未設定 POLYMARKET_PRIVATE_KEY",
+    "geo_full_block": "IP 所在地官方 API 全封鎖，唔會開實盤",
+    "geo_close_only": "IP 所在地官方 API close-only，新倉會被拒",
+}

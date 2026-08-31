@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.config import clamp_paper_cash, load_env
+from app.config import clamp_paper_cash, load_env, live_keys_ready
 from app.dashboard import create_app
 from app.runtime import Runtime, engine_loop
 from app.store import Store
@@ -640,7 +640,23 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev36 keep locked 5m on CLOB WS until next-window prewarm needs the cap; stop mid-window reconnect storm; keep 6bps scratch; keep paper; no live",
         )
+    if rev < 37:
+        store.patch_settings(strategy_rev=37)
+        store.add_event(
+            "info",
+            "rev37 live-ready: persist TG live across restart when keys ready; isolate paper vs live inventory; FAK actual fill size; live circuit uses live dump/settle",
+        )
     return n
+
+
+def clamp_live_at_boot(store: Store, env) -> None:
+    """Never auto-enable live. Only force paper when the operator locked it or keys are missing.
+
+    TRADING_MODE=paper is the default *until* Telegram two-step sets sqlite live_trading.
+    A restart must not wipe that confirm, or the user cannot just flip TG.
+    """
+    if env.force_paper or not live_keys_ready(env):
+        store.patch_settings(live_trading=False)
 
 
 def run() -> None:
@@ -649,12 +665,8 @@ def run() -> None:
     if not env.dashboard_token:
         env.dashboard_token = os.getenv("DASHBOARD_TOKEN") or secrets.token_urlsafe(12)
         print(f"DASHBOARD_TOKEN={env.dashboard_token}", flush=True)
-    if env.trading_mode == "paper":
-        # keep live_trading false at boot even if sqlite leftover from a previous experiment
-        pass
     store = Store(Path(env.data_dir) / "surf.sqlite")
-    if env.trading_mode != "live" or env.force_paper or not env.private_key:
-        store.patch_settings(live_trading=False)
+    clamp_live_at_boot(store, env)
     if not env.engine_autostart:
         store.patch_settings(engine_running=False)
     seed = clamp_paper_cash(env.paper_starting_cash)

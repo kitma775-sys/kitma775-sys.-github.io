@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from app.config import clamp_paper_cash, live_keys_ready, strategy_mode_of
+from app.config import clamp_paper_cash, live_keys_ready, live_switch_blockers, strategy_mode_of
 from app.runtime import Runtime
 
 PAGE = Path(__file__).with_name("dashboard.html")
@@ -41,6 +41,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "live_trading": bool(s.get("live_trading")),
             "force_paper": bool(rt.env.force_paper),
             "keys_ready": live_keys_ready(rt.env),
+            "live_blockers": live_switch_blockers(rt.env, rt.geo),
             "engine_running": bool(s.get("engine_running")),
             "killed": bool(s.get("killed")),
             "max_book_age_ms": s.get("max_book_age_ms"),

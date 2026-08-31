@@ -52,7 +52,8 @@ FORCE_PAPER=true
 
 3. 加一個 volume 掛 `/data`，唔係每次 deploy 會清 SQLite
 4. 綁 domain 之後 Dashboard 用 `https://你的網址/?t=DASHBOARD_TOKEN`
-5. 試運行穩咗先加 `POLYMARKET_PRIVATE_KEY`，再喺 Telegram 確認實盤
+5. 試運行穩咗，喺 Zeabur Variables 填 `POLYMARKET_PRIVATE_KEY`（**唔好貼入 chat**），再設 `FORCE_PAPER=false` 後重啟
+6. Telegram「模式」→「轉實盤」撳兩次。開機會記住呢個確認（有匙、FORCE_PAPER 關）。日本 CLOB API 開；美國／英國／新加坡等 close-only 唔會開實盤
 
 你之後交 Zeabur key／Telegram token／Polymarket key 就喺平台 Variables 填，**唔好貼入 chat 或 commit**。
 
