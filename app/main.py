@@ -658,6 +658,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev39 live preflight: Gnosis Safe CLOB FAK does not need Builder API key; skip perps/auto-redeem extras; keep stake and 6bps",
         )
+    if rev < 40:
+        store.patch_settings(strategy_rev=40)
+        store.add_event(
+            "info",
+            "rev40 CLOB 503/trading-is-disabled: halt live posts ~90s, notify once, keep scanning; keep stake and 6bps",
+        )
     return n
 
 

@@ -444,6 +444,26 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
     return False
 
 
+def is_clob_unavailable(detail: str, *, http_status=None) -> bool:
+    """CLOB matching engine is paused — retrying only spams Telegram."""
+    try:
+        if http_status is not None and int(http_status) == 503:
+            return True
+    except (TypeError, ValueError):
+        pass
+    text = str(detail or "").lower()
+    return any(
+        token in text
+        for token in (
+            "trading is disabled",
+            "trading is currently disabled",
+            "cancel-only",
+            "post-only mode",
+            "matching engine",
+        )
+    )
+
+
 def _holding_twap_assets(rt: Runtime) -> tuple[str, ...]:
     out: list[str] = []
     for row in mode_inventory(rt):
@@ -539,6 +559,19 @@ class Runtime:
         self.skip_live_preflight = False
         self.live_usdc = None
         self.live_onchain_limited = False
+        self._clob_halt_until = 0.0
+        self._clob_halt_reason = ""
+
+    def clob_halted(self) -> bool:
+        return time.time() < float(self._clob_halt_until or 0)
+
+    def trip_clob_halt(self, reason: str, *, seconds: float = 90.0) -> bool:
+        """Pause live CLOB posts. True if Telegram should be told (new halt)."""
+        now = time.time()
+        fresh = now >= float(self._clob_halt_until or 0)
+        self._clob_halt_until = now + max(15.0, float(seconds))
+        self._clob_halt_reason = str(reason or "")[:180]
+        return fresh
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -647,6 +680,10 @@ class Runtime:
             "trades": trades,
             "scans": scans,
             "events": [e for e in self.store.recent_events(40) if float(e.get("ts") or 0) >= self.started_at - 30][:15],
+            "clob_halted": self.clob_halted(),
+            "clob_halt_reason": self._clob_halt_reason if self.clob_halted() else "",
+            "live_onchain_limited": bool(self.live_onchain_limited),
+            "live_usdc": self.live_usdc,
         }
 
 
@@ -1046,6 +1083,8 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
     paper leftovers through the CLOB.
     """
     s = rt.settings()
+    if rt.mode() == "live" and rt.clob_halted():
+        return 0
     params = default_params(s)
     rescore = setting_num(s, "twap_rescore_seconds", 15.0)
     by_cid = {ev["condition_id"]: ev for ev in events if ev.get("condition_id")}
@@ -1241,6 +1280,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if circuit:
             continue
+        if not paper_mode and rt.clob_halted():
+            twap_skips["clob_halt"] = twap_skips.get("clob_halt", 0) + 1
+            continue
         slug = str(ev.get("slug") or "")
         if not slug_allowed(slug, twap_params):
             continue
@@ -1379,6 +1421,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             "leg": (setup.extra or {}).get("leg"),
         }
         rt.store.add_scan(setup.slug, setup.kind, payload)
+        if not paper_mode and rt.clob_halted():
+            twap_skips["clob_halt"] = twap_skips.get("clob_halt", 0) + 1
+            continue
         if not decision.ok:
             if s.get("notify_rejects"):
                 await rt.notify(f"⏭ 跳過 {setup.title}\n原因：{decision.reason}")
@@ -1597,6 +1642,21 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     f"\n未碰到盤口唔入帳{lock}"
                 )
         else:
+            payload = result.payload if isinstance(result.payload, dict) else {}
+            if not paper_mode and is_clob_unavailable(
+                result.detail, http_status=payload.get("http_status")
+            ):
+                first = rt.trip_clob_halt(result.detail)
+                if first:
+                    rt.store.add_event("warn", f"clob halt: {result.detail}"[:220])
+                    await rt.notify(
+                        "⏸ CLOB 暫時唔收單（trading is disabled / 503）。"
+                        "Bot 停手約 90 秒，唔再連串刷 ❌。"
+                        "掃描繼續；盤口開返會自動再試。"
+                        "網站 redeem 仍然用得。",
+                        important=True,
+                    )
+                continue
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
     tape = summarize_quotes(quotes)
     tape["book_errors"] = book_errors
@@ -2197,10 +2257,26 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
         return 1
     if plan.action == "dump":
         paper_mode = rt.mode() == "paper"
+        if not paper_mode and rt.clob_halted():
+            return 0
         token = str(row["up_token"] if missing_side == "down" else row["down_token"])
         floor = float(plan.floor_px or plan.price or 0.01)
         sell = await rt.broker().execute_sell(token, shares, floor)
         if not sell.ok:
+            payload = sell.payload if isinstance(sell.payload, dict) else {}
+            if not paper_mode and is_clob_unavailable(
+                sell.detail, http_status=payload.get("http_status")
+            ):
+                first = rt.trip_clob_halt(sell.detail)
+                if first:
+                    rt.store.add_event("warn", f"clob halt dump: {sell.detail}"[:220])
+                    await rt.notify(
+                        "⏸ CLOB 暫時唔收單（trading is disabled / 503）。"
+                        "Bot 停手約 90 秒，唔再連串刷 ❌。"
+                        "掃描繼續；盤口開返會自動再試。"
+                        "網站 redeem 仍然用得。",
+                        important=True,
+                    )
             rt.store.add_event("warn", f"dump fail {slug}: {sell.detail}"[:220])
             return 0
         sold = float((sell.payload or {}).get("shares") or shares)

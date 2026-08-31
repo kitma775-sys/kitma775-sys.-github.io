@@ -77,6 +77,16 @@ def paper_execute(setup: Setup) -> FillResult:
     )
 
 
+def _exc_http_status(exc: BaseException):
+    status = getattr(exc, "status", None)
+    if status is None:
+        status = getattr(exc, "status_code", None)
+    resp = getattr(exc, "response", None)
+    if status is None and resp is not None:
+        status = getattr(resp, "status_code", None)
+    return status
+
+
 def already_redeemed(detail: str) -> bool:
     """True when the CLOB/relayer has nothing left to redeem for this condition."""
     text = (detail or "").lower()
@@ -267,7 +277,11 @@ class LiveBroker:
                         {"legs": results},
                     )
         except Exception as exc:
-            return FillResult(False, "error", "live", str(exc)[:300], {"legs": results})
+            payload: dict[str, Any] = {"legs": results}
+            status_code = _exc_http_status(exc)
+            if status_code is not None:
+                payload["http_status"] = status_code
+            return FillResult(False, "error", "live", str(exc)[:300], payload)
         filled_shares = float(results[-1].get("shares") or setup.shares) if results else float(setup.shares)
         filled_cost = float(results[-1].get("cost") or 0.0) if results else 0.0
         return FillResult(
@@ -289,7 +303,11 @@ class LiveBroker:
         try:
             resp = await client.place_market_order(**kw)
         except Exception as exc:
-            return FillResult(False, "error", "live", str(exc)[:300], {"order": kw})
+            payload: dict[str, Any] = {"order": kw}
+            status_code = _exc_http_status(exc)
+            if status_code is not None:
+                payload["http_status"] = status_code
+            return FillResult(False, "error", "live", str(exc)[:300], payload)
         ok = bool(getattr(resp, "ok", False))
         status = str(getattr(resp, "status", "") or getattr(resp, "code", "") or "").lower()
         order_id = getattr(resp, "order_id", None)

@@ -34,6 +34,7 @@ def _rev_blurb(s: dict) -> str:
         "全幣各開一條 Chainlink socket。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
+        "CLOB 503／trading is disabled 會停手約 90 秒，只通知一次，唔連串刷 ❌。"
     )
 
 
@@ -307,9 +308,12 @@ def home_text(rt: Runtime) -> str:
         keys = "實盤未就緒：" + "／".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers)
     geo_line = telegram_line(rt.geo)
     last = rt.last_loop or {}
+    halt = ""
+    if rt.mode() == "live" and rt.clob_halted():
+        halt = "\n⏸ CLOB 暫時唔收單，停手約 90 秒唔刷失敗。"
     return (
         f"🏄 衝浪套利 Bot\n"
-        f"{state} · {mode}\n"
+        f"{state} · {mode}{halt}\n"
         f"{_paper_block(rt)}\n"
         f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']}"
         + (f" · 對沖 {st['hedges_24h']}" if st.get("hedges_24h") else "")
