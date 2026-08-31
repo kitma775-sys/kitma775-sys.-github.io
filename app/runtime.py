@@ -63,7 +63,9 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
 
 CORR_CLOCK = frozenset({"btc", "eth"})
 WS_HUNT_BUFFER_S = 45.0
-WS_MAX_TOKENS = 16
+WS_MAX_TOKENS = 14
+WS_TOKENS_PER_SOCKET = 8
+WS_SOCKETS = 2
 _GATE_RANK = {
     "signal": 0,
     "ready": 1,
@@ -164,6 +166,18 @@ def ws_wanted_tokens(
             seen.add(t)
             out.append(t)
     return out
+
+
+def ws_token_shards(
+    tokens: list[str] | tuple[str, ...],
+    *,
+    per_socket: int = WS_TOKENS_PER_SOCKET,
+    sockets: int = WS_SOCKETS,
+) -> list[list[str]]:
+    """Split CLOB asset ids across sockets so one 14-token dump cannot 1013."""
+    toks = [t for t in tokens if t]
+    n = max(1, int(per_socket))
+    return [toks[i * n : (i + 1) * n] for i in range(max(1, int(sockets)))]
 
 
 def _gate_in_band(gate: dict) -> bool:
@@ -315,6 +329,7 @@ class Runtime:
         self._last_ws_error_ts = 0.0
         self._last_ws_info_ts = 0.0
         self.last_ws_error = ""
+        self._ws_info_ts: dict[str, float] = {}
         self.books = BookCache()
         self.chainlink = ChainlinkTape()
         self.chainlink.persist_ptb = self._persist_ptb
@@ -391,6 +406,14 @@ class Runtime:
             if px > 0:
                 mapping[parsed.slug] = px
         self.chainlink.load_ptb(mapping)
+
+    def _prune_ptb(self) -> None:
+        now = time.time()
+        for slug in list(self.chainlink.ptb):
+            parsed = parse_window(slug)
+            if parsed is None or parsed.start + parsed.window_seconds < now - 120:
+                self.chainlink.ptb.pop(slug, None)
+                self.store.kv_delete(f"ptb:{slug}")
 
     def snapshot(self) -> dict[str, Any]:
         s = self.settings()
@@ -508,6 +531,7 @@ async def _refresh_universe(rt: Runtime) -> None:
     for row in rt.store.resting_open():
         extra_tokens.append(str(row.get("up_token") or ""))
         extra_tokens.append(str(row.get("down_token") or ""))
+    rt._prune_ptb()
     tokens = ws_wanted_tokens(
         events,
         params=default_params(s),
@@ -557,16 +581,23 @@ async def _refresh_universe(rt: Runtime) -> None:
 
 
 async def _ws_loop(rt: Runtime) -> None:
+    await asyncio.gather(*(_ws_socket(rt, i) for i in range(WS_SOCKETS)))
+
+
+async def _ws_socket(rt: Runtime, index: int) -> None:
     backoff = 1.0
     while True:
         if not rt.settings().get("engine_running") or rt.settings().get("killed"):
-            rt.ws_status = "paused"
-            rt.books.connected = False
+            if index == 0:
+                rt.ws_status = "paused"
+                rt.books.connected = False
             await asyncio.sleep(1.0)
             continue
-        wanted = list(rt.books.wanted)
-        if not wanted:
-            rt.ws_status = "idle"
+        shards = ws_token_shards(rt.books.wanted)
+        chunk = shards[index] if index < len(shards) else []
+        if not chunk:
+            if index == 0 and not rt.books.wanted:
+                rt.ws_status = "idle"
             await asyncio.sleep(0.4)
             continue
         try:
@@ -589,8 +620,9 @@ async def _ws_loop(rt: Runtime) -> None:
             kw["open_timeout"] = 15
 
         def _sub(ids: list[str]) -> str:
+            # initial_dump of 14–16 books 1013'd this JP host. Deltas only.
             return json.dumps(
-                {"assets_ids": ids, "type": "market", "custom_feature_enabled": True, "initial_dump": True}
+                {"assets_ids": ids, "type": "market", "custom_feature_enabled": True, "initial_dump": False}
             )
 
         try:
@@ -598,19 +630,21 @@ async def _ws_loop(rt: Runtime) -> None:
                 rt.ws_status = "connected"
                 rt.books.connected = True
                 backoff = 1.0
-                await ws.send(_sub(wanted))
+                await ws.send(_sub(chunk))
                 rt.last_ws_error = ""
                 now = time.time()
-                if now - rt._last_ws_info_ts > 60:
-                    rt.store.add_event("info", f"ws connected {len(wanted)} tokens")
-                    rt._last_ws_info_ts = now
+                stamps = getattr(rt, "_ws_info_ts", {})
+                key = f"s{index}"
+                if now - float(stamps.get(key) or 0) > 60:
+                    rt.store.add_event("info", f"ws connected {len(chunk)} tokens shard {index}")
+                    stamps[key] = now
+                    rt._ws_info_ts = stamps
                 ping = asyncio.create_task(_ws_ping(ws))
                 try:
                     async for raw in ws:
-                        now_wanted = list(rt.books.wanted)
-                        if now_wanted != wanted:
-                            # Replace the whole asset list by reconnecting.
-                            # A second subscribe can leave the old 70-token dump running.
+                        now_shards = ws_token_shards(rt.books.wanted)
+                        now_chunk = now_shards[index] if index < len(now_shards) else []
+                        if now_chunk != chunk:
                             break
                         changed = rt.books.apply_message(raw)
                         if changed:
@@ -625,12 +659,13 @@ async def _ws_loop(rt: Runtime) -> None:
             now = time.time()
             if now - rt._last_ws_error_ts > 120:
                 rt._last_ws_error_ts = now
-                rt.store.add_event("warn", f"ws {detail}")
+                rt.store.add_event("warn", f"ws shard {index} {detail}")
             await asyncio.sleep(backoff)
             backoff = min(15.0, backoff * 2)
         else:
-            rt.books.connected = False
-            rt.ws_status = "reconnect"
+            if index == 0:
+                rt.books.connected = False
+                rt.ws_status = "reconnect"
             await asyncio.sleep(0.2)
 
 
@@ -923,6 +958,29 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         if is_future and not holding:
             if slug_allowed(slug, twap_params):
                 why = "future_listing"
+                twap_skips[why] = twap_skips.get(why, 0) + 1
+                gate = {
+                    "slug": slug,
+                    "left": None if left_now is None else round(float(left_now), 1),
+                    "lead_bps": None,
+                    "ask": None,
+                    "fair": None,
+                    "reason": why,
+                    "side": None,
+                }
+                if gate_better(twap_gate, gate):
+                    twap_gate = gate
+            continue
+        wanted_toks = set(rt.books.wanted)
+        up_t = str(ev.get("up_token") or "")
+        dn_t = str(ev.get("down_token") or "")
+        on_ws = (not up_t or up_t in wanted_toks) and (not dn_t or dn_t in wanted_toks)
+        if not holding and not on_ws:
+            if slug_allowed(slug, twap_params):
+                if left_now is None or left_now > twap_params.max_left:
+                    why = "twap_window"
+                else:
+                    why = "twap_ws_slot"
                 twap_skips[why] = twap_skips.get(why, 0) + 1
                 gate = {
                     "slug": slug,

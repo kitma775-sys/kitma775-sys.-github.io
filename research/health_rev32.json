@@ -1,0 +1,49 @@
+{
+  "researched_at_utc": "2026-08-31T05:03:21Z",
+  "live_rev": 31,
+  "ship_rev": 32,
+  "mode": "paper",
+  "force_paper": true,
+  "live_trading": false,
+  "paper": {
+    "equity": 510.058403,
+    "cash": 510.058403,
+    "starting": 500.0,
+    "total_pnl": 10.058403,
+    "today_pnl": 0.892912
+  },
+  "rev31_timeline": {
+    "boot_14": true,
+    "then_16_tokens": true,
+    "1013_on_16_after_s": 117,
+    "later_14_tokens": true,
+    "1013_on_14_after_stable_s": 171,
+    "note": "cap 16 still subscribed one extra 15m; even 7x5m=14 on one socket 1013s"
+  },
+  "fills": {
+    "sol_2100": "down 0.54 then scratch_better @0.98 dumped +3.78",
+    "eth_2400": "down 0.49 fok_fak / approved 0.55",
+    "prior_btc_sol_1200": "settled -5 each (up won)"
+  },
+  "clob_probe": {
+    "sol_5m_inband": {"up": 0.52, "dn": 0.53, "left": 99},
+    "most_5m": "locked off-band",
+    "most_15m_inband": true,
+    "15m_left": 699,
+    "15m_hunt": false
+  },
+  "holes": {
+    "one_socket_14_still_1013": {
+      "fix": "two sockets x8 + initial_dump false + total cap 14"
+    },
+    "far_15m_still_paired": {
+      "fix": "only pair wanted+inventory; 15m left 699 is twap_window without HTTP"
+    }
+  },
+  "do_not": [
+    "raise 15m max_left without a 15m tape grid",
+    "copy pair-lock as $5 taker",
+    "drop 6bps / widen 45-55 / raise $5",
+    "enable live or reset paper"
+  ]
+}
