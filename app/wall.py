@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from app.config import format_log_ts, inventory_matches_mode
+from app.config import format_log_ts, format_signed_usd, inventory_matches_mode
 from app.twap import hunt_assets, parse_window
 
 WALL_TAPE_MAX = 48
@@ -132,7 +132,7 @@ def performance_today(rt) -> dict[str, Any]:
     if not live:
         p = rt.store.paper_state()
         y0 = round(float(p.get("equity") or 0) - float(p.get("today_pnl") or 0), 6)
-    rows = rt.store.trades_since(start_ts, mode=mode)
+    rows = rt.store.trades_since(start_ts, mode=mode, limit=5000, statuses=tuple(CURVE_STATUSES))
     events: list[dict[str, Any]] = []
     wins = losses = scratch_n = 0
     for t in rows:
@@ -206,6 +206,19 @@ def performance_today(rt) -> dict[str, Any]:
                 "mark": e["mark"],
             }
         )
+    now = time.time()
+    if now > last_t + 1.0:
+        points.append(
+            {
+                "ts": now,
+                "y": round(y, 4),
+                "net": 0.0,
+                "slug": "",
+                "asset": "",
+                "status": "now",
+                "mark": "now",
+            }
+        )
     held = wins + losses
     hit_rate = None if held <= 0 else round(wins / held, 4)
     if held <= 0:
@@ -213,7 +226,8 @@ def performance_today(rt) -> dict[str, Any]:
     else:
         hit_label = f"{wins}/{held}"
     return {
-        "label": "今日已實現" if live else "今日權益",
+        "label": "今日已實現 PnL" if live else "今日權益",
+        "note": "入金只變可用 USDC，唔計入呢條線" if live else "",
         "start": round(y0, 4),
         "end": round(y, 4),
         "points": points,
@@ -431,7 +445,7 @@ def _journal(rt, board: dict) -> list[dict]:
                 "ts": t.get("ts"),
                 "kind": "trade",
                 "ok": status in {"filled", "paper_filled", "redeemed", "paper_settled"} and net >= 0,
-                "text": f"{STATUS_ZH.get(status, status)} {t.get('slug') or ''} {_signed(net)}",
+                "text": f"{STATUS_ZH.get(status, status)} {t.get('slug') or ''} {format_signed_usd(net)}",
             }
         )
     started = float(getattr(rt, "started_at", 0) or 0)
@@ -451,10 +465,6 @@ def _journal(rt, board: dict) -> list[dict]:
         )
     rows.sort(key=lambda r: float(r.get("ts") or 0), reverse=True)
     return rows[:24]
-
-
-def _signed(n: float) -> str:
-    return f"{'+' if n >= 0 else ''}${n:.2f}"
 
 
 def operator_wall(rt, board: dict) -> dict[str, Any]:

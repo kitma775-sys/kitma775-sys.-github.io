@@ -10,7 +10,7 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker, redeem_not_ready, sell_size_dust, setup_buy_orders
 from app.fees import taker_cash, taker_fee
-from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
+from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
@@ -1818,10 +1818,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 flag = "🧪紙盤" if result.mode == "paper" else "🔴實盤"
                 book = ""
                 if paper:
-                    sign = "+" if paper["total_pnl"] >= 0 else ""
                     book = (
                         f"\n現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
-                        f"\n累計 PnL {sign}${paper['total_pnl']:.2f} · 今日 ${paper['today_pnl']:.2f}"
+                        f"\n累計 PnL {format_signed_usd(paper['total_pnl'])} · 今日 {format_signed_usd(paper['today_pnl'])}"
                     )
                 label = "TWAP" if is_twap_setup(setup) else ("大熱" if is_favorite_setup(setup) else setup.kind)
                 expect = "未結算期望" if is_one_leg_setup(setup) else "淨利"
@@ -2355,11 +2354,10 @@ async def _process_resting(rt: Runtime) -> int:
                 payload={"detail": "maker both legs filled after trade-through", "resting_id": row["id"]},
             )
             if s.get("notify_signals"):
-                sign = "+" if paper["total_pnl"] >= 0 else ""
                 await rt.notify(
                     f"🧪紙盤 maker 兩邊碰到先成交\n{row.get('title') or row['slug']}\n"
                     f"{row['up_price']}+{row['down_price']} × {format_share_qty(row['shares'])} 淨利 ${float(row.get('net') or 0):.2f}\n"
-                    f"現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f} · 累計 {sign}${paper['total_pnl']:.2f}",
+                    f"現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f} · 累計 {format_signed_usd(paper['total_pnl'])}",
                     important=True,
                 )
             continue

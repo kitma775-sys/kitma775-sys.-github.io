@@ -6,7 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_log_ts, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
+from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_log_ts, format_share_qty, format_signed_usd, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
 from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory, operator_board, refresh_live_usdc
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
@@ -36,7 +36,7 @@ def _rev_blurb(s: dict) -> str:
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
         "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
         "主頁／而家狀況／Dashboard 跟盤口模式：實盤只睇可用 USDC 同實盤倉，紙盤只睇紙盤帳。"
-        "Dashboard 頭位係今日已實現曲線同命中率，掃描日誌同運行日誌留低；手機先錢同圖再下滑。"
+        "Dashboard 頭位係今日已實現 PnL 曲線（唔包入金）同命中率，掃描日誌同運行日誌留低；手機先錢同圖再下滑。"
         "Telegram 主頁、Dashboard、運行 bot 用同一組 board 數字。鐘用香港時間。"
     )
 
@@ -195,7 +195,7 @@ def bank_kb(rt: Runtime) -> InlineKeyboardMarkup:
 
 
 def _signed(n: float) -> str:
-    return f"{'+' if n >= 0 else ''}${n:.2f}"
+    return format_signed_usd(n)
 
 
 def _paper_block(rt: Runtime) -> str:
@@ -225,7 +225,7 @@ def _money_line(rt: Runtime) -> str:
     hit = _hit_clause(b)
     if b["mode"] == "live":
         usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
-        return f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])} · {hit}"
+        return f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日PnL {_signed(b['today_pnl'])} · {hit}"
     return (
         f"現金 ${b['cash']:.2f} · 權益 ${b['equity']:.2f} · 今日 {_signed(b['today_pnl'])} · {hit}\n"
         f"本金 ${b['starting']:.2f} · 單筆 ${b['stake']:.0f}"
@@ -252,7 +252,7 @@ def mode_text(rt: Runtime) -> str:
         usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
         return (
             "而家：🔴 實盤\n"
-            f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])} · {_hit_clause(b)}\n"
+            f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日PnL {_signed(b['today_pnl'])} · {_hit_clause(b)}\n"
             f"開倉 {b['open_n']} · 持倉成本 ${b['open_cost']:.2f}\n"
             "轉返紙盤會只睇紙盤帳，唔會改錢包。"
         )
@@ -425,13 +425,12 @@ def _log_text(rt: Runtime) -> str:
             status = STATUS_ZH.get(t["status"], t["status"])
             kind = KIND_ZH.get(t["kind"], t["kind"])
             net = float(t.get("net") or 0)
-            sign = "+" if net >= 0 else ""
             pl = t.get("payload") or {}
             cost = pl.get("cost") if t.get("status") in {"paper_filled", "filled"} else None
             lines.append(
                 f"{stamp} {status} · {kind}\n"
                 f"{t['slug']}\n"
-                f"{format_fill_headline(up=t['up_price'], down=t['down_price'], shares=t['shares'], cost=cost, leg=pl.get('leg'))}  {sign}${net:.2f}"
+                f"{format_fill_headline(up=t['up_price'], down=t['down_price'], shares=t['shares'], cost=cost, leg=pl.get('leg'))}  {_signed(net)}"
             )
     elif not tape:
         return "近期無掃描日誌、成交或結算。"
@@ -512,7 +511,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         if b["mode"] == "live":
             usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
-            now = f"而家可用 USDC {usdc} · 實盤今日 {_signed(b['today_pnl'])}。"
+            now = f"而家可用 USDC {usdc} · 實盤今日PnL {_signed(b['today_pnl'])}。"
         else:
             now = f"而家權益 ${b['equity']:.2f} · 今日 {_signed(b['today_pnl'])}。"
         await _safe_edit(

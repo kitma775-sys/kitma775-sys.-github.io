@@ -199,19 +199,29 @@ class Store:
         rows = self._conn.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (n,)).fetchall()
         return [dict(r) | {"payload": json.loads(r["payload"])} for r in rows]
 
-    def trades_since(self, start_ts: float, *, mode: str | None = None, limit: int = 400) -> list[dict]:
+    def trades_since(
+        self,
+        start_ts: float,
+        *,
+        mode: str | None = None,
+        limit: int = 400,
+        statuses: tuple[str, ...] | list[str] | None = None,
+    ) -> list[dict]:
         """Oldest-first trades at/after start_ts. Same UTC-day window as today_pnl()."""
         cap = max(1, int(limit))
+        sql = "SELECT * FROM trades WHERE ts>=?"
+        args: list[Any] = [float(start_ts)]
         if mode:
-            rows = self._conn.execute(
-                "SELECT * FROM trades WHERE ts>=? AND mode=? ORDER BY ts ASC, id ASC LIMIT ?",
-                (float(start_ts), str(mode), cap),
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                "SELECT * FROM trades WHERE ts>=? ORDER BY ts ASC, id ASC LIMIT ?",
-                (float(start_ts), cap),
-            ).fetchall()
+            sql += " AND mode=?"
+            args.append(str(mode))
+        if statuses:
+            wanted = [str(s) for s in statuses if str(s)]
+            if wanted:
+                sql += " AND status IN (" + ",".join("?" * len(wanted)) + ")"
+                args.extend(wanted)
+        sql += " ORDER BY ts ASC, id ASC LIMIT ?"
+        args.append(cap)
+        rows = self._conn.execute(sql, args).fetchall()
         return [dict(r) | {"payload": json.loads(r["payload"])} for r in rows]
 
     def recent_events(self, n: int = 30) -> list[dict]:

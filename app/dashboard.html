@@ -162,7 +162,7 @@
         <div class="note" id="notes"></div>
       </div>
       <div class="curve-col">
-        <div class="label" id="curveLabel">今日已實現</div>
+        <div class="label" id="curveLabel">今日已實現 PnL</div>
         <div class="curve-wrap" id="curve"></div>
         <div class="curve-leg" id="curveLeg"></div>
       </div>
@@ -202,7 +202,11 @@
       return fetch(t ? (path + join + "t=" + encodeURIComponent(t)) : path, Object.assign({ credentials:"same-origin" }, opt || {}));
     }
     function esc(s) { return String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
-    function signed(n) { return (Number(n)>=0?"+":"") + "$" + Number(n||0).toFixed(2); }
+    function signed(n) {
+      const x = Number(n);
+      if (!Number.isFinite(x)) return "+$0.00";
+      return (x >= 0 ? "+" : "-") + "$" + Math.abs(x).toFixed(2);
+    }
     function fmtTs(ts) {
       if (!ts) return "";
       try {
@@ -260,7 +264,7 @@
         const c = coords[i];
         const col = p.mark==="win"?ok:(p.mark==="lose"?no:(p.mark==="scratch"?sc:stroke));
         const lastPt = i === pts.length-1;
-        const label = (p.asset || p.slug || "") + " " + signed(p.net);
+        const label = p.mark==="now" ? ("而家 " + signed(p.y)) : ((p.asset || p.slug || "") + " " + signed(p.net));
         return '<circle class="pt'+(lastPt?" now":"")+'" cx="'+c[0].toFixed(1)+'" cy="'+c[1].toFixed(1)+'" r="'+(lastPt?4.2:3)+'" fill="'+col+'"><title>'
           +esc(label)+'</title></circle>';
       }).join("");
@@ -294,10 +298,10 @@
       document.getElementById("cashLabel").textContent = b.cash_label || (live ? "可用 USDC" : "紙盤現金");
       const cashEl = document.getElementById("cash");
       cashEl.textContent = (b.cash==null || b.cash==="") ? "—" : ("$" + Number(b.cash).toFixed(2));
-      cashEl.className = "cash" + (pnlBad ? " bad" : "");
+      cashEl.className = "cash";
       document.getElementById("hero").className = "panel hero" + (pnlBad ? " bad" : "");
       const pnlEl = document.getElementById("todayPnl");
-      pnlEl.textContent = "今日 " + signed(b.today_pnl);
+      pnlEl.textContent = (live ? "今日已實現 PnL " : "今日 ") + signed(b.today_pnl);
       pnlEl.className = "pnl" + (pnlBad ? " bad" : "");
       const moneyBits = [
         "單筆 $" + Number(b.stake||0).toFixed(0),
@@ -316,15 +320,16 @@
       document.getElementById("chips").innerHTML =
         '<span class="chip '+(Number(b.hit_rate)>=0.5?"ok":(held?"bad":""))+'">'+esc(hitTxt)+'</span>'
         + (scratch ? '<span class="chip">scratch '+scratch+'</span>' : "")
-        + '<span class="chip">'+(live?"已實現 redeem/dump":"紙盤權益")+'</span>';
+        + '<span class="chip">'+(live?"已實現 redeem/dump · 唔包入金":"紙盤權益")+'</span>';
       document.getElementById("notes").textContent = (b.notes || []).join(" · ");
       const curve = w.curve || {};
-      document.getElementById("curveLabel").textContent = curve.label || (live ? "今日已實現" : "今日權益");
+      document.getElementById("curveLabel").textContent = curve.label || (live ? "今日已實現 PnL" : "今日權益");
       document.getElementById("curve").innerHTML = drawCurve(curve, pnlBad);
       const cw = Number(curve.wins||b.hit_wins||0), cl = Number(curve.losses||b.hit_losses||0), cs = Number(curve.scratch_n||b.scratch_n||0);
       document.getElementById("curveLeg").innerHTML =
         '<i class="w">贏 '+cw+'</i><i class="l">輸 '+cl+'</i>'+(cs?'<i class="s">scratch '+cs+'</i>':'')
-        + '<i>命中 '+(curve.hit_label || b.hit_label || "—")+'</i>';
+        + '<i>命中 '+(curve.hit_label || b.hit_label || "—")+'</i>'
+        + (curve.note ? '<i>'+esc(curve.note)+'</i>' : '');
       document.getElementById("clearCircuit").style.display = d.circuit ? "inline-block" : "none";
       document.getElementById("bankBlock").style.display = live ? "none" : "flex";
       const p = d.paper || {};

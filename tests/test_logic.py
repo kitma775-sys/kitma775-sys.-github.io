@@ -2489,7 +2489,8 @@ def test_prune_empty_inventory_and_pos_hides_ghosts(tmp_path):
     assert "paper_resting" not in log
     assert "paper_leg_fill" not in log
     assert "單邊對沖" in log
-    assert "$-10.80" in log
+    assert "$-10.80" not in log
+    assert "-$10.80" in log
 
 
 def test_snapshot_hides_old_scans_and_noise_trades(tmp_path):
@@ -4222,6 +4223,7 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert live["equity"] is None
     live_home = home_text(live_rt)
     assert "可用 USDC $19.76" in live_home
+    assert "今日PnL" in live_home
     assert "本金 $" not in live_home
     assert "現金 $" not in live_home
     assert "權益 $" not in live_home
@@ -4248,6 +4250,9 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "命中" in html
     assert "drawCurve" in html
     assert '"hero"' in html
+    assert "唔包入金" in html
+    assert "Math.abs" in html
+    assert "今日已實現 PnL" in html
 
 
 def test_format_log_ts_is_hong_kong():
@@ -4311,7 +4316,8 @@ def test_operator_wall_tape_and_mode_money(tmp_path):
     assert home_text(rt).count("命中") == 1
     assert "命中 —" in home_text(rt)
     assert wall["curve"]["hit_label"] == "—"
-    assert wall["curve"]["label"] == "今日已實現"
+    assert wall["curve"]["label"] == "今日已實現 PnL"
+    assert wall["curve"]["note"]
     assert board["hit_held"] == 0
 
 
@@ -4352,10 +4358,13 @@ def test_performance_today_hit_rate_and_curve_align_telegram(tmp_path):
     assert "命中 1/3" in mode_text(rt)
     wall = operator_wall(rt, board)
     assert wall["curve"]["hit_label"] == "1/3"
-    marks = [p["mark"] for p in wall["curve"]["points"] if p["mark"] != "start"]
+    marks = [p["mark"] for p in wall["curve"]["points"] if p["mark"] not in {"start", "now"}]
     assert marks.count("win") == 1
     assert marks.count("lose") == 2
     assert marks.count("scratch") == 1
+    assert wall["curve"]["label"] == "今日已實現 PnL"
+    assert "入金" in (wall["curve"].get("note") or "")
+    assert abs(float(wall["curve"]["end"]) - float(board["today_pnl"])) < 1e-6
     paper_rt = Runtime(st, Env(force_paper=True))
     paper = performance_today(paper_rt)
     assert paper["label"] == "今日權益"
@@ -4424,20 +4433,105 @@ def test_performance_today_curve_follows_window_close_not_batch_redeem(tmp_path)
         status="redeemed",
     )
     perf = performance_today(rt)
-    slugs = [p["slug"] for p in perf["points"] if p["mark"] != "start"]
+    slugs = [p["slug"] for p in perf["points"] if p["mark"] not in {"start", "now"}]
     assert slugs == [
         f"sol-updown-5m-{sol0}",
         f"xrp-updown-5m-{xrp_w}",
         f"hype-updown-5m-{hype_w}",
         f"sol-updown-5m-{sol1}",
     ]
-    assert [p["mark"] for p in perf["points"] if p["mark"] != "start"] == ["scratch", "lose", "win", "lose"]
+    assert [p["mark"] for p in perf["points"] if p["mark"] not in {"start", "now"}] == ["scratch", "lose", "win", "lose"]
     assert abs(float(perf["end"]) - (3.9771 - 2.6 - 2.9 - 0.3372)) < 1e-6
     assert perf["hit_label"] == "1/3"
     assert perf["scratch_n"] == 1
     assert perf["points"][0]["mark"] == "start"
     assert perf["points"][1]["ts"] > perf["points"][0]["ts"]
     assert perf["points"][-1]["ts"] > perf["points"][2]["ts"]
+    assert perf["points"][-1]["mark"] == "now"
+    assert abs(float(perf["points"][-1]["y"]) - float(perf["end"])) < 1e-9
+
+
+def test_format_signed_usd_keeps_minus_before_dollar():
+    from app.config import format_signed_usd
+    from app.telegram_ui import _signed
+
+    assert format_signed_usd(-15.54) == "-$15.54"
+    assert format_signed_usd(15.54) == "+$15.54"
+    assert format_signed_usd(0) == "+$0.00"
+    assert _signed(-14.20) == "-$14.20"
+
+
+def test_performance_today_curve_survives_fok_noise_cap(tmp_path):
+    """FOK/error rows must not clip later dumps/redeems off the hero curve."""
+    from app.config import Env
+    from app.runtime import Runtime, operator_board
+    from app.wall import performance_today, utc_day_start
+
+    st = Store(tmp_path / "curve-cap.sqlite")
+    st.ensure_paper(500)
+    st.patch_settings(max_usd_per_trade=3, live_trading=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.live_usdc = 156.53
+    day = int(utc_day_start())
+    for i in range(450):
+        st.add_trade(
+            ts=day + 60 + i,
+            slug=f"btc-updown-5m-{day}",
+            kind="taker",
+            shares=5,
+            up_price=0.5,
+            down_price=0,
+            net=0.0,
+            mode="live",
+            status="fok_killed" if i % 2 == 0 else "error",
+        )
+    st.add_trade(
+        ts=day + 800,
+        slug=f"sol-updown-5m-{day + 600}",
+        kind="twap_live",
+        shares=5,
+        up_price=0,
+        down_price=0.47,
+        net=-0.3372,
+        mode="live",
+        status="dumped",
+    )
+    st.add_trade(
+        ts=day + 900,
+        slug=f"doge-updown-5m-{day + 600}",
+        kind="settle",
+        shares=6.86,
+        up_price=0,
+        down_price=1,
+        net=3.4589,
+        mode="live",
+        status="redeemed",
+    )
+    st.add_trade(
+        ts=day + 4000,
+        slug=f"eth-updown-5m-{day + 3600}",
+        kind="settle",
+        shares=5.49,
+        up_price=1,
+        down_price=0,
+        net=-2.8,
+        mode="live",
+        status="redeemed",
+    )
+    perf = performance_today(rt)
+    board = operator_board(rt)
+    marks = [p["mark"] for p in perf["points"] if p["mark"] not in {"start", "now"}]
+    slugs = [p["slug"] for p in perf["points"] if p["mark"] not in {"start", "now"}]
+    assert marks == ["scratch", "win", "lose"]
+    assert slugs[-1].startswith("eth-updown-5m-")
+    assert abs(float(perf["end"]) - (-0.3372 + 3.4589 - 2.8)) < 1e-6
+    assert abs(float(rt.store.today_pnl(mode="live")) - float(perf["end"])) < 1e-6
+    assert abs(float(board["today_pnl"]) - round(float(perf["end"]), 2)) < 1e-9
+    assert abs(float(perf["points"][-1]["y"]) - float(perf["end"])) < 1e-9
+    assert perf["hit_label"] == "1/2"
+    assert perf["scratch_n"] == 1
+    assert board["cash"] == 156.53
+    assert board["cash_label"] == "可用 USDC"
 
 
 def test_wall_slots_keep_open_window_not_future_listing(tmp_path):
@@ -4797,7 +4891,7 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "只做 5 分鐘" in essay
     assert "15 分鐘同 5 分鐘搶槽，已砍" in essay
     assert "主頁／而家狀況／Dashboard" in essay
-    assert "今日已實現曲線同命中率" in essay
+    assert "今日已實現 PnL 曲線（唔包入金）同命中率" in essay
     assert "唔係錢包" in _rev_blurb(rt.settings())
     home = home_text(rt)
     assert "唔做 YES+NO 互補" not in home

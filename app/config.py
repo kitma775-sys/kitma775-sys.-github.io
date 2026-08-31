@@ -294,3 +294,14 @@ def format_log_ts(ts: float | None) -> str:
     except (TypeError, ValueError, OSError):
         return ""
     return dt.strftime("%H:%M:%S")
+
+
+def format_signed_usd(n) -> str:
+    """PnL text: +$1.50 / -$1.50. Never $-1.50 (looks like a cash print)."""
+    try:
+        x = float(n)
+    except (TypeError, ValueError):
+        x = 0.0
+    if x >= 0:
+        return f"+${x:.2f}"
+    return f"-${abs(x):.2f}"
