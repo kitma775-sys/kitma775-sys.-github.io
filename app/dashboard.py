@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from app.config import clamp_paper_cash, favorite_window_label, favorite_window_of, live_keys_ready, strategy_mode_of
+from app.config import clamp_paper_cash, live_keys_ready, strategy_mode_of
 from app.runtime import Runtime
 
 PAGE = Path(__file__).with_name("dashboard.html")
@@ -26,7 +26,6 @@ def create_app(rt: Runtime) -> FastAPI:
     async def health():
         s = rt.settings()
         paper = rt.store.paper_state() if rt.mode() == "paper" else None
-        win = favorite_window_of(s)
         cl = rt.chainlink.public()
         btc = (cl.get("symbols") or {}).get("btc/usd") or {}
         return {
@@ -42,21 +41,16 @@ def create_app(rt: Runtime) -> FastAPI:
             "keys_ready": live_keys_ready(rt.env),
             "engine_running": bool(s.get("engine_running")),
             "killed": bool(s.get("killed")),
-            "maker_window_seconds": s.get("maker_window_seconds"),
             "max_book_age_ms": s.get("max_book_age_ms"),
             "taker_fok": bool(s.get("taker_fok", True)),
             "max_usd_per_trade": s.get("max_usd_per_trade"),
             "strategy_mode": strategy_mode_of(s),
-            "favorite_min_price": s.get("favorite_min_price"),
-            "favorite_max_price": s.get("favorite_max_price"),
-            "favorite_maker": bool(s.get("favorite_maker")),
-            "favorite_dir": s.get("favorite_dir") or "auto",
-            "favorite_window_seconds": win,
-            "favorite_window_label": favorite_window_label(win),
             "twap_min_price": s.get("twap_min_price"),
             "twap_max_price": s.get("twap_max_price"),
             "twap_min_lead_bps": s.get("twap_min_lead_bps"),
             "twap_min_edge": s.get("twap_min_edge"),
+            "twap_min_left": s.get("twap_min_left"),
+            "twap_max_left": s.get("twap_max_left"),
             "twap_gate": ((rt.last_loop or {}).get("tape") or {}).get("twap_gate"),
             "twap_skips": ((rt.last_loop or {}).get("tape") or {}).get("twap_skips"),
             "clob_rtt_ms": s.get("clob_rtt_ms"),

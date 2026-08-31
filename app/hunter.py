@@ -148,7 +148,7 @@ def hunt(
     if mode not in {"complement", "favorite", "auto", "twap"}:
         mode = "complement"
     taker = None
-    if mode in {"complement", "auto", "twap"}:
+    if mode in {"complement", "auto"}:
         taker = _taker_setup(
             slug=slug,
             title=title,

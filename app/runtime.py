@@ -673,9 +673,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if circuit:
             continue
-        if strategy_mode_of(s) == "favorite" and not favorite_ws_ok(
-            rt.ws_status, src, up_book, dn_book
-        ):
+        if not is_btc_5m(str(ev.get("slug") or "")):
             continue
         if favorite_same_window_open(rt, str(ev.get("slug") or "")):
             continue
@@ -703,20 +701,12 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 min_shares=max(float(s["min_shares"]), float(ev.get("min_size") or 5)),
                 min_edge=float(s["min_edge"]),
                 fee_rate=fee_rate,
-                prefer_tail=bool(s["prefer_tail"]),
+                prefer_tail=False,
                 tail_confirm=float(s["tail_confirm"]),
-                maker_first=bool(s["maker_first"]),
+                maker_first=False,
                 end=ev.get("end"),
-                maker_min_leg=setting_num(s, "maker_min_leg", 0.22),
-                maker_max_skew=setting_num(s, "maker_max_skew", 0.10),
-                maker_window_seconds=window,
-                maker_min_edge=float(s["maker_min_edge"]) if s.get("maker_min_edge") is not None else None,
-                strategy_mode=strategy_mode_of(s),
-                favorite_min_price=setting_num(s, "favorite_min_price", 0.97),
-                favorite_max_price=setting_num(s, "favorite_max_price", 0.98),
-                favorite_window_seconds=favorite_window_of(s),
-                favorite_maker=bool(s.get("favorite_maker")),
-                favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
+                maker_window_seconds=0.0,
+                strategy_mode="twap",
                 twap_snap=snap,
                 twap_params=twap_params,
             )

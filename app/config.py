@@ -34,12 +34,11 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 25,
+    "strategy_rev": 26,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 25: paper fill = live CLOB FAK (USDC amount BUY, bid-walk scratch).
-    # Complement still first. Favorite stays behind Telegram.
+    # Rev 26: TWAP-only. Complement / favorite stay in library tests, not the live engine.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
@@ -67,23 +66,14 @@ DEFAULT_SETTINGS = {
 
 
 SETTING_STEPS = {
-    "min_edge": (0.005, 0.005, 0.08),
-    "maker_min_edge": (0.005, 0.005, 0.08),
     "max_usd_per_trade": (5.0, 5.0, 500.0),
     "min_shares": (1.0, 5.0, 50.0),
     "daily_loss_limit_usd": (10.0, 10.0, 1000.0),
     "max_open_markets": (1.0, 1.0, 30.0),
-    "max_imbalance_shares": (5.0, 5.0, 500.0),
     "poll_seconds": (0.5, 1.0, 15.0),
-    "maker_window_seconds": (5.0, 0.0, 120.0),
-    "tail_confirm": (0.01, 0.80, 0.98),
-    "stale_leg": (0.005, 0.005, 0.10),
-    "fee_rate": (0.01, 0.0, 0.12),
     "paper_slip_ticks": (1.0, 0.0, 3.0),
     "paper_starting_cash": (100.0, 50.0, 100000.0),
     "scan_limit": (1.0, 8.0, 32.0),
-    "favorite_min_price": (0.01, 0.97, 0.98),
-    "favorite_max_price": (0.01, 0.91, 0.99),
     "twap_max_left": (10.0, 60.0, 280.0),
     "twap_min_lead_bps": (1.0, 2.0, 20.0),
     "clob_rtt_ms": (50.0, 0.0, 500.0),
@@ -101,15 +91,12 @@ def setting_num(s: dict, key: str, default: float) -> float:
     return float(v)
 
 
-STRATEGY_MODES = ("auto", "complement", "twap", "favorite")
+STRATEGY_MODES = ("twap",)
 
 
 def strategy_mode_of(s: dict | None) -> str:
-    """auto / complement / twap / favorite. Missing or junk → current default."""
-    raw = str((s or {}).get("strategy_mode") or DEFAULT_SETTINGS["strategy_mode"]).strip().lower()
-    if raw not in STRATEGY_MODES:
-        return str(DEFAULT_SETTINGS["strategy_mode"])
-    return raw
+    """Live engine is TWAP-only. Leftover sqlite modes coerce to twap."""
+    return "twap"
 
 
 def favorite_window_of(s: dict | None) -> float:

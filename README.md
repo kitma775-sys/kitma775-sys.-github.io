@@ -1,6 +1,6 @@
 # Surf Arb Bot
 
-Polymarket YES/NO 互補套利 bot：全自動紙盤預設、Telegram 全按掣、Dashboard、可上 Zeabur。
+Polymarket BTC 5m Chainlink TWAP bot：全自動紙盤預設、Telegram 全按掣、Dashboard、可上 Zeabur。
 
 研究對賬仍然喺 [`index.html`](index.html)。呢個目錄係可運行系統。
 
@@ -57,6 +57,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 26**：引擎鎖定 **BTC 5m Chainlink TWAP**。唔再 hunt YES+NO 互補、唔再買大熱 97–98。Telegram／Dashboard 收乾舊策略掣。TWAP 規則（45–55¢、6bps、12–180s、scratch、CLOB FAK）唔改。紙盤未重置、未開實盤。
 - **Rev 25**：紙盤成交＝實盤 CLOB FAK dry-run。BUY 用官方 **USDC `amount` + `max_price`**（唔再用 `shares`，真錢會被 client 拒絕）；scratch **SELL `shares` + `min_price`**（紙盤都會行同一條 dump，唔再只記帳）。FOK 確認後再等 **`clob_rtt_ms=150`** 重走簿、唔 requote；盤走咗就 `clob_rtt_miss`。TWAP 仍然 180s / 6bps / scratch。紙盤未重置、未開實盤。
 - **Rev 24**：TWAP 窗開到 **剩餘 180s**（抄頂級方向盤戶中位入場 ~160–210s），仍然 **lead ≥6 bps + scratch**。唔抄分時雙邊鎖倉（7% taker 費後 −EV）、唔延遲跟單。詳情 `research/copy_top.json`。紙盤未重置、未開實盤。
 - **Rev 23**：預設 **BTC 5m 官方 Chainlink 60s TWAP vs 窗開價**（`strategy_mode=twap`）。只喺 **45–55¢**、lead ≥6 bps、當時剩餘 12–120s、fair P 清 ask+費+0.04 先入場；每 15s 重估，弱倉 **scratch 出貨、唔對沖**。YES+NO 互補洞仍然會先吃（`min_edge=0.02`、FOK、maker 關）。大熱 97–98 仍停、Telegram 可切回。紙盤未重置、未開實盤。同源校準 `research/twap_engine.json`（train +$78 / holdout +$155）；**唔好用 Binance 減 Gamma PTB**（~9 bps 基差）。RTDS `wss://ws-live-data.polymarket.com` topic `crypto_prices_chainlink`。中途加入要等到下一個 5 分鐘開盤先鎖 PTB。

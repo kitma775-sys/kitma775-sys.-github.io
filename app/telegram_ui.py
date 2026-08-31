@@ -7,81 +7,27 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import SETTING_STEPS, STRATEGY_MODES, favorite_window_label, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
+from app.config import SETTING_STEPS, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready
 from app.geo import telegram_line
 from app.runtime import Runtime
 from app.universe import DEFAULT_ASSETS
 
 TG_MAX = 3900
-STRATEGY_ZH = {
-    "auto": "自動（互補優先，否則大熱）",
-    "complement": "只做互補 YES+NO",
-    "twap": "TWAP 中間價（BTC 5m）",
-    "favorite": "只買大熱",
-}
-FAVORITE_DIRS = ("auto", "up", "down")
-FAVORITE_DIR_ZH = {
-    "auto": "方向：自動（97–98¢ 邊邊買邊邊）",
-    "up": "方向：只買 Up",
-    "down": "方向：只買 Down",
-}
-# 0 = whole book until 3s before end
-FAVORITE_WINDOWS = (30, 45, 60, 90, 180, 300, 900, 0)
-
-
-def _strategy_mode(s: dict) -> str:
-    return strategy_mode_of(s)
-
-
-def _favorite_dir(s: dict) -> str:
-    from app.hunter import parse_favorite_dir
-
-    return parse_favorite_dir(s.get("favorite_dir"))
-
-
-def _favorite_window_label(s: dict) -> str:
-    return favorite_window_label(favorite_window_of(s))
 
 
 def _strategy_label(s: dict) -> str:
-    mode = _strategy_mode(s)
-    if mode == "twap":
-        lo = float(s.get("twap_min_price") or 0.45)
-        hi = float(s.get("twap_max_price") or 0.55)
-        return f"TWAP 中間價 {lo:.2f}–{hi:.2f} BTC 5m"
-    if mode != "favorite":
-        return STRATEGY_ZH[mode]
-    lo = float(s.get("favorite_min_price") or 0.97)
-    hi = float(s.get("favorite_max_price") or 0.98)
-    return f"只買大熱 {lo:.2f}–{hi:.2f}"
+    lo = float(s.get("twap_min_price") or 0.45)
+    hi = float(s.get("twap_max_price") or 0.55)
+    return f"TWAP 中間價 {lo:.2f}–{hi:.2f} BTC 5m"
 
 
 def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
-    mode = _strategy_mode(s)
-    if mode == "favorite":
-        return (
-            f"Rev {rev}：只做大熱 97–98¢，$5/注，尾 60s。"
-            "要最好賣價就喺 97–98、bid 未穿到 99、WS 活簿先抬。"
-            "同一 5 分鐘窗 BTC/ETH 只做一隻。Redeem 等官方 0/1。紙盤。"
-        )
-    if mode == "auto":
-        return (
-            f"Rev {rev}：自動＝互補優先，否則大熱。"
-            "互補缺口 ≥0.02、FOK、maker 關。Redeem 等官方 0/1。紙盤。"
-        )
-    if mode == "twap":
-        return (
-            f"Rev {rev}：紙盤＝實盤 CLOB FAK dry-run（買用 USDC amount+max_price，scratch 賣用 shares+min_price，"
-            "FOK 後再等 RTT 重走簿，唔 requote）。"
-            "BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘最多 180s 入場，弱倉 scratch。"
-            "入場時間抄頂級方向盤戶（中位 ~160–210s），唔抄雙邊鎖倉（taker 費後 −EV）。"
-            "互補洞仍然會先吃。FOK、maker 關。Redeem 等官方 0/1。"
-            "FORCE_PAPER／兩步確認仍然鎖真錢。未開實盤。"
-        )
     return (
-        f"Rev {rev}：停大熱 hunt。預設只做 YES+NO 互補（缺口 ≥0.02、FOK、maker 關）。"
-        "Telegram 可切回大熱。Redeem 等官方 0/1。紙盤。"
+        f"Rev {rev}：只做 BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘 12–180s，lead ≥6 bps，弱倉 scratch。"
+        "紙盤＝實盤 CLOB FAK dry-run（買 USDC amount+max_price，scratch 賣 shares+min_price，FOK 後 RTT 重走簿）。"
+        "唔做 YES+NO 互補，唔做大熱 97–98。FOK 開、maker 關。Redeem 等官方 0/1。"
+        "FORCE_PAPER／兩步確認仍然鎖真錢。"
     )
 
 
@@ -102,14 +48,10 @@ KIND_ZH = {"taker": "taker", "maker": "掛單", "settle": "結算"}
 
 TOGGLES = {
     "auto_execute": ("全自動落單", "開咗就唔會逐單問你"),
-    "prefer_tail": ("尾盤優先", "近完場、一邊好貴一邊好平先掃"),
-    "maker_first": ("全日掛單（關閉）", "開咗都唔會全日掛。Rev 6 預設停尾盤掛單；尾窗 0=關"),
-    "auto_merge": ("自動 merge", "兩邊齊就換返現金"),
     "auto_redeem": ("自動 redeem", "完場官方結果後自動取回：紙盤入帳，實盤 redeemPositions"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
-    "taker_fok": ("FOK 確認", "250ms 後剩餘 +EV 量 FAK；限價沒了就用新簿 requote。殺單 0.4s 可再試"),
-    "favorite_maker": ("大熱定價掛單", "喺下限掛買單，0 手續費；被人砸中先成交，唔對沖"),
+    "taker_fok": ("FOK 確認", "250ms 後 FAK；再等 RTT 重走簿，唔 requote。殺單 0.4s 可再試"),
 }
 
 
@@ -245,9 +187,7 @@ def bank_text(rt: Runtime) -> str:
 def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     rows = [
-        [InlineKeyboardButton(f"策略：{_strategy_label(s)}", callback_data="smode")],
-        [InlineKeyboardButton(f"大熱尾窗：{_favorite_window_label(s)}", callback_data="fwin")],
-        [InlineKeyboardButton(FAVORITE_DIR_ZH[_favorite_dir(s)], callback_data="fdir")],
+        [InlineKeyboardButton(f"策略：{_strategy_label(s)}（鎖定）", callback_data="set")],
     ]
     for key, (label, _hint) in TOGGLES.items():
         on = bool(s.get(key))
@@ -302,24 +242,17 @@ def tags_kb(rt: Runtime) -> InlineKeyboardMarkup:
 
 def _label(key: str) -> str:
     return {
-        "min_edge": "taker最小缺口",
-        "maker_min_edge": "掛單最小缺口",
         "max_usd_per_trade": "單筆上限$",
         "min_shares": "最少股數",
         "daily_loss_limit_usd": "日虧熔斷$",
         "max_open_markets": "最多市場",
-        "max_imbalance_shares": "裸倉上限",
         "poll_seconds": "掃描秒",
-        "maker_window_seconds": "掛單尾窗s",
-        "tail_confirm": "尾盤門檻",
-        "stale_leg": "過期單門檻",
-        "fee_rate": "taker費率",
         "paper_slip_ticks": "紙盤滑點tick",
         "paper_starting_cash": "紙盤本金$",
         "scan_limit": "每圈最多盤",
-        "favorite_min_price": "大熱最低價",
-        "favorite_max_price": "大熱最高價",
-        "favorite_window_seconds": "大熱尾窗s",
+        "twap_max_left": "TWAP剩餘上限s",
+        "twap_min_lead_bps": "TWAP最少lead bps",
+        "clob_rtt_ms": "CLOB RTT ms",
     }.get(key, key)
 
 
@@ -351,14 +284,14 @@ def home_text(rt: Runtime) -> str:
         + "\n"
         f"開倉市場 {st['open_markets']} · {keys}\n"
         f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
-        f"{_tape_line(last, maker_on=setting_num(s, 'maker_window_seconds', 0.0) >= 3)}"
+        f"{_tape_line(last)}"
         f"{geo_line}\n\n"
         + _rev_blurb(s)
         + "\n未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
     )
 
 
-def _tape_line(last: dict, *, maker_on: bool = True) -> str:
+def _tape_line(last: dict) -> str:
     tape = last.get("tape") or {}
     if not tape.get("n"):
         bits = []
@@ -407,13 +340,6 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
             f"成{int(tape.get('fok_fills') or 0)}/"
             f"殺{int(tape.get('fok_kills') or 0)}"
         )
-    if tape.get("min_ask_sum") is not None:
-        bits.append(f"ask合 {float(tape['min_ask_sum']):.2f}")
-    if tape.get("max_taker_net") is not None:
-        n = float(tape["max_taker_net"])
-        bits.append(f"taker淨 {n:+.3f}/股")
-    if maker_on and tape.get("max_maker_gross") is not None:
-        bits.append(f"掛單缺口 {float(tape['max_maker_gross']):.2f}")
     if tape.get("nearest_s") is not None:
         slug = str(tape.get("nearest_slug") or "")[:28]
         bits.append(f"最近 {int(tape['nearest_s'])}s {slug}".rstrip())
@@ -427,20 +353,16 @@ def _tape_line(last: dict, *, maker_on: bool = True) -> str:
 def _status_text(rt: Runtime) -> str:
     s = rt.settings()
     assets = ", ".join(a.upper() for a in (s.get("assets") or []))
-    win = setting_num(s, "maker_window_seconds", 0.0)
-    win_txt = "停用掛單" if win < 3 else f"{win:.0f}s"
     return (
         home_text(rt)
         + "\n\n高階參數\n"
-        + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status}\n"
-        + f"taker缺口 ≥ {s['min_edge']} · 掛單缺口 ≥ {s.get('maker_min_edge', 0.01)}\n"
+        + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status} · Chainlink {rt.chainlink_status}\n"
+        + f"{_strategy_label(s)}（鎖定，唔做互補／大熱）\n"
         + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"策略 {_strategy_label(s)} · 大熱 {float(s.get('favorite_min_price') or 0.97):.2f}–{float(s.get('favorite_max_price') or 0.98):.2f} · {_favorite_window_label(s)} · {FAVORITE_DIR_ZH[_favorite_dir(s)]}\n"
-        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 180):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f} · Chainlink {rt.chainlink_status}\n"
-        + f"尾盤優先 {'開' if s['prefer_tail'] else '關'} · FOK {'開' if s.get('taker_fok', True) else '關'} · 大熱掛單 {'開' if s.get('favorite_maker') else '關'} · 互補掛單 {win_txt}\n"
-        + f"自動 merge {'開' if s.get('auto_merge', True) else '關'} · 自動 redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
-        + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '15M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
-        + f"幣：{assets or '全部'}"
+        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 180):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f}\n"
+        + f"FOK {'開' if s.get('taker_fok', True) else '關'} · RTT {float(s.get('clob_rtt_ms') or 150):.0f}ms · redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
+        + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '5M'])} · 每圈 ≤ {s.get('scan_limit') or 16}\n"
+        + f"幣：{assets or '全部'}（TWAP 只入場 BTC 5m）"
     )
 
 
@@ -458,7 +380,7 @@ def _pos_text(rt: Runtime) -> str:
                 f"\n  Up {up_f} · Down {dn_f} · 鎖 ${float(row.get('reserved') or 0):.2f}"
             )
     if not inv and not rest:
-        lines.append("而家無倉、無掛單。0/0 空列已清。Rev 6 預設只做 taker。")
+        lines.append("而家無倉、無掛單。")
         return "\n".join(lines)
     for row in inv[:15]:
         kind = str(row.get("kind") or "pair")
@@ -563,7 +485,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             q,
             "解除今日熔斷唔會清倉、唔會改本金。\n"
             f"而家權益 ${p['equity']:.2f} · 今日 {_signed(p['today_pnl'])}。\n"
-            "撳確認之後今日 PnL 由 0 再計，會再開新倉。大熱每盤仍然 ≤ 單筆上限。",
+            "撳確認之後今日 PnL 由 0 再計，會再開新倉。每盤仍然 ≤ 單筆上限。",
             reply_markup=kb,
         )
         return
@@ -600,8 +522,8 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, 
             f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
-            f"紙盤跟真錢規則：taker 兩邊新鮮盤口先成交。Rev 6 預設停掛單。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
-            "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，再撳兩次確認。",
+            f"策略鎖定 BTC 5m Chainlink TWAP。紙盤用同一套 CLOB FAK dry-run。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
+            "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，關 FORCE_PAPER，再撳兩次確認。",
             reply_markup=mode_kb(rt),
         )
         return
@@ -665,7 +587,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, 
             "實盤會用你把匙簽名落單。\n"
-            "Rev 25 紙盤已經用同一套 CLOB FAK（買用 USDC amount、scratch 賣用 shares+min_price、成交前再等 RTT 重走簿）。\n"
+            "而家只做 BTC 5m Chainlink TWAP。紙盤同真錢同一套 CLOB FAK。\n"
             "紙盤係真錢 dry-run，但 queue／部分成交／延遲仍然會差一截。\n"
             "全自動模式下唔會逐單確認。FORCE_PAPER 開住永遠紙盤。確定轉？",
             reply_markup=kb,
@@ -686,40 +608,24 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         return
     if data == "set":
         await q.answer()
-        await _safe_edit(q, "高階設定。撳開關或者加減。預設已經係全自動紙盤。", reply_markup=settings_kb(rt))
+        await _safe_edit(
+            q,
+            "高階設定。策略鎖定 BTC 5m Chainlink TWAP，唔會切去互補或大熱。\n"
+            "加減只改倉位／風控／掃描。TWAP 只入場 BTC 5m。",
+            reply_markup=settings_kb(rt),
+        )
         return
-    if data == "smode":
-        cur = _strategy_mode(s)
-        nxt = STRATEGY_MODES[(STRATEGY_MODES.index(cur) + 1) % len(STRATEGY_MODES)]
-        rt.store.patch_settings(strategy_mode=nxt)
-        await q.answer(_strategy_label(rt.settings()))
-        await _safe_edit(q, f"策略已轉：{_strategy_label(rt.settings())}", reply_markup=settings_kb(rt))
-        return
-    if data == "fwin":
-        cur = favorite_window_of(s)
-        windows = list(FAVORITE_WINDOWS)
-        if int(cur) in windows:
-            idx = windows.index(int(cur))
-        elif cur <= 0:
-            idx = windows.index(0)
-        else:
-            nearest = min((w for w in windows if w > 0), key=lambda w: abs(w - cur))
-            idx = windows.index(nearest)
-        nxt = windows[(idx + 1) % len(windows)]
-        rt.store.patch_settings(favorite_window_seconds=nxt)
-        await q.answer(_favorite_window_label(rt.settings()))
-        await _safe_edit(q, f"大熱尾窗：{_favorite_window_label(rt.settings())}", reply_markup=settings_kb(rt))
-        return
-    if data == "fdir":
-        cur = _favorite_dir(s)
-        nxt = FAVORITE_DIRS[(FAVORITE_DIRS.index(cur) + 1) % len(FAVORITE_DIRS)]
-        rt.store.patch_settings(favorite_dir=nxt)
-        await q.answer(FAVORITE_DIR_ZH[nxt])
-        await _safe_edit(q, f"已轉：{FAVORITE_DIR_ZH[nxt]}", reply_markup=settings_kb(rt))
+    if data in {"smode", "fwin", "fdir"}:
+        await q.answer("策略已鎖定 TWAP", show_alert=True)
+        await _safe_edit(
+            q,
+            "高階設定。策略鎖定 BTC 5m Chainlink TWAP，唔會切去互補或大熱。",
+            reply_markup=settings_kb(rt),
+        )
         return
     if data == "assets":
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, "揀要掃嘅幣。最少留一個。TWAP 只入場 BTC 5m。", reply_markup=assets_kb(rt))
         return
     if data.startswith("asset:"):
         coin = data.split(":", 1)[1]
@@ -733,15 +639,15 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             cur.append(coin)
         rt.store.patch_settings(assets=cur)
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅幣。最少留一個。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, "揀要掃嘅幣。最少留一個。TWAP 只入場 BTC 5m。", reply_markup=assets_kb(rt))
         return
     if data == "tags":
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
+        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。TWAP 只入場 5 分鐘 BTC。", reply_markup=tags_kb(rt))
         return
     if data.startswith("tag:"):
         tag = data.split(":", 1)[1]
-        cur = list(s.get("tags") or [s.get("tag") or "15M"])
+        cur = list(s.get("tags") or [s.get("tag") or "5M"])
         if tag in cur:
             if len(cur) == 1:
                 await q.answer("至少留一種週期", show_alert=True)
@@ -751,14 +657,14 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             cur.append(tag)
         rt.store.patch_settings(tags=cur, tag=cur[0])
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。", reply_markup=tags_kb(rt))
+        await _safe_edit(q, "揀要掃嘅完場週期。最少留一個。TWAP 只入場 5 分鐘 BTC。", reply_markup=tags_kb(rt))
         return
     if data.startswith("tog:"):
         key = data.split(":", 1)[1]
         if key in TOGGLES:
             rt.store.patch_settings(**{key: not bool(s.get(key))})
         await q.answer("已更新")
-        await _safe_edit(q, "高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。策略鎖定 BTC 5m Chainlink TWAP。", reply_markup=settings_kb(rt))
         return
     if data.startswith("inc:") or data.startswith("dec:"):
         key = data.split(":", 1)[1]
@@ -769,22 +675,12 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         cur = float(s.get(key) or 0)
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
-        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash", "scan_limit", "maker_window_seconds", "favorite_window_seconds"}:
+        if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash", "scan_limit"}:
             rt.store.patch_settings(**{key: int(round(nxt))})
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})
-        if key in {"favorite_min_price", "favorite_max_price"}:
-            ss = rt.settings()
-            lo = round(float(ss.get("favorite_min_price") or 0.95), 2)
-            hi = round(float(ss.get("favorite_max_price") or 0.99), 2)
-            if lo >= hi:
-                if key == "favorite_min_price":
-                    hi = min(0.99, round(lo + 0.01, 2))
-                else:
-                    lo = max(0.90, round(hi - 0.01, 2))
-                rt.store.patch_settings(favorite_min_price=lo, favorite_max_price=hi)
         await q.answer()
-        await _safe_edit(q, "高階設定。撳開關或者加減。", reply_markup=settings_kb(rt))
+        await _safe_edit(q, "高階設定。策略鎖定 BTC 5m Chainlink TWAP。", reply_markup=settings_kb(rt))
         return
     await q.answer()
 

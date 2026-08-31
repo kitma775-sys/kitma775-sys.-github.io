@@ -121,7 +121,7 @@
         tile(s.taker_fok===false ? "關" : "開", "延遲確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
-        tile({"auto":"自動","complement":"互補","twap":"TWAP","favorite":"大熱"}[s.strategy_mode] || (s.strategy_mode || "—"), "策略模式"),
+        tile("TWAP BTC 5m", "策略"),
         tile(d.chainlink_status || "off", "Chainlink"),
         tile((function(){
           const g = tape.twap_gate || {};
@@ -131,21 +131,13 @@
           const ask = g.ask==null ? "" : ("ask " + g.ask + " ");
           return (left + lead + ask + g.reason).trim();
         })(), "TWAP 閘"),
-        tile((function(){
-          const fw = Number(s.favorite_window_seconds);
-          const win = (s.favorite_window_seconds==null || s.favorite_window_seconds==="") ? "60s" : (fw<=0 ? "全段" : (Math.round(fw)+"s"));
-          const dir = ({auto:"自動",up:"Up",down:"Down"}[s.favorite_dir] || "自動");
-          return ((Number(s.favorite_min_price||0.97)*100).toFixed(0)) + "–" + ((Number(s.favorite_max_price||0.98)*100).toFixed(0)) + "¢ / " + win + " / " + dir;
-        })(), "大熱區間／尾窗／方向"),
+        tile((Number(s.twap_min_price||0.45)*100).toFixed(0) + "–" + (Number(s.twap_max_price||0.55)*100).toFixed(0) + "¢", "TWAP 價帶"),
+        tile("≥" + Number(s.twap_min_lead_bps||6).toFixed(0) + "bps / " + Number(s.twap_min_left||12).toFixed(0) + "–" + Number(s.twap_max_left||180).toFixed(0) + "s", "lead／剩餘窗"),
         tile(tape.ws_pairs==null ? "—" : String(tape.ws_pairs), "WS 新鮮盤"),
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
         tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),
-        tile(Number(s.maker_window_seconds||0) < 3 ? "關" : (Number(s.maker_window_seconds) + "s"), "掛單尾窗"),
-        tile(nfmt(tape.min_ask_sum), "盤口 ask合"),
-        tile(shareNet(tape.max_taker_net), "taker淨/股", pnlCls(tape.max_taker_net)),
-        ...(Number(s.maker_window_seconds||0) < 3 ? [] : [tile(nfmt(tape.max_maker_gross), "掛單缺口")]),
         tile(tape.nearest_s==null ? "—" : (Math.round(Number(tape.nearest_s)) + "s"), tape.nearest_slug ? ("最近 " + String(tape.nearest_slug).slice(0,22)) : "最近完場"),
-        tile((Array.isArray(s.tags) ? s.tags : [s.tag || "15M"]).join("+"), "週期"),
+        tile((Array.isArray(s.tags) ? s.tags : [s.tag || "5M"]).join("+"), "週期"),
         tile(String(s.scan_limit || 16), "每圈最多盤"),
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_redeem===false ? "關" : "開", "自動 redeem"),
@@ -169,15 +161,15 @@
       document.getElementById("scans").innerHTML = (d.scans||[]).map(x => {
         const p = x.payload || {};
         const px = formatLeg(p.up, p.down, p.leg);
-        const kind = (p.strategy==="twap" ? "TWAP" : (p.strategy==="favorite" ? "大熱" : "")) + (x.kind==="maker" ? "掛單" : esc(x.kind));
+        const kind = (p.strategy==="twap" ? "TWAP" : (p.strategy==="favorite" ? "舊大熱" : (x.kind==="maker" ? "舊掛單" : esc(x.kind))));
         return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+kind+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
-      }).join("") || "<tr><td colspan=6>本輪未有 taker 信號（舊 maker 掃描已隱藏）</td></tr>";
+      }).join("") || "<tr><td colspan=6>本輪未有 TWAP 信號</td></tr>";
       document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
         "<tr><td>"+esc(statusZh[x.status]||x.status)+"<div class=muted>"+fmtTs(x.ts)+"</div></td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+(x.kind==="maker"?"掛單":esc(x.kind))+"</td><td class='"+(pnlCls(x.net))+"'>$"+Number(x.net||0).toFixed(2)+"<div class=muted>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</div></td></tr>"
       ).join("") || "<tr><td colspan=4>暫無（掛單／單邊碰到已隱藏）</td></tr>";
       document.getElementById("rest").innerHTML = (d.resting||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
-      ).join("") || "<tr><td colspan=6>暫無（Rev 6 預設停掛單）</td></tr>";
+      ).join("") || "<tr><td colspan=6>暫無掛單（TWAP 唔掛單）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+((x.kind||"").indexOf("twap")===0?" · TWAP":((x.kind||"").indexOf("favorite")===0?" · 大熱":""))+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
       ).join("") || "<tr><td colspan=3>暫無倉位（0/0 空列已清）</td></tr>";
