@@ -14,6 +14,7 @@ from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_o
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
+from app.wall import note_wall_gate, operator_wall
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
 from app.rescue import is_redeemable_market, parse_outcome_prices, plan_rescue, walk_dump
@@ -714,6 +715,7 @@ class Runtime:
         self._clob_halt_until = 0.0
         self._clob_halt_reason = ""
         self._clob_halt_announced = False
+        self.wall_tape: list[dict] = []
         load_live_usdc(self)
 
     def clob_halted(self) -> bool:
@@ -824,6 +826,7 @@ class Runtime:
         trades = trades[:15]
         scans = [x for x in self.store.recent_scans(40) if float(x.get("ts") or 0) >= self.started_at - 2][:12]
         leftover = leftover_paper_inventory(self)
+        board = operator_board(self)
         return {
             "mode": self.mode(),
             "keys_ready": live_keys_ready(self.env),
@@ -850,7 +853,8 @@ class Runtime:
             "clob_halt_reason": self._clob_halt_reason if self.clob_halted() else "",
             "live_onchain_limited": bool(self.live_onchain_limited),
             "live_usdc": self.live_usdc,
-            "board": operator_board(self),
+            "board": board,
+            "wall": operator_wall(self, board),
         }
 
 
@@ -1400,6 +1404,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 }
                 if gate_better(twap_gate, gate):
                     twap_gate = gate
+                note_wall_gate(rt, gate)
             continue
         wanted_toks = set(rt.books.wanted)
         up_t = str(ev.get("up_token") or "")
@@ -1423,6 +1428,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 }
                 if gate_better(twap_gate, gate):
                     twap_gate = gate
+                note_wall_gate(rt, gate)
             continue
         up_book, dn_book, src = await _pair_books(rt, ev, max_age_ms=max_age)
         if up_book is None or dn_book is None:
@@ -1450,6 +1456,14 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             continue
         if not paper_mode and rt.clob_halted():
             twap_skips["clob_halt"] = twap_skips.get("clob_halt", 0) + 1
+            note_wall_gate(
+                rt,
+                {
+                    "slug": ev.get("slug"),
+                    "left": seconds_left(ev.get("end")),
+                    "reason": "clob_halt",
+                },
+            )
             continue
         slug = str(ev.get("slug") or "")
         if not slug_allowed(slug, twap_params):
@@ -1511,6 +1525,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             twap_skips[why] = twap_skips.get(why, 0) + 1
         if gate_better(twap_gate, gate):
             twap_gate = gate
+        note_wall_gate(rt, gate)
         if not setup:
             continue
         if is_one_leg_setup(setup) and not favorite_ws_ok(rt.ws_status, src, up_book, dn_book):
@@ -1591,6 +1606,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         rt.store.add_scan(setup.slug, setup.kind, payload)
         if not paper_mode and rt.clob_halted():
             twap_skips["clob_halt"] = twap_skips.get("clob_halt", 0) + 1
+            note_wall_gate(rt, {"slug": setup.slug, "reason": "clob_halt", "ask": setup.up_price or setup.down_price})
             continue
         if not decision.ok:
             if s.get("notify_rejects"):

@@ -1,0 +1,311 @@
+"""Neon ops wall: one payload for Dashboard A, Telegram log, and the running bot.
+
+Telegram home stays the short operator_board. This module is the watch surface:
+skip tape, TWAP gauges, 5-stage pipeline, per-coin slots, and a journal.
+"""
+
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from app.config import inventory_matches_mode
+from app.twap import hunt_assets, parse_window
+
+WALL_TAPE_MAX = 48
+PASS_REASONS = {"signal", "ready"}
+
+SKIP_ZH = {
+    "signal": "合格",
+    "ready": "合格",
+    "future_listing": "未開窗",
+    "twap_ws_slot": "未入槽",
+    "twap_window": "剩餘窗",
+    "twap_no_ptb": "未有窗開價",
+    "twap_no_feed": "CL 未到",
+    "twap_oracle": "oracle",
+    "twap_horizon": "週期",
+    "twap_asset": "幣種",
+    "twap_stale": "盤過期",
+    "twap_thin": "盤薄",
+    "twap_band": "價帶外",
+    "twap_no_bid": "無 bid",
+    "twap_crossed": "交叉盤",
+    "twap_wide": "spread 闊",
+    "twap_lead": "lead 唔夠",
+    "twap_no_fair": "無公平價",
+    "twap_edge": "edge 唔夠",
+    "twap_conflict": "已有倉",
+    "twap_budget": "額度唔夠",
+    "clob_halt": "CLOB 暫停",
+}
+
+STATUS_ZH = {
+    "paper_filled": "紙盤成交",
+    "paper_hedged": "單邊對沖",
+    "paper_dumped": "單邊出貨",
+    "dumped": "單邊出貨",
+    "paper_settled": "結算",
+    "redeemed": "redeem",
+    "paper_fok_killed": "FOK殺單",
+    "fok_killed": "FOK殺單",
+    "filled": "成交",
+    "cancelled": "已撤",
+    "paper_missed": "錯過",
+}
+
+NOISE_TRADE = {"paper_leg_fill", "paper_resting", "resting"}
+
+
+def reason_zh(code: str | None) -> str:
+    key = str(code or "").strip()
+    return SKIP_ZH.get(key, key or "—")
+
+
+def note_wall_gate(rt, gate: dict | None) -> None:
+    """Keep the latest row per slug so the tape moves without flooding."""
+    if not gate:
+        return
+    slug = str(gate.get("slug") or "").strip()
+    if not slug:
+        return
+    parsed = parse_window(slug)
+    reason = str(gate.get("reason") or "skip")
+    row = {
+        "ts": time.time(),
+        "slug": slug,
+        "asset": parsed.asset if parsed else "",
+        "reason": reason,
+        "reason_zh": reason_zh(reason),
+        "ask": gate.get("ask"),
+        "lead_bps": gate.get("lead_bps"),
+        "left": gate.get("left"),
+        "side": gate.get("side"),
+        "ok": reason in PASS_REASONS,
+    }
+    buf = getattr(rt, "wall_tape", None)
+    if buf is None:
+        rt.wall_tape = []
+        buf = rt.wall_tape
+    for i in range(len(buf) - 1, max(-1, len(buf) - 16), -1):
+        if buf[i].get("slug") == slug:
+            buf[i] = row
+            return
+    buf.append(row)
+    overflow = len(buf) - WALL_TAPE_MAX
+    if overflow > 0:
+        del buf[:overflow]
+
+
+def _mode_inv(rt) -> list[dict]:
+    live = rt.mode() == "live"
+    return [r for r in rt.store.inventory_open() if inventory_matches_mode(r.get("kind"), live=live)]
+
+
+def _conn_pct(status: str | None) -> int:
+    s = str(status or "off").lower()
+    if s in {"connected", "ok", "live"}:
+        return 100
+    if s in {"partial", "degraded"}:
+        return 55
+    if s in {"connecting", "wait"}:
+        return 25
+    return 8
+
+
+def _gauges(rt, board: dict, gate: dict, s: dict) -> list[dict]:
+    lead = gate.get("lead_bps")
+    ask = gate.get("ask")
+    left = gate.get("left")
+    min_lead = float(s.get("twap_min_lead_bps") or 6)
+    lo = float(s.get("twap_min_price") or 0.45)
+    hi = float(s.get("twap_max_price") or 0.55)
+    min_left = float(s.get("twap_min_left") or 12)
+    max_left = float(s.get("twap_max_left") or 280)
+    lead_pct = 8
+    if lead is not None:
+        lead_pct = int(max(8, min(100, round(abs(float(lead)) / max(min_lead, 0.01) * 70))))
+        if float(lead) >= min_lead:
+            lead_pct = min(100, lead_pct + 20)
+    band_pct = 8
+    band_txt = "—"
+    if ask is not None:
+        px = float(ask)
+        band_txt = f"{px * 100:.0f}¢"
+        if lo - 1e-9 <= px <= hi + 1e-9:
+            band_pct = 100
+        else:
+            band_pct = 18
+    left_pct = 8
+    left_txt = "—"
+    if left is not None:
+        left_txt = f"{int(round(float(left)))}s"
+        span = max(1.0, max_left - min_left)
+        if min_left <= float(left) <= max_left:
+            left_pct = int(max(12, min(100, round((float(left) - min_left) / span * 100))))
+        else:
+            left_pct = 14
+    ws = board.get("ws") or rt.ws_status
+    cl = board.get("chainlink") or rt.chainlink_status
+    lead_txt = "—" if lead is None else f"{float(lead):+.1f}bps".replace("+-", "-")
+    return [
+        {"id": "lead", "label": "LEAD", "value": lead_txt, "pct": lead_pct, "hint": f"≥{min_lead:.0f}bps"},
+        {"id": "band", "label": "BAND", "value": band_txt, "pct": band_pct, "hint": f"{lo * 100:.0f}–{hi * 100:.0f}¢"},
+        {"id": "left", "label": "LEFT", "value": left_txt, "pct": left_pct, "hint": f"{min_left:.0f}–{max_left:.0f}s"},
+        {"id": "ws", "label": "WS", "value": str(ws or "off"), "pct": _conn_pct(ws), "hint": "CLOB 盤"},
+        {"id": "cl", "label": "CL", "value": str(cl or "off"), "pct": _conn_pct(cl), "hint": "Chainlink"},
+    ]
+
+
+def _slots(rt, board: dict) -> list[dict]:
+    assets = [str(a) for a in hunt_assets(rt.settings()) if str(a).strip()]
+    latest: dict[str, dict] = {}
+    for row in getattr(rt, "wall_tape", None) or []:
+        asset = str(row.get("asset") or "")
+        if asset:
+            latest[asset] = row
+    inv_by_asset: dict[str, dict] = {}
+    for row in _mode_inv(rt):
+        parsed = parse_window(str(row.get("slug") or ""))
+        if parsed and parsed.asset not in inv_by_asset:
+            inv_by_asset[parsed.asset] = row
+    out = []
+    for asset in assets:
+        inv = inv_by_asset.get(asset)
+        tape = latest.get(asset)
+        if inv:
+            status = "LIVE"
+        elif tape and tape.get("ok"):
+            status = "PASS"
+        elif tape:
+            status = "SKIP"
+        else:
+            status = "SCANNING"
+        src = tape or {}
+        out.append(
+            {
+                "asset": asset,
+                "status": status,
+                "slug": (inv or {}).get("slug") or src.get("slug") or "",
+                "ask": src.get("ask"),
+                "lead_bps": src.get("lead_bps"),
+                "left": src.get("left"),
+                "reason": src.get("reason") or "",
+                "reason_zh": src.get("reason_zh") or "",
+                "cost": None if inv is None else round(float(inv.get("cost") or 0), 2),
+                "side": src.get("side"),
+            }
+        )
+    return out
+
+
+def _pipeline(rt, last: dict, tape: dict) -> list[dict]:
+    skips = tape.get("twap_skips") or {}
+    skip_n = int(sum(int(v or 0) for v in skips.values())) if isinstance(skips, dict) else 0
+    markets = int(last.get("markets") or 0)
+    return [
+        {"id": "hunt", "label": "HUNT", "hint": "掃窗", "n": markets, "sub": f"WS {tape.get('ws_pairs') or 0}"},
+        {"id": "gate", "label": "GATE", "hint": "TWAP 閘", "n": skip_n, "sub": "skip"},
+        {"id": "book", "label": "BOOK", "hint": "盤口", "n": int(tape.get("ws_pairs") or 0), "sub": f"stale {tape.get('stale_pairs') or 0}"},
+        {"id": "fak", "label": "FAK", "hint": "落單", "n": int(last.get("fills") or 0), "sub": f"殺 {last.get('fok_kills') or 0}"},
+        {"id": "scratch", "label": "SCRATCH", "hint": "弱倉", "n": int(last.get("rescues") or 0), "sub": "dump"},
+    ]
+
+
+def _journal(rt, board: dict) -> list[dict]:
+    live = board.get("mode") == "live"
+    rows: list[dict] = []
+    for t in rt.store.recent_trades(24):
+        if t.get("status") in NOISE_TRADE:
+            continue
+        if live and t.get("mode") == "paper":
+            continue
+        status = str(t.get("status") or "")
+        net = float(t.get("net") or 0)
+        rows.append(
+            {
+                "ts": t.get("ts"),
+                "kind": "trade",
+                "ok": status in {"filled", "paper_filled", "redeemed", "paper_settled"} and net >= 0,
+                "text": f"{STATUS_ZH.get(status, status)} {t.get('slug') or ''} {_signed(net)}",
+            }
+        )
+    started = float(getattr(rt, "started_at", 0) or 0)
+    for e in rt.store.recent_events(30):
+        if started and float(e.get("ts") or 0) < started - 30:
+            continue
+        rows.append(
+            {
+                "ts": e.get("ts"),
+                "kind": str(e.get("level") or "info"),
+                "ok": str(e.get("level") or "") != "warn",
+                "text": str(e.get("message") or "")[:180],
+            }
+        )
+    rows.sort(key=lambda r: float(r.get("ts") or 0), reverse=True)
+    return rows[:24]
+
+
+def _signed(n: float) -> str:
+    return f"{'+' if n >= 0 else ''}${n:.2f}"
+
+
+def operator_wall(rt, board: dict) -> dict[str, Any]:
+    """Watch payload. Money/mode always come from operator_board."""
+    b = board
+    last = rt.last_loop or {}
+    tape = last.get("tape") or {}
+    gate = tape.get("twap_gate") or {}
+    s = rt.settings()
+    raw_tape = list(getattr(rt, "wall_tape", None) or [])[-24:]
+    view_tape = list(reversed(raw_tape))
+    return {
+        "board": {
+            "mode": b.get("mode"),
+            "state": b.get("state"),
+            "cash_label": b.get("cash_label"),
+            "cash": b.get("cash"),
+            "today_pnl": b.get("today_pnl"),
+            "stake": b.get("stake"),
+            "open_n": b.get("open_n"),
+            "open_cost": b.get("open_cost"),
+            "ws": b.get("ws"),
+            "chainlink": b.get("chainlink"),
+            "halted": b.get("halted"),
+            "notes": list(b.get("notes") or []),
+            "rev": b.get("rev"),
+            "leftover_paper_n": b.get("leftover_paper_n"),
+            "equity": b.get("equity"),
+            "starting": b.get("starting"),
+        },
+        "gate": gate,
+        "gauges": _gauges(rt, b, gate, s),
+        "pipeline": _pipeline(rt, last, tape),
+        "slots": _slots(rt, b),
+        "tape": view_tape,
+        "log": _journal(rt, b),
+        "skips": tape.get("twap_skips") or {},
+        "qualified": next((row for row in view_tape if row.get("ok")), None),
+    }
+
+
+def format_tape_lines(rt, n: int = 6) -> list[str]:
+    rows = list(getattr(rt, "wall_tape", None) or [])[-n:]
+    rows.reverse()
+    lines = []
+    for row in rows:
+        stamp = ""
+        try:
+            stamp = time.strftime("%H:%M:%S", time.gmtime(float(row.get("ts") or 0))) + "Z"
+        except (TypeError, ValueError, OSError):
+            stamp = ""
+        tag = "PASS" if row.get("ok") else "SKIP"
+        slug = str(row.get("slug") or "")[:28]
+        why = row.get("reason_zh") or reason_zh(row.get("reason"))
+        extra = ""
+        if row.get("lead_bps") is not None:
+            extra = f" {float(row['lead_bps']):+.1f}bps".replace("+-", "-")
+        elif row.get("ask") is not None:
+            extra = f" {float(row['ask']):.2f}"
+        lines.append(f"{stamp} {tag} {slug} {why}{extra}".strip())
+    return lines

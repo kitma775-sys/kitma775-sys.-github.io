@@ -682,6 +682,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev43 operator board: Telegram status is a one-shot; live shows CLOB USDC only; paper shows paper ledger; dashboard matches",
         )
+    if rev < 44:
+        store.patch_settings(strategy_rev=44)
+        store.add_event(
+            "info",
+            "rev44 neon TWAP wall dashboard: mobile portrait stack; skip tape + journal share operator board with Telegram; keep stake and 6bps",
+        )
     return n
 
 

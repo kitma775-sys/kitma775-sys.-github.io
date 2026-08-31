@@ -11,6 +11,7 @@ from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_f
 from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory, operator_board, refresh_live_usdc
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
+from app.wall import format_tape_lines
 
 TG_MAX = 3900
 
@@ -35,6 +36,7 @@ def _rev_blurb(s: dict) -> str:
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
         "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
         "主頁／而家狀況／Dashboard 跟盤口模式：實盤只睇可用 USDC 同實盤倉，紙盤只睇紙盤帳。"
+        "Dashboard 係霓虹監察牆：電腦三欄、手機直版自動疊；掃描日誌同運行日誌跟 bot 同一份。"
     )
 
 
@@ -401,22 +403,30 @@ def _log_text(rt: Runtime) -> str:
     if rt.mode() == "live":
         trades = [t for t in trades if t.get("mode") != "paper"]
     trades = trades[:8]
-    if not trades:
-        return "近期無成交／對沖／結算。掛單同單邊碰到唔再當成問題單顯示。"
-    lines = ["📜 最近紀錄（隱藏掛單／單邊碰到）"]
-    for t in trades:
-        stamp = _fmt_ts(t.get("ts"))
-        status = STATUS_ZH.get(t["status"], t["status"])
-        kind = KIND_ZH.get(t["kind"], t["kind"])
-        net = float(t.get("net") or 0)
-        sign = "+" if net >= 0 else ""
-        pl = t.get("payload") or {}
-        cost = pl.get("cost") if t.get("status") in {"paper_filled", "filled"} else None
-        lines.append(
-            f"{stamp} {status} · {kind}\n"
-            f"{t['slug']}\n"
-            f"{format_fill_headline(up=t['up_price'], down=t['down_price'], shares=t['shares'], cost=cost, leg=pl.get('leg'))}  {sign}${net:.2f}"
-        )
+    tape = format_tape_lines(rt, n=6)
+    lines = ["📜 日誌"]
+    if tape:
+        lines.append("掃描")
+        lines.extend(tape)
+    if trades:
+        if tape:
+            lines.append("")
+        lines.append("成交／結算")
+        for t in trades:
+            stamp = _fmt_ts(t.get("ts"))
+            status = STATUS_ZH.get(t["status"], t["status"])
+            kind = KIND_ZH.get(t["kind"], t["kind"])
+            net = float(t.get("net") or 0)
+            sign = "+" if net >= 0 else ""
+            pl = t.get("payload") or {}
+            cost = pl.get("cost") if t.get("status") in {"paper_filled", "filled"} else None
+            lines.append(
+                f"{stamp} {status} · {kind}\n"
+                f"{t['slug']}\n"
+                f"{format_fill_headline(up=t['up_price'], down=t['down_price'], shares=t['shares'], cost=cost, leg=pl.get('leg'))}  {sign}${net:.2f}"
+            )
+    elif not tape:
+        return "近期無掃描日誌、成交或結算。"
     return "\n".join(lines)
 
 
