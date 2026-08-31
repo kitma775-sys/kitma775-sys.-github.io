@@ -295,6 +295,7 @@ _GATE_RANK = {
     "signal": 0,
     "ready": 1,
     "twap_lead": 2,
+    "twap_lead_wild": 2,
     "twap_edge": 3,
     "twap_no_fair": 4,
     "twap_wide": 5,
@@ -544,17 +545,48 @@ def gate_better(cur: dict | None, nxt: dict | None) -> bool:
     return False
 
 
+def _remember_twap_clock(rt: Runtime, slug: str) -> None:
+    parsed = parse_window(slug)
+    if not parsed or parsed.horizon != "5m":
+        return
+    rt._twap_clocks_taken[int(parsed.start)] = float(parsed.start + parsed.window_seconds)
+
+
+def _hydrate_twap_clocks(rt: Runtime) -> None:
+    """Restart-safe: a dumped 5m clock stays taken until T1."""
+    if rt._twap_clocks_hydrated:
+        return
+    rt._twap_clocks_hydrated = True
+    now = time.time()
+    try:
+        rows = rt.store.trades_since(now - 900.0, mode=rt.mode(), limit=400, statuses=("filled", "dumped"))
+    except Exception:
+        rows = []
+    for t in rows:
+        parsed = parse_window(str(t.get("slug") or ""))
+        if parsed is not None and parsed.horizon == "5m" and float(parsed.start + parsed.window_seconds) > now:
+            rt._twap_clocks_taken[int(parsed.start)] = float(parsed.start + parsed.window_seconds)
+    for row in mode_inventory(rt):
+        _remember_twap_clock(rt, str(row.get("slug") or ""))
+
+
 def twap_conflict_open(rt: Runtime, slug: str) -> bool:
     """Same asset never stacks 5m+15m. Same 5m unix is one slot across coins.
 
-    Live 6h book: multi-coin same-clock stacks (all Up@45 or all Down@45) were
-    the clustered full-loss windows. Pair-lock taker stays off.
+    After a fill or dump the clock stays taken until window end so scratch
+    cannot immediately reverse the same 5m (live SOL −$3.60 on one clock).
     Ended leftover (pending website redeem) must not brick the next 5m.
     """
     parsed = parse_window(slug)
     if not parsed:
         return favorite_same_window_open(rt, slug)
     now = time.time()
+    _hydrate_twap_clocks(rt)
+    for start, exp in list(rt._twap_clocks_taken.items()):
+        if now >= float(exp):
+            rt._twap_clocks_taken.pop(start, None)
+    if parsed.horizon == "5m" and int(parsed.start) in rt._twap_clocks_taken:
+        return True
     for row in mode_inventory(rt):
         other = str(row.get("slug") or "")
         if not other or other == slug:
@@ -731,6 +763,8 @@ class Runtime:
         self.wall_tape: list[dict] = []
         self._redeem_wait_logged: set[str] = set()
         self._dump_fail_logged: set[str] = set()
+        self._twap_clocks_taken: dict[int, float] = {}
+        self._twap_clocks_hydrated = False
         load_live_usdc(self)
 
     def clob_halted(self) -> bool:
@@ -1321,6 +1355,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         top_bid = _top(bids, asks=False)
         decide_bid = float(top_bid) if top_bid is not None else None
         filled_px = float(inv.get("cost") or 0) / shares if shares else 0.5
+        held = parse_window(str(inv.get("slug") or ev.get("slug") or ""))
         go, why = should_scratch(
             fair_p=fair,
             lead_bps_signed=signed,
@@ -1330,6 +1365,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
             left=left,
             params=params,
             fill_px=filled_px,
+            asset=None if held is None else held.asset,
         )
         if not go:
             continue
@@ -1619,6 +1655,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             twap_max_left=setting_num(s, "twap_max_left", 280.0),
             twap_late_left=setting_num(s, "twap_late_left", 180.0),
             twap_late_min_price=setting_num(s, "twap_late_min_price", 0.50),
+            twap_alt_min_left=setting_num(s, "twap_alt_min_left", 180.0),
+            twap_core_assets=s.get("twap_core_assets") or ["btc", "eth"],
         )
         payload = {
             "title": setup.title,
@@ -1740,6 +1778,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 twap_max_left=setting_num(s, "twap_max_left", 280.0),
                 twap_late_left=setting_num(s, "twap_late_left", 180.0),
                 twap_late_min_price=setting_num(s, "twap_late_min_price", 0.50),
+                twap_alt_min_left=setting_num(s, "twap_alt_min_left", 180.0),
+                twap_core_assets=s.get("twap_core_assets") or ["btc", "eth"],
             )
             if not resized.ok:
                 fok_kills += 1
@@ -1804,6 +1844,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     kind=kind,
                     cost=fill_cost,
                 )
+                if is_twap_setup(setup):
+                    _remember_twap_clock(rt, setup.slug)
             else:
                 rt.store.add_inventory(setup.condition_id, setup.slug, setup.shares, setup.shares)
                 if s.get("auto_merge"):

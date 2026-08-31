@@ -37,6 +37,7 @@ CHAINLINK_SYMBOL = {
 CHAINLINK_ASSETS = tuple(CHAINLINK_SYMBOL)
 WINDOW_SECONDS = 300
 DEFAULT_TWAP_ASSETS = ("btc", "eth")
+DEFAULT_TWAP_CORE = ("btc", "eth")
 DEFAULT_TWAP_HORIZONS = ("5m",)
 
 
@@ -239,8 +240,13 @@ class TwapParams:
     scratch_left_min: float = 8.0
     late_left: float = 180.0
     late_min_price: float = 0.50
+    alt_min_left: float = 180.0
+    max_lead_bps: float = 40.0
+    scratch_late_left: float = 90.0
+    scratch_late_bid: float = 0.40
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
+    core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
 
 
 def default_params(s: dict | None = None) -> TwapParams:
@@ -256,6 +262,15 @@ def default_params(s: dict | None = None) -> TwapParams:
     horizons = hunt_horizons(d)
     if not horizons and d.get("twap_horizons") is None and d.get("tags") is None:
         horizons = DEFAULT_TWAP_HORIZONS
+    raw_core = d.get("twap_core_assets")
+    if isinstance(raw_core, str):
+        core = tuple(a.strip().lower() for a in raw_core.split(",") if a.strip())
+    elif isinstance(raw_core, (list, tuple)):
+        core = tuple(str(a).strip().lower() for a in raw_core if str(a).strip())
+    else:
+        core = DEFAULT_TWAP_CORE
+    if not core:
+        core = DEFAULT_TWAP_CORE
     return TwapParams(
         min_price=num("twap_min_price", MID_LO),
         max_price=num("twap_max_price", MID_HI),
@@ -274,9 +289,20 @@ def default_params(s: dict | None = None) -> TwapParams:
         scratch_left_min=num("twap_scratch_left_min", 8.0),
         late_left=num("twap_late_left", 180.0),
         late_min_price=num("twap_late_min_price", 0.50),
+        alt_min_left=num("twap_alt_min_left", 180.0),
+        max_lead_bps=num("twap_max_lead_bps", 40.0),
+        scratch_late_left=num("twap_scratch_late_left", 90.0),
+        scratch_late_bid=num("twap_scratch_late_bid", 0.40),
         assets=assets,
         horizons=horizons,
+        core_assets=core,
     )
+
+
+def entry_min_left(asset: str, params: TwapParams) -> float:
+    if str(asset or "") in set(params.core_assets):
+        return float(params.min_left)
+    return float(params.alt_min_left)
 
 
 def slug_allowed(slug: str, params: TwapParams) -> bool:
@@ -318,7 +344,8 @@ def twap_entry_reason(
         return "twap_thin"
     if snap.ptb <= 0 or snap.twap <= 0:
         return "twap_no_ptb"
-    if left is None or left < params.min_left or left > params.max_left:
+    need_left = entry_min_left(parsed.asset, params)
+    if left is None or left < need_left or left > params.max_left:
         return "twap_window"
     if ask is None or not in_mid_band(ask, params.min_price, params.max_price):
         return "twap_band"
@@ -332,6 +359,8 @@ def twap_entry_reason(
         return "twap_wide"
     if abs(snap.lead_bps) < params.min_lead_bps - 1e-12:
         return "twap_lead"
+    if params.max_lead_bps > params.min_lead_bps and abs(snap.lead_bps) > params.max_lead_bps + 1e-12:
+        return "twap_lead_wild"
     fair = snap.fair_p_side
     if fair is None:
         return "twap_no_fair"
@@ -359,6 +388,7 @@ def should_scratch(
     params: TwapParams,
     fill_px: float | None = None,
     adverse: float | None = None,
+    asset: str | None = None,
 ) -> tuple[bool, str]:
     if left is None or left < params.scratch_left_min:
         return False, "twap_scratch_late"
@@ -378,6 +408,18 @@ def should_scratch(
         and float(bid) + 1e-12 <= float(fill_px) - stop
     ):
         return True, "twap_scratch_stop"
+    if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
+        return True, "twap_scratch_wild"
+    # Last-90s dying book: live alts rode fair 0.74→$0 because weak/flip never
+    # fired. BTC/ETH research tape stays +EV without this; require an alt asset.
+    is_alt = asset is not None and str(asset).lower() not in set(params.core_assets)
+    if (
+        is_alt
+        and params.scratch_late_left > params.scratch_left_min
+        and float(left) < params.scratch_late_left
+        and float(bid) + 1e-12 < params.scratch_late_bid
+    ):
+        return True, "twap_scratch_book"
     if float(fair_p) < params.scratch_p:
         return True, "twap_scratch_weak"
     if lead_bps_signed is not None and float(lead_bps_signed) < 0:

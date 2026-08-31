@@ -57,6 +57,8 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_max_left": s.get("twap_max_left"),
             "twap_late_left": s.get("twap_late_left"),
             "twap_late_min_price": s.get("twap_late_min_price"),
+            "twap_alt_min_left": s.get("twap_alt_min_left"),
+            "twap_max_lead_bps": s.get("twap_max_lead_bps"),
             "twap_scratch_dump_floor": s.get("twap_scratch_dump_floor"),
             "twap_assets": s.get("twap_assets") or ["btc", "eth"],
             "twap_horizons": s.get("twap_horizons") or ["5m"],

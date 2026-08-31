@@ -711,6 +711,18 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev47 hit-rate: no 45¢ if left<180s; flip/weak dump down to 22¢. Keep 6bps, scratch, stake, one coin/clock.",
         )
+    if rev < 48:
+        store.patch_settings(
+            strategy_rev=48,
+            twap_alt_min_left=180.0,
+            twap_max_lead_bps=40.0,
+            twap_scratch_late_left=90.0,
+            twap_scratch_late_bid=0.40,
+        )
+        store.add_event(
+            "info",
+            "rev48 pnl: alts min_left 180; lock 5m clock after fill; reject lead>40bps; alt last-90s bid<40¢ dump. Keep 6bps, BTC/ETH 120s, scratch, stake.",
+        )
     return n
 
 
