@@ -170,7 +170,7 @@
         const p = x.payload || {};
         const px = formatLeg(p.up, p.down, p.leg);
         const kind = (p.strategy==="twap" ? "TWAP" : (p.strategy==="favorite" ? "舊大熱" : (x.kind==="maker" ? "舊掛單" : esc(x.kind))));
-        return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+kind+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
+        return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+kind+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":nfmt(p.shares,2))+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
       }).join("") || "<tr><td colspan=6>本輪未有 TWAP 信號</td></tr>";
       document.getElementById("trades").innerHTML = (d.trades||[]).map(x => {
         const pl = x.payload || {};
@@ -183,7 +183,7 @@
         return "<tr><td>"+esc(statusZh[x.status]||x.status)+"<div class=muted>"+fmtTs(x.ts)+"</div></td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+(x.kind==="maker"?"掛單":esc(x.kind))+"</td><td class='"+(pnlCls(x.net))+"'>$"+netShow.toFixed(2)+"<div class=muted>"+esc(sub)+"</div></td></tr>";
       }).join("") || "<tr><td colspan=4>暫無（掛單／單邊碰到已隱藏）</td></tr>";
       document.getElementById("rest").innerHTML = (d.resting||[]).map(x =>
-        "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
+        "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</td><td>"+nfmt(x.shares,2)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
       ).join("") || "<tr><td colspan=6>暫無掛單（TWAP 唔掛單）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+((x.kind||"").indexOf("twap")===0?" · TWAP":((x.kind||"").indexOf("favorite")===0?" · 大熱":""))+"</td><td>"+Number(x.up).toFixed(2)+"</td><td>"+Number(x.down).toFixed(2)+"</td><td>$"+Number(x.cost||0).toFixed(2)+"</td></tr>"

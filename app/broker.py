@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.config import format_share_qty
 from app.hunter import Setup
 from app.paper_sim import simulate_taker
 
@@ -46,7 +47,7 @@ def paper_execute(setup: Setup) -> FillResult:
             "paper_filled",
             "paper",
             (
-                f"紙盤 taker 成交 {setup.shares:.1f} 對 @ "
+                f"紙盤 taker 成交 {format_share_qty(setup.shares)} @ "
                 f"{sim.up_price}+{sim.down_price} 成本 ${sim.cost:.2f}"
                 + (
                     f" 未結算期望 ${sim.net:.2f}"
@@ -62,7 +63,7 @@ def paper_execute(setup: Setup) -> FillResult:
         "paper_resting",
         "paper",
         (
-            f"紙盤掛單 {setup.shares:.1f} 對 @ {setup.up_price}+{setup.down_price}，"
+            f"紙盤掛單 {format_share_qty(setup.shares)} @ {setup.up_price}+{setup.down_price}，"
             f"鎖 ${reserved:.2f}，等到盤口碰到先成交"
         ),
         {
@@ -153,7 +154,7 @@ class PaperBroker:
         return paper_execute(setup)
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:
-        return FillResult(True, "merged", "paper", f"紙盤 merge {shares:.1f}", {"shares": shares})
+        return FillResult(True, "merged", "paper", f"紙盤 merge {format_share_qty(shares)}", {"shares": shares})
 
     async def redeem(self, condition_id: str) -> FillResult:
         return FillResult(True, "paper_settled", "paper", "紙盤 redeem 入帳", {"condition_id": condition_id})
@@ -169,7 +170,7 @@ class PaperBroker:
             True,
             "paper_dumped",
             "paper",
-            f"紙盤 dump {shares:.1f} @{min_price}",
+            f"紙盤 dump {format_share_qty(shares)} @{min_price}",
             payload,
         )
 

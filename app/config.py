@@ -135,6 +135,29 @@ def format_leg_prices(up, down, *, leg: str | None = None) -> str:
     return f"{up_px}+{dn_px}"
 
 
+def format_shares(shares) -> str:
+    try:
+        n = float(shares or 0)
+    except (TypeError, ValueError):
+        n = 0.0
+    return f"{n:.2f}"
+
+
+def format_share_qty(shares) -> str:
+    """18.9576 → '18.96股'. Never round to a bare 19 that looks like $19."""
+    return f"{format_shares(shares)}股"
+
+
+def format_fill_headline(*, up, down, shares, cost=None, leg: str | None = None) -> str:
+    line = f"{format_leg_prices(up, down, leg=leg)} × {format_share_qty(shares)}"
+    try:
+        if cost is not None and float(cost) > 0:
+            line += f" · 成本 ${float(cost):.2f}"
+    except (TypeError, ValueError):
+        pass
+    return line
+
+
 def is_favorite_inventory(kind) -> bool:
     return str(kind or "").startswith("favorite")
 

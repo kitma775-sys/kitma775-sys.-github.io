@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
-from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_leg_prices, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
+from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
@@ -1346,7 +1346,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 if s.get("notify_signals"):
                     await rt.notify(
                         f"🧪FOK 殺單（舊紙盤會當成交）\n{setup.title}\n"
-                        f"snapshot {setup.up_price}+{setup.down_price} × {setup.shares:.1f} 淨 ${setup.net:.2f}\n"
+                        f"snapshot {setup.up_price}+{setup.down_price} × {format_share_qty(setup.shares)} 淨 ${setup.net:.2f}\n"
                         f"確認後：{confirm.reason}",
                     )
                 continue
@@ -1478,15 +1478,18 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 if paper:
                     sign = "+" if paper["total_pnl"] >= 0 else ""
                     book = (
-                        f"\n成本 ${fill_cost:.2f} · 現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
+                        f"\n現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f}"
                         f"\n累計 PnL {sign}${paper['total_pnl']:.2f} · 今日 ${paper['today_pnl']:.2f}"
                     )
                 label = "TWAP" if is_twap_setup(setup) else ("大熱" if is_favorite_setup(setup) else setup.kind)
                 expect = "未結算期望" if is_one_leg_setup(setup) else "淨利"
+                payout_line = ""
+                if is_one_leg_setup(setup):
+                    payout_line = f"贏可取回 ${fill_shares:.2f} · "
                 await rt.notify(
                     f"{flag} 成交 {label}\n{setup.title}\n"
-                    f"{format_leg_prices(fill_up, fill_down, leg=(setup.extra or {}).get('leg'))} × {setup.shares:.1f}\n"
-                    f"{expect} ${fill_net:.2f}{book}",
+                    f"{format_fill_headline(up=fill_up, down=fill_down, shares=fill_shares, cost=fill_cost, leg=(setup.extra or {}).get('leg'))}\n"
+                    f"{payout_line}{expect} ${fill_net:.2f}{book}",
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
@@ -1520,7 +1523,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 lock = f" · 鎖 ${paper['reserved']:.2f}" if paper else ""
                 await rt.notify(
                     f"📌 {'紙盤' if paper_mode else '實盤'}掛單 {setup.title}\n"
-                    f"{format_leg_prices(setup.up_price, setup.down_price, leg=(setup.extra or {}).get('leg'))} × {setup.shares:.1f}"
+                    f"{format_leg_prices(setup.up_price, setup.down_price, leg=(setup.extra or {}).get('leg'))} × {format_share_qty(setup.shares)}"
                     f"\n未碰到盤口唔入帳{lock}"
                 )
         else:
@@ -1970,7 +1973,7 @@ async def _process_resting(rt: Runtime) -> int:
                 if s.get("notify_signals"):
                     await rt.notify(
                         f"📌大熱掛單碰到（未結算）\n{row.get('title') or row['slug']}\n"
-                        f"{leg} @{px} × {row['shares']:.1f} · 權益 ${paper['equity']:.2f}",
+                        f"{leg} @{px} × {format_share_qty(row['shares'])} · 權益 ${paper['equity']:.2f}",
                         important=True,
                     )
             continue
@@ -2006,7 +2009,7 @@ async def _process_resting(rt: Runtime) -> int:
                 sign = "+" if paper["total_pnl"] >= 0 else ""
                 await rt.notify(
                     f"🧪紙盤 maker 兩邊碰到先成交\n{row.get('title') or row['slug']}\n"
-                    f"{row['up_price']}+{row['down_price']} × {row['shares']:.1f} 淨利 ${float(row.get('net') or 0):.2f}\n"
+                    f"{row['up_price']}+{row['down_price']} × {format_share_qty(row['shares'])} 淨利 ${float(row.get('net') or 0):.2f}\n"
                     f"現金 ${paper['cash']:.2f} · 權益 ${paper['equity']:.2f} · 累計 {sign}${paper['total_pnl']:.2f}",
                     important=True,
                 )
@@ -2362,7 +2365,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
             flag = "🧪紙盤" if paper_books else "🔴實盤"
             await rt.notify(
                 f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
-                f"Up {up:.2f}×{up_p} + Down {down:.2f}×{dn_p} = ${payout:.2f}{extra}",
+                f"Up {format_share_qty(up)} × {up_p} + Down {format_share_qty(down)} × {dn_p} = ${payout:.2f}{extra}",
                 important=True,
             )
     return n

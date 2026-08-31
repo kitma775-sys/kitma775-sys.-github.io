@@ -8,7 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers
+from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, format_fill_headline, format_leg_prices, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers
 from app.geo import telegram_line
 from app.runtime import Runtime, arm_live_wallet
 from app.twap import hunt_assets, hunt_horizons
@@ -407,7 +407,7 @@ def _pos_text(rt: Runtime) -> str:
             up_f = "✓" if row.get("up_filled") else "…"
             dn_f = "✓" if row.get("down_filled") else "…"
             lines.append(
-                f"{row.get('slug') or row['condition_id'][:8]}  {format_leg_prices(row['up_price'], row['down_price'], leg=(row.get('payload') or {}).get('leg'))} × {row['shares']:.1f}"
+                f"{row.get('slug') or row['condition_id'][:8]}  {format_leg_prices(row['up_price'], row['down_price'], leg=(row.get('payload') or {}).get('leg'))} × {format_share_qty(row['shares'])}"
                 f"\n  Up {up_f} · Down {dn_f} · 鎖 ${float(row.get('reserved') or 0):.2f}"
             )
     if not inv and not rest:
@@ -418,8 +418,17 @@ def _pos_text(rt: Runtime) -> str:
         tag = " TWAP" if str(kind).startswith("twap") else (" 大熱" if is_favorite_inventory(kind) else "")
         cost = float(row.get("cost") or 0)
         cost_txt = f" · 成本 ${cost:.2f}" if is_directional_inventory(kind) and cost > 0 else ""
+        up = float(row.get("up") or 0)
+        down = float(row.get("down") or 0)
+        legs = []
+        if up > 0.01:
+            legs.append(f"Up {format_share_qty(up)}")
+        if down > 0.01:
+            legs.append(f"Down {format_share_qty(down)}")
+        if not legs:
+            legs.append("空")
         lines.append(
-            f"{row['slug'] or row['condition_id'][:8]}{tag}\n  Up {row['up']:.1f} · Down {row['down']:.1f}{cost_txt}"
+            f"{row['slug'] or row['condition_id'][:8]}{tag}\n  {' · '.join(legs)}{cost_txt}"
         )
     return "\n".join(lines)
 
@@ -435,10 +444,12 @@ def _log_text(rt: Runtime) -> str:
         kind = KIND_ZH.get(t["kind"], t["kind"])
         net = float(t.get("net") or 0)
         sign = "+" if net >= 0 else ""
+        pl = t.get("payload") or {}
+        cost = pl.get("cost") if t.get("status") in {"paper_filled", "filled"} else None
         lines.append(
             f"{stamp} {status} · {kind}\n"
             f"{t['slug']}\n"
-            f"{format_leg_prices(t['up_price'], t['down_price'], leg=(t.get('payload') or {}).get('leg'))} × {t['shares']}  {sign}${net:.2f}"
+            f"{format_fill_headline(up=t['up_price'], down=t['down_price'], shares=t['shares'], cost=cost, leg=pl.get('leg'))}  {sign}${net:.2f}"
         )
     return "\n".join(lines)
 

@@ -3236,6 +3236,51 @@ def test_format_leg_prices_one_leg():
     assert format_leg_prices(0.5, 0.49) == "0.5+0.49"
 
 
+def test_format_fill_headline_ten_dollar_xrp_is_not_nineteen():
+    from app.config import format_fill_headline, format_share_qty
+
+    # $10 @ 0.51 after official taker fee is 18.9576 shares, not $19.
+    line = format_fill_headline(up=0.51, down=0, shares=18.9576, cost=10.000006, leg="up")
+    assert line == "Up 0.51 × 18.96股 · 成本 $10.00"
+    assert "19.0" not in line
+    assert "× 19" not in line
+    assert format_share_qty(18.9576) == "18.96股"
+    assert format_share_qty(19.3237) == "19.32股"
+    down_line = format_fill_headline(up=0, down=0.50, shares=19.3237, cost=10.00001, leg="down")
+    assert down_line == "Down 0.5 × 19.32股 · 成本 $10.00"
+
+
+def test_pos_and_log_use_share_qty_not_one_decimal(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import _log_text, _pos_text
+
+    st = Store(tmp_path / "share-fmt.sqlite")
+    st.ensure_paper(500)
+    st.add_inventory("c-xrp", "xrp-updown-5m-1788161100", 18.9576, 0.0, kind="twap", cost=10.000006)
+    rt = Runtime(st, Env())
+    pos = _pos_text(rt)
+    assert "18.96股" in pos
+    assert "成本 $10.00" in pos
+    assert "19.0" not in pos
+    assert "Up 19" not in pos
+    st.add_trade(
+        slug="xrp-updown-5m-1788161100",
+        kind="taker",
+        shares=18.9576,
+        up_price=0.51,
+        down_price=0.0,
+        net=8.957594,
+        mode="paper",
+        status="paper_filled",
+        payload={"cost": 10.000006, "leg": "up"},
+    )
+    log = _log_text(rt)
+    assert "18.96股" in log
+    assert "成本 $10.00" in log
+    assert "19.0" not in log
+
+
 def test_live_favorite_inventory_does_not_inflate_paper(tmp_path):
     st = Store(tmp_path / "live-inv.sqlite")
     st.ensure_paper(500)
