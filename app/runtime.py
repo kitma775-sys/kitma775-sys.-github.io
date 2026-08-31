@@ -2081,14 +2081,15 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
         dn_take = shares if missing_side == "up" else 0.0
         rt.store.take_inventory(cid, up=up_take, down=dn_take)
         if paper_mode:
-            rt.store.paper_apply_credit(plan.cash_out)
+            rt.store.paper_apply_credit(plan.cash_out, realized=plan.pnl)
         kind = str(row.get("kind") or "maker")
+        dump_px = round(float(plan.price or 0), 4)
         rt.store.add_trade(
             slug=slug,
             kind=kind,
             shares=shares,
-            up_price=row["up_price"],
-            down_price=row["down_price"],
+            up_price=dump_px if missing_side == "down" else 0.0,
+            down_price=dump_px if missing_side == "up" else 0.0,
             net=plan.pnl,
             mode=rt.mode(),
             status="paper_dumped" if paper_mode else "dumped",
@@ -2256,11 +2257,13 @@ async def _redeem_resolved(rt: Runtime) -> int:
         directional = fav or twap
         up_p, dn_p = job["prices"]
         payout = round(up * up_p + down * dn_p, 6) if job["tracked"] else 0.0
+        settle_net = round(payout - cost, 6) if directional else payout
         if job["tracked"]:
             rt.store.take_inventory(cid, up=up, down=down)
-            if paper_mode and payout > 0:
-                rt.store.paper_apply_credit(payout)
-        settle_net = round(payout - cost, 6) if directional else payout
+            if paper_mode:
+                rt.store.paper_apply_credit(
+                    payout, realized=settle_net if directional else 0.0
+                )
         rt.store.add_trade(
             slug=job["slug"],
             kind="settle",
@@ -2282,7 +2285,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
         )
         rt.store.add_event(
             "info",
-            f"redeem {job['slug'] or cid} up={up:.1f}@{up_p} down={down:.1f}@{dn_p} payout=${payout:.2f}",
+            f"redeem {job['slug'] or cid} up={up:.2f}@{up_p} down={down:.2f}@{dn_p} payout=${payout:.2f}",
         )
         n += 1
         if s.get("notify_signals"):
@@ -2290,7 +2293,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
             flag = "🧪紙盤" if paper_mode else "🔴實盤"
             await rt.notify(
                 f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
-                f"Up {up:.1f}×{up_p} + Down {down:.1f}×{dn_p} = ${payout:.2f}{extra}",
+                f"Up {up:.2f}×{up_p} + Down {down:.2f}×{dn_p} = ${payout:.2f}{extra}",
                 important=True,
             )
     return n

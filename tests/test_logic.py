@@ -287,6 +287,7 @@ def test_paper_ledger_buy_merge_pnl(tmp_path):
     assert mid["inventory_value"] == 10
     assert round(mid["equity"], 2) == 500.18
     assert round(mid["total_pnl"], 2) == 0.18
+    assert round(mid["realized_pnl"], 2) == 0.0
 
     merged = st.merge_inventory("c1", 10)
     assert merged["merged"] == 10
@@ -2614,6 +2615,8 @@ def test_paper_redeem_credits_winner_and_clears_inventory(tmp_path):
     assert n == 1
     after = st.paper_state()
     assert after["cash"] == 502.0
+    assert round(after["realized_pnl"], 2) == 2.0
+    assert round(after["total_pnl"], 2) == 2.0
     assert st.inventory_open() == []
     trades = st.recent_trades(5)
     assert trades[0]["status"] == "paper_settled"
@@ -2666,7 +2669,73 @@ def test_paper_redeem_loser_clears_without_credit(tmp_path):
     assert n == 1
     after = st.paper_state()
     assert after["cash"] == 482.0
+    assert round(after["realized_pnl"], 2) == -18.0
+    assert round(after["total_pnl"], 2) == -18.0
     assert st.inventory_open() == []
+
+
+def test_paper_dump_records_bid_vwap_and_realized(tmp_path):
+    import asyncio
+
+    from app.config import Env
+    from app.rescue import RescuePlan
+    from app.runtime import Runtime, _apply_rescue
+
+    st = Store(tmp_path / "dump-px.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(10.00001)
+    st.add_inventory("c1", "btc-updown-5m-1", 0.0, 19.3237, kind="twap", cost=10.00001)
+    rt = Runtime(st, Env())
+    plan = RescuePlan(
+        action="dump",
+        price=0.49,
+        fees=0.33803,
+        cash_out=9.130583,
+        pnl=-0.869427,
+        reason="dump_bid",
+        floor_px=0.49,
+    )
+    row = {
+        "id": None,
+        "slug": "btc-updown-5m-1",
+        "condition_id": "c1",
+        "shares": 19.3237,
+        "up_price": 0.5175,
+        "down_price": 0.5175,
+        "up_token": "u",
+        "down_token": "d",
+        "kind": "twap",
+    }
+    n = asyncio.run(_apply_rescue(rt, row, "up", plan))
+    assert n == 1
+    trade = st.recent_trades(1)[0]
+    assert trade["status"] == "paper_dumped"
+    assert trade["down_price"] == 0.49
+    assert trade["up_price"] == 0.0
+    after = st.paper_state()
+    assert abs(after["cash"] - (500 - 10.00001 + 9.130583)) < 1e-5
+    assert abs(after["realized_pnl"] - (-0.869427)) < 1e-5
+    assert abs(after["total_pnl"] - (-0.869427)) < 1e-5
+    assert after["inventory_value"] == 0
+
+
+def test_live_paper_fill_and_dump_fee_identity():
+    from app.fees import taker_fee
+
+    shares, buy_px = 19.3237, 0.50
+    buy_fee = taker_fee(shares, buy_px, 0.07)
+    cost = round(shares * buy_px + buy_fee, 6)
+    assert abs(cost - 10.00001) < 1e-5
+    dump_px = 0.49
+    dump_fee = taker_fee(shares, dump_px, 0.07)
+    proceeds = round(max(0.0, shares * dump_px - dump_fee), 6)
+    assert abs(proceeds - 9.130583) < 1e-5
+    assert abs(round(proceeds - 10.00001, 6) - (-0.869427)) < 1e-5
+    win_shares, win_px = 18.9576, 0.51
+    win_fee = taker_fee(win_shares, win_px, 0.07)
+    win_cost = round(win_shares * win_px + win_fee, 6)
+    assert abs(win_cost - 10.000006) < 1e-5
+    assert abs(round(win_shares - win_cost, 6) - 8.957594) < 1e-5
 
 
 def test_auto_redeem_off_skips(tmp_path):
@@ -3868,6 +3937,8 @@ def test_twap_inventory_marks_equity_at_cost(tmp_path):
     paper = st.paper_state()
     assert paper["inventory_value"] == 5.18
     assert abs(paper["equity"] - (500 - 5.18 + 5.18)) < 1e-9
+    assert abs(paper["total_pnl"]) < 1e-9
+    assert abs(paper["realized_pnl"]) < 1e-9
     assert st.inventory_one("c1")["kind"] == "twap"
     st.add_inventory("c2", "btc-updown-5m-1001", 8, 0, kind="twap_live", cost=4.0)
     live = st.paper_state()

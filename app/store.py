@@ -358,7 +358,8 @@ class Store:
         return float(row["v"] or 0.0)
 
     def _paper_view(self, data: dict) -> dict:
-        inv = round(self._inventory_matched_usd() + self._inventory_favorite_usd(), 6)
+        matched = self._inventory_matched_usd()
+        inv = round(matched + self._inventory_favorite_usd(), 6)
         cash = round(float(data.get("cash") or 0), 6)
         reserved = round(float(data.get("reserved") or 0), 6)
         starting = round(float(data.get("starting") or 0), 6)
@@ -369,14 +370,20 @@ class Store:
             data["day_start_equity"] = equity
             self._set("paper", json.dumps(data))
         today_pnl = round(equity - float(data.get("day_start_equity") or equity), 6)
+        total_pnl = round(equity - starting, 6)
+        stored_realized = round(float(data.get("realized_pnl") or 0), 6)
+        # TWAP/favorite inventory is marked at cost, so equity − starting is
+        # already closed PnL. Pair complement inventory marks $1/share and
+        # keeps the edge unrealized until merge; use the stored field then.
+        realized = total_pnl if matched <= 1e-9 else stored_realized
         return {
             "starting": starting,
             "cash": cash,
             "reserved": reserved,
-            "realized_pnl": round(float(data.get("realized_pnl") or 0), 6),
+            "realized_pnl": realized,
             "inventory_value": inv,
             "equity": equity,
-            "total_pnl": round(equity - starting, 6),
+            "total_pnl": total_pnl,
             "today_pnl": today_pnl,
             "day": data["day"],
             "resting": self._resting_open_count(),
@@ -436,10 +443,12 @@ class Store:
         with self._lock:
             return self._paper_apply_buy_unlocked(cost)
 
-    def paper_apply_credit(self, amount: float) -> dict:
+    def paper_apply_credit(self, amount: float, realized: float = 0.0) -> dict:
         with self._lock:
             data = self._load_paper_unlocked()
             data["cash"] = round(float(data["cash"]) + max(0.0, float(amount)), 6)
+            if abs(float(realized or 0)) > 1e-15:
+                data["realized_pnl"] = round(float(data.get("realized_pnl") or 0) + float(realized), 6)
             self._set("paper", json.dumps(data))
             return self._paper_view(data)
 

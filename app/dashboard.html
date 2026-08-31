@@ -58,7 +58,7 @@
     <h2>掛單</h2>
     <div style="overflow:auto"><table><thead><tr><th>市場</th><th>價</th><th>股</th><th>Up</th><th>Down</th><th>鎖$</th></tr></thead><tbody id="rest"></tbody></table></div>
     <h2>倉位</h2>
-    <div style="overflow:auto"><table><thead><tr><th>市場</th><th>Up</th><th>Down</th></tr></thead><tbody id="inv"></tbody></table></div>
+    <div style="overflow:auto"><table><thead><tr><th>市場</th><th>Up</th><th>Down</th><th>成本</th></tr></thead><tbody id="inv"></tbody></table></div>
     <h2>事件</h2>
     <pre id="events">—</pre>
   </div>
@@ -87,7 +87,7 @@
         ((d.last_loop||{}).status === "circuit_breaker" ? " · 日虧熔斷停新倉" : "") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
         (st.hedges_24h ? (" · 對沖 " + st.hedges_24h) : "") +
-        " · 可 merge 倉 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
+        " · 持倉成本 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +
         ((d.last_loop||{}).status === "error" ? " · 引擎錯誤 " + ((d.last_loop||{}).error||"") : "") +
         (tape.n ? (" · 盤口 " + tape.n + " 盤 ask合 " + nfmt(tape.min_ask_sum) + " taker " + shareNet(tape.max_taker_net) + "/股" + (tape.ws_pairs!=null ? (" WS盤 " + tape.ws_pairs) : "") + (tape.stale_pairs ? (" 過期 " + tape.stale_pairs) : "") + (tape.nearest_slug ? (" · 最近 " + tape.nearest_slug) : "") + (tape.slugs && tape.slugs.length ? (" · 掃 " + tape.slugs.slice(0,6).join(", ")) : "")) : (tape.stale_pairs ? (" · 過期盤 " + tape.stale_pairs) : ""));
       const p = d.paper || st;
@@ -171,15 +171,22 @@
         const kind = (p.strategy==="twap" ? "TWAP" : (p.strategy==="favorite" ? "舊大熱" : (x.kind==="maker" ? "舊掛單" : esc(x.kind))));
         return "<tr><td>"+esc(p.title||x.slug)+"<div class=muted>"+fmtTs(x.ts)+(p.book?(" · "+p.book):"")+"</div></td><td>"+kind+"</td><td class=mono>"+px+"</td><td>"+(p.shares==null?"—":p.shares)+"</td><td>$"+Number(p.net||0).toFixed(2)+"</td><td>"+esc(p.reason||"")+"</td></tr>";
       }).join("") || "<tr><td colspan=6>本輪未有 TWAP 信號</td></tr>";
-      document.getElementById("trades").innerHTML = (d.trades||[]).map(x =>
-        "<tr><td>"+esc(statusZh[x.status]||x.status)+"<div class=muted>"+fmtTs(x.ts)+"</div></td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+(x.kind==="maker"?"掛單":esc(x.kind))+"</td><td class='"+(pnlCls(x.net))+"'>$"+Number(x.net||0).toFixed(2)+"<div class=muted>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</div></td></tr>"
-      ).join("") || "<tr><td colspan=4>暫無（掛單／單邊碰到已隱藏）</td></tr>";
+      document.getElementById("trades").innerHTML = (d.trades||[]).map(x => {
+        const pl = x.payload || {};
+        const netShow = Number(x.net||0);
+        const expect = (x.status==="paper_filled" && Math.abs(netShow)<1e-9 && pl.net!=null) ? Number(pl.net) : null;
+        const dumpHint = (x.status==="paper_dumped" || x.status==="dumped") && pl.detail ? String(pl.detail) : "";
+        const sub = expect!=null
+          ? ("未結算期望 $"+expect.toFixed(2))
+          : (dumpHint || formatLeg(x.up_price, x.down_price, pl.leg));
+        return "<tr><td>"+esc(statusZh[x.status]||x.status)+"<div class=muted>"+fmtTs(x.ts)+"</div></td><td>"+esc(x.slug)+"</td><td>"+esc(x.mode)+"/"+(x.kind==="maker"?"掛單":esc(x.kind))+"</td><td class='"+(pnlCls(x.net))+"'>$"+netShow.toFixed(2)+"<div class=muted>"+esc(sub)+"</div></td></tr>";
+      }).join("") || "<tr><td colspan=4>暫無（掛單／單邊碰到已隱藏）</td></tr>";
       document.getElementById("rest").innerHTML = (d.resting||[]).map(x =>
         "<tr><td>"+esc(x.slug||x.condition_id)+"</td><td class=mono>"+esc(formatLeg(x.up_price, x.down_price, (x.payload||{}).leg))+"</td><td>"+Number(x.shares||0).toFixed(1)+"</td><td>"+(x.up_filled?"✓":"…")+"</td><td>"+(x.down_filled?"✓":"…")+"</td><td>$"+Number(x.reserved||0).toFixed(2)+"</td></tr>"
       ).join("") || "<tr><td colspan=6>暫無掛單（TWAP 唔掛單）</td></tr>";
       document.getElementById("inv").innerHTML = (d.inventory||[]).map(x =>
-        "<tr><td>"+esc(x.slug||x.condition_id)+((x.kind||"").indexOf("twap")===0?" · TWAP":((x.kind||"").indexOf("favorite")===0?" · 大熱":""))+"</td><td>"+Number(x.up).toFixed(1)+"</td><td>"+Number(x.down).toFixed(1)+"</td></tr>"
-      ).join("") || "<tr><td colspan=3>暫無倉位（0/0 空列已清）</td></tr>";
+        "<tr><td>"+esc(x.slug||x.condition_id)+((x.kind||"").indexOf("twap")===0?" · TWAP":((x.kind||"").indexOf("favorite")===0?" · 大熱":""))+"</td><td>"+Number(x.up).toFixed(2)+"</td><td>"+Number(x.down).toFixed(2)+"</td><td>$"+Number(x.cost||0).toFixed(2)+"</td></tr>"
+      ).join("") || "<tr><td colspan=4>暫無倉位（0/0 空列已清）</td></tr>";
       document.getElementById("events").textContent = (d.events||[]).map(e => e.level + " " + e.message).join("\n") || "—";
     }
     function tile(v, l, cls) {
