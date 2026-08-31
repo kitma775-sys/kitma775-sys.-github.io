@@ -87,6 +87,14 @@ def _exc_http_status(exc: BaseException):
     return status
 
 
+def _exc_retry_after(exc: BaseException):
+    for attr in ("retry_after", "retry_after_seconds"):
+        val = getattr(exc, attr, None)
+        if val is not None:
+            return val
+    return None
+
+
 def already_redeemed(detail: str) -> bool:
     """True when the CLOB/relayer has nothing left to redeem for this condition."""
     text = (detail or "").lower()
@@ -281,6 +289,9 @@ class LiveBroker:
             status_code = _exc_http_status(exc)
             if status_code is not None:
                 payload["http_status"] = status_code
+            retry_after = _exc_retry_after(exc)
+            if retry_after is not None:
+                payload["retry_after"] = retry_after
             return FillResult(False, "error", "live", str(exc)[:300], payload)
         filled_shares = float(results[-1].get("shares") or setup.shares) if results else float(setup.shares)
         filled_cost = float(results[-1].get("cost") or 0.0) if results else 0.0
@@ -307,6 +318,9 @@ class LiveBroker:
             status_code = _exc_http_status(exc)
             if status_code is not None:
                 payload["http_status"] = status_code
+            retry_after = _exc_retry_after(exc)
+            if retry_after is not None:
+                payload["retry_after"] = retry_after
             return FillResult(False, "error", "live", str(exc)[:300], payload)
         ok = bool(getattr(resp, "ok", False))
         status = str(getattr(resp, "status", "") or getattr(resp, "code", "") or "").lower()

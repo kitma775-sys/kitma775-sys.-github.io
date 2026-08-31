@@ -471,6 +471,42 @@ def is_clob_unavailable(detail: str, *, http_status=None) -> bool:
     )
 
 
+def clob_halt_seconds(detail: str, *, retry_after=None) -> float:
+    try:
+        if retry_after is not None:
+            return max(15.0, min(1800.0, float(retry_after)))
+    except (TypeError, ValueError):
+        pass
+    text = str(detail or "").lower()
+    if "cancel-only" in text:
+        return 180.0
+    if "post-only" in text:
+        return 90.0
+    if "trading is disabled" in text or "trading is currently disabled" in text:
+        return 300.0
+    return 90.0
+
+
+CLOB_HALT_ZH = (
+    "⏸ Polymarket CLOB 而家全站暫停（官方 503 trading is disabled），"
+    "唔係錢包／USDC／匙問題。"
+    "官方狀態：status.polymarket.com"
+    "Bot 實盤已開，掃描繼續；交易所開返會自動再試。"
+    "網站 redeem 仍然用得。"
+)
+
+
+async def _maybe_halt_clob(rt: Runtime, detail: str, payload: dict | None) -> bool:
+    row = payload if isinstance(payload, dict) else {}
+    if not is_clob_unavailable(detail, http_status=row.get("http_status")):
+        return False
+    first = rt.trip_clob_halt(detail, seconds=clob_halt_seconds(detail, retry_after=row.get("retry_after")))
+    if first:
+        rt.store.add_event("warn", f"clob halt: {detail}"[:220])
+        await rt.notify(CLOB_HALT_ZH, important=True)
+    return True
+
+
 def _holding_twap_assets(rt: Runtime) -> tuple[str, ...]:
     out: list[str] = []
     for row in mode_inventory(rt):
@@ -568,17 +604,25 @@ class Runtime:
         self.live_onchain_limited = False
         self._clob_halt_until = 0.0
         self._clob_halt_reason = ""
+        self._clob_halt_announced = False
 
     def clob_halted(self) -> bool:
         return time.time() < float(self._clob_halt_until or 0)
 
     def trip_clob_halt(self, reason: str, *, seconds: float = 90.0) -> bool:
-        """Pause live CLOB posts. True if Telegram should be told (new halt)."""
+        """Pause live CLOB posts. True only for the first Telegram of this outage."""
         now = time.time()
-        fresh = now >= float(self._clob_halt_until or 0)
         self._clob_halt_until = now + max(15.0, float(seconds))
         self._clob_halt_reason = str(reason or "")[:180]
-        return fresh
+        if self._clob_halt_announced:
+            return False
+        self._clob_halt_announced = True
+        return True
+
+    def clear_clob_halt(self) -> None:
+        self._clob_halt_until = 0.0
+        self._clob_halt_reason = ""
+        self._clob_halt_announced = False
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -1561,6 +1605,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         )
         if result.ok and result.status in {"filled", "paper_filled"}:
             fills += 1
+            if not paper_mode:
+                rt.clear_clob_halt()
             if setup.kind == "taker" and bool(s.get("taker_fok", True)):
                 fok_fills += 1
             fill_cost = float((result.payload or {}).get("cost", setup.cost))
@@ -1620,6 +1666,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     important=True,
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
+            if not paper_mode:
+                rt.clear_clob_halt()
             if window < 3 and not is_favorite_setup(setup):
                 rt.store.add_event("info", f"skip rest {setup.slug}: maker window off")
                 continue
@@ -1655,20 +1703,10 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 )
         else:
             payload = result.payload if isinstance(result.payload, dict) else {}
-            if not paper_mode and is_clob_unavailable(
-                result.detail, http_status=payload.get("http_status")
-            ):
-                first = rt.trip_clob_halt(result.detail)
-                if first:
-                    rt.store.add_event("warn", f"clob halt: {result.detail}"[:220])
-                    await rt.notify(
-                        "⏸ CLOB 暫時唔收單（trading is disabled / 503）。"
-                        "Bot 停手約 90 秒，唔再連串刷 ❌。"
-                        "掃描繼續；盤口開返會自動再試。"
-                        "網站 redeem 仍然用得。",
-                        important=True,
-                    )
+            if not paper_mode and await _maybe_halt_clob(rt, result.detail, payload):
                 continue
+            if not paper_mode:
+                rt.clear_clob_halt()
             await rt.notify(f"❌ 下單失敗：{result.detail}", important=True)
     tape = summarize_quotes(quotes)
     tape["book_errors"] = book_errors
@@ -2276,21 +2314,12 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
         sell = await rt.broker().execute_sell(token, shares, floor)
         if not sell.ok:
             payload = sell.payload if isinstance(sell.payload, dict) else {}
-            if not paper_mode and is_clob_unavailable(
-                sell.detail, http_status=payload.get("http_status")
-            ):
-                first = rt.trip_clob_halt(sell.detail)
-                if first:
-                    rt.store.add_event("warn", f"clob halt dump: {sell.detail}"[:220])
-                    await rt.notify(
-                        "⏸ CLOB 暫時唔收單（trading is disabled / 503）。"
-                        "Bot 停手約 90 秒，唔再連串刷 ❌。"
-                        "掃描繼續；盤口開返會自動再試。"
-                        "網站 redeem 仍然用得。",
-                        important=True,
-                    )
+            if not paper_mode:
+                await _maybe_halt_clob(rt, sell.detail, payload)
             rt.store.add_event("warn", f"dump fail {slug}: {sell.detail}"[:220])
             return 0
+        if not paper_mode:
+            rt.clear_clob_halt()
         sold = float((sell.payload or {}).get("shares") or shares)
         if sold <= 0.01:
             return 0

@@ -670,6 +670,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev41 live: leftover paper settles silently into the paper book; paper leftover does not block live TWAP; keep stake and 6bps",
         )
+    if rev < 42:
+        store.patch_settings(strategy_rev=42)
+        store.add_event(
+            "info",
+            "rev42 CLOB 503 is a Polymarket-wide pause, not a wallet miss; announce once per outage; keep stake and 6bps",
+        )
     return n
 
 
