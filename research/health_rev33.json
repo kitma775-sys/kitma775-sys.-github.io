@@ -1,46 +1,45 @@
 {
-  "researched_at_utc": "2026-08-31T05:18:25Z",
-  "live_rev": 32,
+  "researched_at_utc": "2026-08-31T05:28:00Z",
+  "live_rev": 33,
   "ship_rev": 33,
   "mode": "paper",
   "force_paper": true,
   "live_trading": false,
   "paper": {
-    "equity": 509.783753,
+    "equity": 502.15,
+    "cash": 502.15,
     "starting": 500.0,
-    "today_pnl": 0.618262
+    "today_pnl": -7.01,
+    "note": "not reset; BTC 5m settled ~-$4.91 during deploy; later scratches/fills"
   },
-  "rev32_ok": {
-    "uptime_s": 517,
-    "shards": "8+6",
+  "rev33_ok": {
+    "uptime_s": 294,
+    "shards": "8+6, reconnect on 5m rollover",
     "last_ws_error": null,
     "http_pairs": 0,
     "ws_pairs": 7,
-    "chainlink_age_ms_max": 400,
-    "ptb_n": 14,
-    "no_1013": true
+    "no_1013": true,
+    "clob_ws_slugs": "7 current 5m, then rolled to next 5m at open"
+  },
+  "honest_gate": {
+    "bnb_5m_inband": {"ask": 0.51, "lead_bps": -3.883, "reason": "twap_lead"},
+    "note": "gate is no longer stuck on 1.00 pennies when a 45-55 book exists"
   },
   "clob_vs_gamma": {
     "note": "Gamma bestAsk is a stale mid. Live 5m pennies still print 0.50-0.68 while CLOB is 0.99/0.01.",
-    "bnb_5m": {"gamma_ask": 0.50, "outcome": [0.885, 0.115], "clob": [0.95, 0.08]},
-    "btc_15m": {"gamma_ask": 0.55, "outcome": [0.695, 0.305], "clob": [0.73, 0.28]},
-    "hype_15m": {"gamma_ask": 0.55, "outcome": [0.54, 0.46], "clob": [0.61, 0.50], "left": 695}
+    "rank_by": "outcomePrices (any leg in 45-55), not bestAsk"
   },
-  "holes": {
-    "ws_slots_locked_5m": {
-      "now": "all 7 current 5m off-band on CLOB; 15m left 695 so twap_window is correct",
-      "when_15m_hits_280s": "Rev 32 still fills 14 slots with 5m pennies; in-band 15m gets twap_ws_slot"
-    },
-    "gamma_best_ask_lie": {
-      "fix": "rank CLOB WS by outcomePrices (any leg in 45-55), not Gamma bestAsk"
-    }
+  "15m_this_cycle": {
+    "left_at_probe": 175,
+    "books": "all locked 0.999/0.001",
+    "twap_ws_slot": "2-3 penny 15m lost to 5m on horizon tiebreak — correct, nothing to lift"
   },
-  "gate": {
-    "slug": "xrp-updown-5m-1788153300",
-    "ask": 1.0,
-    "reason": "twap_band",
-    "note": "WS CLOB is honest; Gamma would have shown ~0.68"
-  },
+  "fills_this_window": [
+    "doge/sol/hype/xrp 5m paper fills",
+    "sol scratch_better @0.4392",
+    "xrp down redeem $5",
+    "prior xrp down redeem $0"
+  ],
   "do_not": [
     "rank WS by Gamma bestAsk",
     "raise 15m max_left without a 15m tape grid",
