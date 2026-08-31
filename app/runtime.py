@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
+from app.fees import taker_cash
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
@@ -1182,7 +1183,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         is_conflict = (not is_future) and twap_conflict_open(rt, slug)
         inv = rt.store.inventory_one(ev["condition_id"])
         max_usd = min(_trade_budget(s, paper), favorite_budget(trade_cap, inv))
-        is_budget = max_usd + 1e-9 < float(s["min_shares"]) * 0.90
+        need_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
+        hi = float(s.get("twap_max_price") or 0.55)
+        is_budget = max_usd + 1e-9 < taker_cash(need_shares, hi, fee_rate)
         snap = None
         setup = None
         if not is_future:

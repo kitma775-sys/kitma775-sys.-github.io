@@ -4046,7 +4046,103 @@ def test_twap_hunt_lifts_mid_band_skips_97_and_needs_snap():
     assert hole is None
 
 
-def test_twap_approve_uses_ev_and_band():
+def test_twap_two_dollar_cannot_fill_five_share_min_three_can():
+    """5m CLOB min is 5 shares. $2 @ 45–55¢ is under that; $3 clears even at 55¢."""
+    from app.fees import taker_cash
+
+    kw = dict(
+        slug="btc-updown-5m-1000",
+        title="btc 5m",
+        condition_id="0xtwap",
+        up_token="u",
+        down_token="d",
+        up_bids=_L((0.49, 20)),
+        down_bids=_L((0.48, 20)),
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=False,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(90),
+        strategy_mode="twap",
+        twap_snap=_twap_snap(),
+    )
+    assert taker_cash(5, 0.55, 0.07) > 2.0
+    assert taker_cash(5, 0.55, 0.07) < 3.0
+    assert hunt(
+        **kw,
+        max_usd=2,
+        up_asks=_L((0.51, 40)),
+        down_asks=_L((0.50, 40)),
+    ) is None
+    assert hunt(
+        **kw,
+        max_usd=2,
+        up_asks=_L((0.45, 40)),
+        down_asks=_L((0.55, 40)),
+    ) is None
+    setup = hunt(
+        **kw,
+        max_usd=3,
+        up_asks=_L((0.51, 40)),
+        down_asks=_L((0.50, 40)),
+    )
+    assert setup is not None
+    assert setup.shares >= 5
+    assert float(setup.extra["cash_cost"]) <= 3.01
+    hi_kw = {
+        **kw,
+        "max_usd": 3,
+        "up_asks": _L((0.55, 40)),
+        "down_asks": _L((0.46, 40)),
+        "up_bids": _L((0.52, 20)),
+        "down_bids": _L((0.44, 20)),
+        "twap_snap": _twap_snap(lead_bps=8.0, fair_p_up=0.70),
+    }
+    hi = hunt(**hi_kw)
+    assert hi is not None
+    assert hi.shares >= 5
+    assert float(hi.extra["cash_cost"]) <= 3.01
+
+
+def test_nudge_trade_usd_skips_two_and_keeps_ten():
+    from app.config import SETTING_STEPS, TRADE_USD_STEPS, nudge_trade_usd
+
+    assert TRADE_USD_STEPS[0] == 3.0
+    assert 2.0 not in TRADE_USD_STEPS
+    assert 10.0 in TRADE_USD_STEPS
+    assert SETTING_STEPS["max_usd_per_trade"][1] == 3.0
+    assert nudge_trade_usd(10, up=False) == 5.0
+    assert nudge_trade_usd(5, up=False) == 3.0
+    assert nudge_trade_usd(3, up=False) == 3.0
+    assert nudge_trade_usd(10, up=True) == 15.0
+    assert nudge_trade_usd(2, up=True) == 3.0
+    assert nudge_trade_usd(2, up=False) == 3.0
+
+
+def test_telegram_stake_steps_two_dollar_floor_message(tmp_path):
+    import asyncio
+
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import _handle_callback
+
+    st = Store(tmp_path / "usd-step.sqlite")
+    st.ensure_paper(500)
+    st.patch_settings(max_usd_per_trade=10.0)
+    rt = Runtime(st, Env())
+    q = FakeQuery()
+    asyncio.run(_handle_callback(rt, q, "dec:max_usd_per_trade"))
+    assert float(st.settings()["max_usd_per_trade"]) == 5.0
+    asyncio.run(_handle_callback(rt, q, "dec:max_usd_per_trade"))
+    assert float(st.settings()["max_usd_per_trade"]) == 3.0
+    asyncio.run(_handle_callback(rt, q, "dec:max_usd_per_trade"))
+    assert float(st.settings()["max_usd_per_trade"]) == 3.0
+    assert "最低$3" in (q.answered.get("args") or ("",))[0]
+    asyncio.run(_handle_callback(rt, q, "inc:max_usd_per_trade"))
+    assert float(st.settings()["max_usd_per_trade"]) == 5.0
+
     from app.hunter import Setup
 
     setup = Setup(

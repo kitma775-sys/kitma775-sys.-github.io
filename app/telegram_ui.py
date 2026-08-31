@@ -8,7 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, format_fill_headline, format_leg_prices, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers
+from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
 from app.geo import telegram_line
 from app.runtime import Runtime, arm_live_wallet
 from app.twap import hunt_assets, hunt_horizons
@@ -41,6 +41,7 @@ TG_SET_HINT = (
     "高階設定。策略鎖定 Chainlink 5 分鐘 TWAP（多幣種）。"
     "15 分鐘同 1 小時已砍：15m 搶 14 個 CLOB 槽而且冇獨立盤帶；1H 係 Binance 收線。"
     "唔會切去互補或大熱。"
+    "單筆最低 $3：5 分鐘盤 CLOB 最少 5 股，45–55¢ 連 fee 約 $2.84，$2 買唔入。"
 )
 
 
@@ -270,7 +271,7 @@ def tags_kb(rt: Runtime) -> InlineKeyboardMarkup:
 
 def _label(key: str) -> str:
     return {
-        "max_usd_per_trade": "單筆上限$",
+        "max_usd_per_trade": "單筆上限$（最低$3）",
         "min_shares": "最少股數",
         "daily_loss_limit_usd": "日虧熔斷$",
         "max_open_markets": "最多市場",
@@ -709,6 +710,18 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             return
         step, lo, hi = SETTING_STEPS[key]
         cur = float(s.get(key) or 0)
+        if key == "max_usd_per_trade":
+            nxt = nudge_trade_usd(cur, up=data.startswith("inc:"))
+            note = ""
+            if (not data.startswith("inc:")) and abs(nxt - cur) < 1e-9 and nxt <= TRADE_USD_STEPS[0] + 1e-9:
+                note = "5分鐘最少5股，45–55¢連fee約$2.84，單筆最低$3。$2買唔入。"
+            rt.store.patch_settings(max_usd_per_trade=round(float(nxt), 4))
+            if note:
+                await q.answer(note)
+            else:
+                await q.answer()
+            await _safe_edit(q, TG_SET_HINT, reply_markup=settings_kb(rt))
+            return
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
         if key in {"max_open_markets", "paper_slip_ticks", "paper_starting_cash", "scan_limit"}:

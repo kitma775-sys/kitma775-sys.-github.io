@@ -18,6 +18,13 @@ def taker_fee(shares: float, price: float, fee_rate: float) -> float:
     return round(c * rate * p * (1.0 - p), 5)
 
 
+def taker_cash(shares: float, price: float, fee_rate: float) -> float:
+    """Shares × price + official taker fee. 5 shares @ 0.55 ≈ $2.84."""
+    sh = max(float(shares), 0.0)
+    px = clamp_price(price)
+    return round(sh * px + taker_fee(sh, px, fee_rate), 6)
+
+
 def pair_taker_fee(shares: float, up_price: float, down_price: float, fee_rate: float) -> float:
     return taker_fee(shares, up_price, fee_rate) + taker_fee(shares, down_price, fee_rate)
 

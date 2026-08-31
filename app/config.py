@@ -66,8 +66,31 @@ DEFAULT_SETTINGS = {
 }
 
 
+# 5m crypto up/down CLOB min is 5 shares. In the 45–55¢ TWAP band that is
+# ~$2.34–$2.84 after taker fee, so $2 cannot fill. Telegram steps start at $3.
+TRADE_USD_STEPS = (3.0, 5.0, 10.0, 15.0, 20.0, 25.0, 50.0, 100.0, 200.0, 500.0)
+
+
+def nudge_trade_usd(cur, *, up: bool) -> float:
+    """Move along TRADE_USD_STEPS. Values below $3 snap to $3."""
+    try:
+        x = float(cur)
+    except (TypeError, ValueError):
+        x = float(DEFAULT_SETTINGS["max_usd_per_trade"])
+    steps = TRADE_USD_STEPS
+    if up:
+        for n in steps:
+            if n > x + 1e-9:
+                return float(n)
+        return float(steps[-1])
+    for n in reversed(steps):
+        if n < x - 1e-9:
+            return float(n)
+    return float(steps[0])
+
+
 SETTING_STEPS = {
-    "max_usd_per_trade": (5.0, 5.0, 500.0),
+    "max_usd_per_trade": (5.0, 3.0, 500.0),
     "min_shares": (1.0, 5.0, 50.0),
     "daily_loss_limit_usd": (10.0, 10.0, 1000.0),
     "max_open_markets": (1.0, 1.0, 30.0),
