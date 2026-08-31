@@ -73,6 +73,14 @@ def _is_redeem_wait_log(message: str) -> bool:
         return False
     return any(n in text for n in _REDEEM_WAIT_LOG)
 
+
+def _is_dump_dust_log(message: str) -> bool:
+    """Hide rounded-sell > wallet dust retries once the broker floors size."""
+    text = str(message or "").lower()
+    if not text.startswith("dump fail"):
+        return False
+    return "not enough balance" in text or "balance is not enough" in text
+
 CURVE_STATUSES = frozenset(
     {"redeemed", "paper_settled", "dumped", "paper_dumped", "paper_hedged", "merged"}
 )
@@ -430,7 +438,7 @@ def _journal(rt, board: dict) -> list[dict]:
         if started and float(e.get("ts") or 0) < started - 30:
             continue
         msg = str(e.get("message") or "")
-        if _is_redeem_wait_log(msg):
+        if _is_redeem_wait_log(msg) or _is_dump_dust_log(msg):
             continue
         rows.append(
             {

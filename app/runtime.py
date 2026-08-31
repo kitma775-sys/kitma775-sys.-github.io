@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from app.broker import FillResult, LiveBroker, PaperBroker, redeem_not_ready, setup_buy_orders
+from app.broker import FillResult, LiveBroker, PaperBroker, redeem_not_ready, sell_size_dust, setup_buy_orders
 from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
@@ -729,6 +729,7 @@ class Runtime:
         self._clob_halt_announced = False
         self.wall_tape: list[dict] = []
         self._redeem_wait_logged: set[str] = set()
+        self._dump_fail_logged: set[str] = set()
         load_live_usdc(self)
 
     def clob_halted(self) -> bool:
@@ -2457,8 +2458,15 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
             payload = sell.payload if isinstance(sell.payload, dict) else {}
             if not paper_mode:
                 await _maybe_halt_clob(rt, sell.detail, payload)
-            rt.store.add_event("warn", f"dump fail {slug}: {sell.detail}"[:220])
+            detail = str(sell.detail or "")
+            if sell_size_dust(detail):
+                if slug not in rt._dump_fail_logged:
+                    rt._dump_fail_logged.add(slug)
+                    rt.store.add_event("warn", f"dump fail {slug}: {detail}"[:220])
+            else:
+                rt.store.add_event("warn", f"dump fail {slug}: {detail}"[:220])
             return 0
+        rt._dump_fail_logged.discard(slug)
         if not paper_mode:
             rt.clear_clob_halt()
         sold = float((sell.payload or {}).get("shares") or shares)
@@ -2479,6 +2487,14 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
         up_take = sold if missing_side == "down" else 0.0
         dn_take = sold if missing_side == "up" else 0.0
         before = rt.store.inventory_one(cid)
+        if missing_side == "down":
+            held_leg = float((before or {}).get("up") or 0)
+            if 0 < held_leg - sold <= 0.011:
+                up_take = held_leg
+        else:
+            held_leg = float((before or {}).get("down") or 0)
+            if 0 < held_leg - sold <= 0.011:
+                dn_take = held_leg
         cost_before = float((before or {}).get("cost") or 0)
         rt.store.take_inventory(cid, up=up_take, down=dn_take)
         after = rt.store.inventory_one(cid)

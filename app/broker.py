@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -179,12 +181,33 @@ def buy_fak_kwargs(*, token_id: str, price: float, shares: float) -> dict:
     }
 
 
+def clob_sell_shares(shares: float) -> float:
+    """CLOB SELL is 2dp. Floor so fill dust cannot round the order above the wallet."""
+    return math.floor(max(0.0, float(shares)) * 100.0 + 1e-12) / 100.0
+
+
+def token_balance_shares(detail: str) -> float | None:
+    """Parse `balance: 5489794, order amount: 5490000` (6-decimal outcome tokens)."""
+    m = re.search(r"balance:\s*(\d+)\s*,\s*order amount:\s*(\d+)", str(detail or ""), re.I)
+    if not m:
+        return None
+    try:
+        return int(m.group(1)) / 1_000_000.0
+    except (TypeError, ValueError):
+        return None
+
+
+def sell_size_dust(detail: str) -> bool:
+    text = str(detail or "").lower()
+    return "not enough balance" in text or "balance is not enough" in text
+
+
 def sell_fak_kwargs(*, token_id: str, shares: float, min_price: float) -> dict:
     """Official CLOB SELL FAK: `shares` + `min_price`. Amount is illegal on SELL."""
     return {
         "token_id": str(token_id),
         "side": "SELL",
-        "shares": f"{max(float(shares), 0.0):.2f}",
+        "shares": f"{clob_sell_shares(shares):.2f}",
         "min_price": f"{max(float(min_price), 0.01):.4f}",
         "order_type": "FAK",
     }
@@ -373,18 +396,25 @@ class LiveBroker:
 
     async def execute_sell(self, token_id: str, shares: float, min_price: float) -> FillResult:
         client = await self._client_ready()
-        kw = sell_fak_kwargs(token_id=token_id, shares=shares, min_price=min_price)
+        size = clob_sell_shares(shares)
+        if size < 0.01:
+            return FillResult(False, "rejected", "live", "sell size 0", {"shares": shares})
+        kw = sell_fak_kwargs(token_id=token_id, shares=size, min_price=min_price)
         try:
             resp = await client.place_market_order(**kw)
         except Exception as exc:
-            payload: dict[str, Any] = {"order": kw}
-            status_code = _exc_http_status(exc)
-            if status_code is not None:
-                payload["http_status"] = status_code
-            retry_after = _exc_retry_after(exc)
-            if retry_after is not None:
-                payload["retry_after"] = retry_after
-            return FillResult(False, "error", "live", str(exc)[:300], payload)
+            detail = str(exc)
+            held = token_balance_shares(detail)
+            retry_sz = clob_sell_shares(held) if held is not None else 0.0
+            if sell_size_dust(detail) and retry_sz >= 0.01 and retry_sz + 1e-12 < size:
+                kw = sell_fak_kwargs(token_id=token_id, shares=retry_sz, min_price=min_price)
+                size = retry_sz
+                try:
+                    resp = await client.place_market_order(**kw)
+                except Exception as exc2:
+                    return self._sell_exc(exc2, kw)
+            else:
+                return self._sell_exc(exc, kw)
         ok = bool(getattr(resp, "ok", False))
         status = str(getattr(resp, "status", "") or getattr(resp, "code", "") or "").lower()
         order_id = getattr(resp, "order_id", None)
@@ -395,7 +425,7 @@ class LiveBroker:
             "id": order_id,
             "message": str(getattr(resp, "message", "") or ""),
         }
-        fill = order_fill_amounts(resp, side="SELL", price=min_price, shares=shares)
+        fill = order_fill_amounts(resp, side="SELL", price=min_price, shares=size)
         payload.update(fill)
         if not ok:
             return FillResult(False, "rejected", "live", str(getattr(resp, "message", status or "sell rejected")), payload)
@@ -412,6 +442,16 @@ class LiveBroker:
         if fill["shares"] <= 0.01:
             return FillResult(False, "rejected", "live", "sell FAK matched 0 shares", payload)
         return FillResult(True, "dumped", "live", "已出貨", payload)
+
+    def _sell_exc(self, exc: BaseException, kw: dict) -> FillResult:
+        payload: dict[str, Any] = {"order": kw}
+        status_code = _exc_http_status(exc)
+        if status_code is not None:
+            payload["http_status"] = status_code
+        retry_after = _exc_retry_after(exc)
+        if retry_after is not None:
+            payload["retry_after"] = retry_after
+        return FillResult(False, "error", "live", str(exc)[:300], payload)
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:
         client = await self._client_ready()

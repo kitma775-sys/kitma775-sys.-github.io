@@ -3629,6 +3629,60 @@ def test_live_sell_uses_shares_and_min_price():
     assert "amount" not in kw
 
 
+def test_clob_sell_floors_dust_and_retries_wallet_shortfall():
+    import asyncio
+
+    from app.broker import (
+        LiveBroker,
+        clob_sell_shares,
+        sell_fak_kwargs,
+        token_balance_shares,
+    )
+
+    assert clob_sell_shares(5.489794) == 5.48
+    assert clob_sell_shares(5.49) == 5.49
+    assert clob_sell_shares(10) == 10.0
+    assert sell_fak_kwargs(token_id="u", shares=5.489794, min_price=0.4)["shares"] == "5.48"
+    detail = "not enough balance / allowance: the balance is not enough -> balance: 5489794, order amount: 5490000"
+    assert abs(token_balance_shares(detail) - 5.489794) < 1e-9
+
+    calls = []
+
+    class Boom(Exception):
+        pass
+
+    class FakeClient:
+        async def place_market_order(self, **kw):
+            calls.append(kw)
+            if kw.get("shares") == "5.49":
+                raise Boom(detail)
+            return SimpleOrder(ok=True, status="matched", order_id="s1")
+
+    broker = LiveBroker("0xabc")
+    broker._client = FakeClient()
+    result = asyncio.run(broker.execute_sell("tok", 5.49, 0.38))
+    assert result.ok is True
+    assert [c["shares"] for c in calls] == ["5.49", "5.48"]
+
+
+def test_journal_hides_dump_balance_dust(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime, operator_board
+    from app.wall import operator_wall
+
+    st = Store(tmp_path / "dump-dust-log.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    st.add_event(
+        "warn",
+        "dump fail eth-updown-5m-1788180300: not enough balance / allowance: the balance is not enough -> balance: 5489794, order amount: 5490000",
+    )
+    st.add_event("warn", "dump fail eth-updown-5m-1: sell FAK not matched (live)")
+    texts = " ".join(row.get("text") or "" for row in operator_wall(rt, operator_board(rt))["log"])
+    assert "not enough balance" not in texts
+    assert "not matched" in texts
+
+
 def test_buy_fak_kwargs_reject_shares():
     from app.broker import buy_fak_kwargs, sell_fak_kwargs, setup_buy_orders
     from app.hunter import Setup
