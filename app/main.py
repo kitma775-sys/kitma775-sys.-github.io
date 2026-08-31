@@ -652,6 +652,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev38 TWAP scratch uses the event map again (do not overwrite it with the live bool); paper leftover stays isolated; keep stake and 6bps",
         )
+    if rev < 39:
+        store.patch_settings(strategy_rev=39)
+        store.add_event(
+            "info",
+            "rev39 live preflight: Gnosis Safe CLOB FAK does not need Builder API key; skip perps/auto-redeem extras; keep stake and 6bps",
+        )
     return n
 
 

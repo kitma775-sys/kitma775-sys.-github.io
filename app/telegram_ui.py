@@ -630,6 +630,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             "實盤會用你把匙簽名落單。\n"
             "而家只做 Chainlink 5 分鐘 TWAP（多幣種）。15 分鐘同 1 小時已砍。紙盤同真錢同一套 CLOB FAK。\n"
             "紙盤係真錢 dry-run，但 queue／部分成交／延遲仍然會差一截。\n"
+            "CLOB 買賣唔使 Builder key。完場鏈上 redeem 要 gasless；未填嘅話可以喺 Polymarket 網站 redeem。\n"
             "全自動模式下唔會逐單確認。FORCE_PAPER 開住永遠紙盤。確定轉？",
             reply_markup=kb,
         )

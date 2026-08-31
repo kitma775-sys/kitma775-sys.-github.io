@@ -34,23 +34,80 @@ def mode_inventory(rt: Runtime, *, open_only: bool = True) -> list[dict]:
     return [r for r in rows if inventory_matches_mode(r.get("kind"), live=live)]
 
 
+def _gasless_key_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return "builder api key" in text or "relayer api key" in text
+
+
+def _call_spender(call) -> str:
+    data = str(getattr(call, "data", "") or "")
+    if len(data) < 74:
+        return ""
+    return "0x" + data[34:74]
+
+
+_CORE_CLOB_SPENDERS = (
+    "standard_exchange",
+    "neg_risk_exchange",
+    "collateral_adapter",
+    "neg_risk_collateral_adapter",
+)
+
+
+async def _missing_core_clob_approvals(client) -> list[str]:
+    """Spenders the 5m CLOB actually needs. Perps / auto-redeem extras are ignored."""
+    try:
+        from polymarket._internal.actions.relayer.approvals import resolve_missing_trading_approval_calls
+    except ImportError:
+        return []
+    ctx = getattr(client, "_ctx", None)
+    if ctx is None:
+        return []
+    cfg = ctx.environment_config
+    core = {
+        str(getattr(cfg, name, "") or "").lower()
+        for name in _CORE_CLOB_SPENDERS
+        if getattr(cfg, name, None)
+    }
+    calls = await resolve_missing_trading_approval_calls(ctx.rpc, wallet=ctx.wallet, config=cfg)
+    hit: list[str] = []
+    for call in calls:
+        spender = _call_spender(call).lower()
+        if spender in core and spender not in hit:
+            hit.append(spender)
+    return hit
+
+
 async def arm_live_wallet(rt: Runtime) -> str | None:
     """Create the CLOB client and run trading approvals. Returns an error string or None.
 
     Does not set live_trading. Tests may set rt.skip_live_preflight = True.
+    Gnosis Safe extras (perps, auto-redeem operator) need a Builder/Relayer API
+    key. CLOB FAK does not, so a gasless-only failure is not a live-trading block
+    when core exchange allowances already exist.
     """
     if getattr(rt, "skip_live_preflight", False):
         return None
     blockers = live_switch_blockers(rt.env, rt.geo)
     if blockers:
         return "；".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers)
+    rt.live_onchain_limited = False
     try:
         broker = LiveBroker(rt.env.private_key, wallet=rt.env.wallet)
         client = await broker._client_ready()
         try:
             await client.setup_trading_approvals()
         except Exception as exc:
-            return f"錢包授權失敗：{fmt_exc(exc)}"[:180]
+            if not _gasless_key_error(exc):
+                return f"錢包授權失敗：{fmt_exc(exc)}"[:180]
+            missing = await _missing_core_clob_approvals(client)
+            if missing:
+                return "Gnosis Safe 未授權 CLOB 交易所；補授權要 Builder／Relayer API key"[:180]
+            rt.live_onchain_limited = True
+            rt.store.add_event(
+                "warn",
+                "live preflight: CLOB 核心授權已有；perps／auto-redeem 要 gasless，完場可喺網站 redeem",
+            )
         try:
             bal = await client.get_balance_allowance(asset_type="COLLATERAL")
             usdc = int(getattr(bal, "balance", 0) or 0) / 1_000_000
@@ -59,6 +116,12 @@ async def arm_live_wallet(rt: Runtime) -> str | None:
         rt.live_usdc = usdc
         if usdc + 1e-9 < 5.0:
             return f"錢包 USDC ≈ ${usdc:.2f}，少過最低一注 $5"
+        try:
+            closed = await client.get_closed_only_mode()
+            if closed:
+                return "CLOB 帳戶 close-only，唔開新倉"
+        except Exception:
+            pass
     except Exception as exc:
         return f"實盤匙／錢包起唔到：{fmt_exc(exc)}"[:180]
     return None
@@ -475,6 +538,7 @@ class Runtime:
         self._http_at: dict[str, float] = {}
         self.skip_live_preflight = False
         self.live_usdc = None
+        self.live_onchain_limited = False
 
     def settings(self) -> dict:
         return self.store.settings()
