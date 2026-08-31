@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from app.config import inventory_matches_mode
+from app.config import format_log_ts, inventory_matches_mode
 from app.twap import hunt_assets, parse_window
 
 WALL_TAPE_MAX = 48
@@ -294,11 +294,7 @@ def format_tape_lines(rt, n: int = 6) -> list[str]:
     rows.reverse()
     lines = []
     for row in rows:
-        stamp = ""
-        try:
-            stamp = time.strftime("%H:%M:%S", time.gmtime(float(row.get("ts") or 0))) + "Z"
-        except (TypeError, ValueError, OSError):
-            stamp = ""
+        stamp = format_log_ts(row.get("ts"))
         tag = "PASS" if row.get("ok") else "SKIP"
         slug = str(row.get("slug") or "")[:28]
         why = row.get("reason_zh") or reason_zh(row.get("reason"))

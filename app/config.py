@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 
 DEFAULT_SETTINGS = {
@@ -34,7 +35,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 44,
+    "strategy_rev": 45,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -277,3 +278,15 @@ LIVE_BLOCKER_ZH = {
     "geo_full_block": "IP 所在地官方 API 全封鎖，唔會開實盤",
     "geo_close_only": "IP 所在地官方 API close-only，新倉會被拒",
 }
+
+# Hong Kong has no DST. Log clocks use this offset so slim images need no tzdata.
+LOG_TZ = timezone(timedelta(hours=8), name="HKT")
+
+
+def format_log_ts(ts: float | None) -> str:
+    """Display clock for tapes/journals: Hong Kong time, no UTC Z suffix."""
+    try:
+        dt = datetime.fromtimestamp(float(ts), tz=timezone.utc).astimezone(LOG_TZ)
+    except (TypeError, ValueError, OSError):
+        return ""
+    return dt.strftime("%H:%M:%S")

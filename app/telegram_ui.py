@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from urllib.parse import quote
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
+from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_log_ts, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
 from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory, operator_board, refresh_live_usdc
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
@@ -36,7 +35,7 @@ def _rev_blurb(s: dict) -> str:
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
         "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
         "主頁／而家狀況／Dashboard 跟盤口模式：實盤只睇可用 USDC 同實盤倉，紙盤只睇紙盤帳。"
-        "Dashboard 係霓虹監察牆：電腦三欄、手機直版自動疊；掃描日誌同運行日誌跟 bot 同一份。"
+        "Dashboard 係霓虹監察牆：電腦三欄、手機直版自動疊；掃描日誌同運行日誌跟 bot 同一份，鐘用香港時間。"
     )
 
 
@@ -79,10 +78,7 @@ def _clip(text: str) -> str:
 
 
 def _fmt_ts(ts: float | None) -> str:
-    try:
-        return time.strftime("%H:%M:%S", time.gmtime(float(ts))) + "Z"
-    except (TypeError, ValueError, OSError):
-        return ""
+    return format_log_ts(ts)
 
 
 async def _safe_edit(q, text: str, reply_markup=None) -> None:

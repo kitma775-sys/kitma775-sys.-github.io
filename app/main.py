@@ -688,6 +688,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev44 neon TWAP wall dashboard: mobile portrait stack; skip tape + journal share operator board with Telegram; keep stake and 6bps",
         )
+    if rev < 45:
+        store.patch_settings(strategy_rev=45)
+        store.add_event(
+            "info",
+            "rev45 log clocks are Hong Kong time (UTC+8); keep stake and 6bps",
+        )
     return n
 
 

@@ -161,7 +161,24 @@
     function signed(n) { return (Number(n)>=0?"+":"") + "$" + Number(n||0).toFixed(2); }
     function fmtTs(ts) {
       if (!ts) return "";
-      try { return new Date(Number(ts)*1000).toISOString().slice(11,19)+"Z"; } catch(e) { return ""; }
+      try {
+        return new Date(Number(ts)*1000).toLocaleTimeString("en-GB", {
+          timeZone: "Asia/Hong_Kong",
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+      } catch(e) { return ""; }
+    }
+    function nowHk() {
+      return new Date().toLocaleTimeString("en-GB", {
+        timeZone: "Asia/Hong_Kong",
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }) + " HKT";
     }
     function ring(pct, color) {
       const r=26, c=2*Math.PI*r, p=Math.max(0,Math.min(100,Number(pct)||0)), dash=(p/100)*c;
@@ -178,7 +195,7 @@
       const s = d.settings || {};
       const live = b.mode === "live" || d.mode === "live";
       const halted = !!(b.halted || d.clob_halted);
-      document.getElementById("clock").textContent = new Date().toISOString().slice(11,19)+"Z";
+      document.getElementById("clock").textContent = nowHk();
       document.getElementById("liveLabel").textContent = halted ? "CLOB 暫停" : (b.state || "—");
       document.getElementById("dot").className = "dot" + ((halted || !s.engine_running || s.killed) ? " off" : "");
       const chip = document.getElementById("modeChip");
