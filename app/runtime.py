@@ -8,14 +8,14 @@ from typing import Any
 
 import httpx
 
-from app.broker import FillResult, LiveBroker, PaperBroker
+from app.broker import FillResult, LiveBroker, PaperBroker, setup_buy_orders
 from app.config import Env, clamp_paper_cash, favorite_window_of, format_leg_prices, is_directional_inventory, is_favorite_inventory, live_keys_ready, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_URL, ChainlinkTape
 from app.twap import CHAINLINK_SYMBOL, default_params, is_btc_5m, parse_5m, should_scratch, twap_entry_reason
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
-from app.rescue import is_redeemable_market, plan_rescue
+from app.rescue import is_redeemable_market, plan_rescue, walk_dump
 from app.risk import approve
 from app.store import Store
 from app.universe import DEFAULT_ASSETS, DEFAULT_TAGS
@@ -523,9 +523,7 @@ async def _hunt_loop(rt: Runtime) -> None:
 
 
 async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
-    """Sell weak BTC 5m TWAP inventory at the bid. Never hedge the other side."""
-    if rt.mode() != "paper":
-        return 0
+    """Sell weak BTC 5m TWAP inventory at the bid-walk VWAP. Never hedge the other side."""
     s = rt.settings()
     params = default_params(s)
     rescore = setting_num(s, "twap_rescore_seconds", 15.0)
@@ -565,9 +563,10 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         if up_book is None or dn_book is None:
             continue
         book = up_book if leg == "up" else dn_book
-        bid = _top(book.get("bids") or [], asks=False)
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
         left = seconds_left(ev.get("end"))
+        filled_n, dump_vwap, _floor = walk_dump(book.get("bids") or [], shares)
+        bid = dump_vwap if filled_n + 1e-9 >= shares else None
         go, why = should_scratch(
             fair_p=fair,
             lead_bps_signed=signed,
@@ -598,6 +597,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
             "down_price": filled_px if leg == "down" else 0.0,
             "up_token": ev["up_token"],
             "down_token": ev["down_token"],
+            "kind": "twap",
         }
         missing = "down" if leg == "up" else "up"
         did = await _apply_rescue(rt, row, missing, plan)
@@ -914,6 +914,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         if is_favorite_setup(setup) and setup.kind == "maker":
             cool = min(cool, 0.4)
         rt.cooldown[setup.slug] = time.time() + cool
+        fill_payload = {"detail": result.detail, **(result.payload or {})}
+        if setup.kind == "taker" and not fill_payload.get("orders"):
+            fill_payload["orders"] = setup_buy_orders(setup)
         rt.store.add_trade(
             slug=setup.slug,
             kind=setup.kind,
@@ -923,7 +926,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             net=(result.payload or {}).get("net", setup.net) if result.ok and result.status in {"filled", "paper_filled"} and not is_one_leg_setup(setup) else 0.0,
             mode=result.mode,
             status=result.status,
-            payload={"detail": result.detail, **(result.payload or {})},
+            payload=fill_payload,
         )
         if result.ok and result.status in {"filled", "paper_filled"}:
             fills += 1
@@ -1042,6 +1045,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["favorite_max"] = setting_num(s, "favorite_max_price", 0.98)
     tape["favorite_window"] = favorite_window_of(s)
     tape["favorite_dir"] = parse_favorite_dir(s.get("favorite_dir"))
+    tape["clob_rtt_ms"] = setting_num(s, "clob_rtt_ms", 150.0)
     rt.last_loop.update(
         {
             "signals": signals,
@@ -1057,14 +1061,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     )
 
 
-async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
-    """Wait the official 250ms taker delay, then FAK leftover size or requote."""
-    s = rt.settings()
-    delay_ms = setting_num(s, "fok_delay_ms", 250.0)
-    if delay_ms > 0:
-        await asyncio.sleep(min(2.0, delay_ms / 1000.0))
+async def _fetch_fok_books(rt: Runtime, ev: dict) -> tuple[dict, dict] | None:
     if rt.data is None:
-        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "fok_no_http")
+        return None
     try:
         up_book, dn_book = await asyncio.gather(
             rt.data.book(ev["up_token"]),
@@ -1072,13 +1071,26 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
         )
     except Exception as exc:
         rt.store.add_event("warn", f"fok book {ev.get('slug')}: {fmt_exc(exc)}")
-        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "fok_http")
-    fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
-    paper = rt.store.paper_state() if rt.mode() == "paper" else None
+        return None
+    return up_book, dn_book
+
+
+def _confirm_from_books(
+    rt: Runtime,
+    ev: dict,
+    setup,
+    up_book: dict,
+    dn_book: dict,
+    s: dict,
+    fee_rate: float,
+    paper,
+    *,
+    allow_requote: bool,
+) -> TakerSim:
     if is_favorite_setup(setup):
-        return _confirm_favorite(rt, ev, setup, up_book, dn_book, s, fee_rate, paper)
+        return _confirm_favorite(rt, ev, setup, up_book, dn_book, s, fee_rate, paper, allow_requote=allow_requote)
     if is_twap_setup(setup):
-        return _confirm_twap(rt, ev, setup, up_book, dn_book, s, fee_rate, paper)
+        return _confirm_twap(rt, ev, setup, up_book, dn_book, s, fee_rate, paper, allow_requote=allow_requote)
     return confirm_pair(
         setup=setup,
         up_asks=up_book.get("asks") or [],
@@ -1091,10 +1103,48 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
         tail_confirm=float(s["tail_confirm"]),
         max_usd=_trade_budget(s, paper),
         prefer_tail=bool(s["prefer_tail"]),
+        requote=allow_requote,
     )
 
 
-def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
+async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
+    """Wait 250ms, FAK leftover or requote, then wait CLOB RTT and re-walk with no requote.
+
+    The second pass is the paper dry-run of a live FAK that is sent after confirm:
+    same limit, no new quote. A miss is `clob_rtt_miss`, not a ghost fill.
+    """
+    s = rt.settings()
+    delay_ms = setting_num(s, "fok_delay_ms", 250.0)
+    if delay_ms > 0:
+        await asyncio.sleep(min(2.0, delay_ms / 1000.0))
+    books = await _fetch_fok_books(rt, ev)
+    if books is None:
+        reason = "fok_no_http" if rt.data is None else "fok_http"
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, reason)
+    up_book, dn_book = books
+    fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
+    paper = rt.store.paper_state() if rt.mode() == "paper" else None
+    first = _confirm_from_books(rt, ev, setup, up_book, dn_book, s, fee_rate, paper, allow_requote=True)
+    rtt = setting_num(s, "clob_rtt_ms", 150.0)
+    if not first.ok or rtt <= 0:
+        return first
+    if first.shares > 0:
+        setup.shares = round(float(first.shares), 4)
+    setup.up_price = first.up_price
+    setup.down_price = first.down_price
+    await asyncio.sleep(min(2.0, rtt / 1000.0))
+    books2 = await _fetch_fok_books(rt, ev)
+    if books2 is None:
+        return TakerSim(False, first.up_price, first.down_price, 0.0, 0.0, 0.0, False, "clob_rtt_miss")
+    second = _confirm_from_books(
+        rt, ev, setup, books2[0], books2[1], s, fee_rate, paper, allow_requote=False
+    )
+    if not second.ok:
+        return TakerSim(False, first.up_price, first.down_price, 0.0, 0.0, 0.0, False, "clob_rtt_miss")
+    return second
+
+
+def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper, *, allow_requote: bool = True) -> TakerSim:
     leg = str((setup.extra or {}).get("leg") or "up")
     asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
     bids = (up_book.get("bids") or []) if leg == "up" else (dn_book.get("bids") or [])
@@ -1134,7 +1184,9 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
             fill.reason,
             fill.shares,
         )
-    requote = hunt(
+    if not allow_requote:
+        return fill
+    hunted = hunt(
         slug=ev["slug"],
         title=ev.get("title") or setup.title,
         condition_id=ev["condition_id"],
@@ -1163,29 +1215,29 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
         favorite_maker=False,
         favorite_dir=parse_favorite_dir(s.get("favorite_dir")),
     )
-    if requote is None or requote.kind != "taker" or requote.net <= 0:
+    if hunted is None or hunted.kind != "taker" or hunted.net <= 0:
         return fill
-    new_px = float((requote.extra or {}).get("favorite_px") or 0)
+    new_px = float((hunted.extra or {}).get("favorite_px") or 0)
     # 0.98 FOK-kill then leftover 0.97 is the 99¢ steamroller, not a better fill.
     if new_px + 1e-12 < float(limit):
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "favorite_no_down_requote")
-    if str((requote.extra or {}).get("leg") or leg) != leg:
+    if str((hunted.extra or {}).get("leg") or leg) != leg:
         return fill
-    setup.extra["leg"] = (requote.extra or {}).get("leg") or leg
+    setup.extra["leg"] = (hunted.extra or {}).get("leg") or leg
     return TakerSim(
         True,
-        requote.up_price,
-        requote.down_price,
-        requote.net,
-        requote.cost,
-        requote.fees,
+        hunted.up_price,
+        hunted.down_price,
+        hunted.net,
+        hunted.cost,
+        hunted.fees,
         False,
         "fok_requote",
-        requote.shares,
+        hunted.shares,
     )
 
 
-def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper) -> TakerSim:
+def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper, *, allow_requote: bool = True) -> TakerSim:
     """One-leg FAK in 45–55¢. Cheaper requote is fine; flipping the leg is not."""
     params = default_params(s)
     leg = str((setup.extra or {}).get("leg") or "up")
@@ -1214,12 +1266,14 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
             fill.reason,
             fill.shares,
         )
+    if not allow_requote:
+        return fill
     snap = rt.chainlink.snapshot(
         str(ev.get("slug") or setup.slug),
         lookback=int(params.lookback),
         left=seconds_left(ev.get("end") or setup.end),
     )
-    requote = hunt(
+    hunted = hunt(
         slug=ev["slug"],
         title=ev.get("title") or setup.title,
         condition_id=ev["condition_id"],
@@ -1245,23 +1299,23 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
         twap_snap=snap,
         twap_params=params,
     )
-    if requote is None or not is_twap_setup(requote) or requote.net <= 0:
+    if hunted is None or not is_twap_setup(hunted) or hunted.net <= 0:
         return fill
-    if str((requote.extra or {}).get("leg") or leg) != leg:
+    if str((hunted.extra or {}).get("leg") or leg) != leg:
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_flip")
-    new_px = float((requote.extra or {}).get("fill_px") or requote.up_price or requote.down_price)
+    new_px = float((hunted.extra or {}).get("fill_px") or hunted.up_price or hunted.down_price)
     if new_px - 1e-12 > float(limit):
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_up_requote")
     return TakerSim(
         True,
-        requote.up_price,
-        requote.down_price,
-        requote.net,
-        requote.cost,
-        requote.fees,
+        hunted.up_price,
+        hunted.down_price,
+        hunted.net,
+        hunted.cost,
+        hunted.fees,
         False,
         "fok_requote",
-        requote.shares,
+        hunted.shares,
     )
 
 
@@ -1512,24 +1566,40 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
             )
         return 1
     if plan.action == "dump":
+        paper_mode = rt.mode() == "paper"
+        token = str(row["up_token"] if missing_side == "down" else row["down_token"])
+        floor = float(plan.floor_px or plan.price or 0.01)
+        sell = await rt.broker().execute_sell(token, shares, floor)
+        if not sell.ok:
+            rt.store.add_event("warn", f"dump fail {slug}: {sell.detail}"[:220])
+            return 0
         up_take = shares if missing_side == "down" else 0.0
         dn_take = shares if missing_side == "up" else 0.0
         rt.store.take_inventory(cid, up=up_take, down=dn_take)
-        rt.store.paper_apply_credit(plan.cash_out)
+        if paper_mode:
+            rt.store.paper_apply_credit(plan.cash_out)
+        kind = str(row.get("kind") or "maker")
         rt.store.add_trade(
             slug=slug,
-            kind="maker",
+            kind=kind,
             shares=shares,
             up_price=row["up_price"],
             down_price=row["down_price"],
             net=plan.pnl,
-            mode="paper",
-            status="paper_dumped",
-            payload={"detail": f"dump @{plan.price}", "proceeds": plan.cash_out, "fees": plan.fees},
+            mode=rt.mode(),
+            status="paper_dumped" if paper_mode else "dumped",
+            payload={
+                "detail": f"dump @{plan.price} floor {floor}",
+                "proceeds": plan.cash_out,
+                "fees": plan.fees,
+                "floor_px": floor,
+                **(sell.payload or {}),
+            },
         )
         if s.get("notify_signals"):
+            flag = "🧪紙盤" if paper_mode else "🔴實盤"
             await rt.notify(
-                f"🧯 單邊出貨 {slug}\n@{plan.price} 回籠 ${plan.cash_out:.2f} · 淨 ${plan.pnl:.2f}",
+                f"🧯 {flag} 單邊出貨 {slug}\n@{plan.price} 回籠 ${plan.cash_out:.2f} · 淨 ${plan.pnl:.2f}",
                 important=True,
             )
         return 1

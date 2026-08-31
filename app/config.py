@@ -34,12 +34,12 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 24,
+    "strategy_rev": 25,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
-    # Rev 24: same TWAP 6bps+scratch, window opened to 180s left to match
-    # top directional wallets' median entry. Complement still first.
+    # Rev 25: paper fill = live CLOB FAK (USDC amount BUY, bid-walk scratch).
+    # Complement still first. Favorite stays behind Telegram.
     "maker_min_edge": 0.01,
     "taker_fok": True,
     "fok_delay_ms": 250.0,
@@ -61,6 +61,8 @@ DEFAULT_SETTINGS = {
     "twap_assets": ["btc"],
     "twap_lookback": 60.0,
     "twap_rescore_seconds": 15.0,
+    # Extra wait after FOK confirm, then re-walk the book (order RTT).
+    "clob_rtt_ms": 150.0,
 }
 
 
@@ -84,6 +86,7 @@ SETTING_STEPS = {
     "favorite_max_price": (0.01, 0.91, 0.99),
     "twap_max_left": (10.0, 60.0, 280.0),
     "twap_min_lead_bps": (1.0, 2.0, 20.0),
+    "clob_rtt_ms": (50.0, 0.0, 500.0),
 }
 
 

@@ -72,9 +72,12 @@ def _rev_blurb(s: dict) -> str:
         )
     if mode == "twap":
         return (
-            f"Rev {rev}：BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘最多 180s 入場，弱倉 scratch。"
+            f"Rev {rev}：紙盤＝實盤 CLOB FAK dry-run（買用 USDC amount+max_price，scratch 賣用 shares+min_price，"
+            "FOK 後再等 RTT 重走簿，唔 requote）。"
+            "BTC 5m 官方 Chainlink 60s TWAP vs 窗開價，45–55¢，剩餘最多 180s 入場，弱倉 scratch。"
             "入場時間抄頂級方向盤戶（中位 ~160–210s），唔抄雙邊鎖倉（taker 費後 −EV）。"
-            "互補洞仍然會先吃。FOK、maker 關。Redeem 等官方 0/1。紙盤。"
+            "互補洞仍然會先吃。FOK、maker 關。Redeem 等官方 0/1。"
+            "FORCE_PAPER／兩步確認仍然鎖真錢。未開實盤。"
         )
     return (
         f"Rev {rev}：停大熱 hunt。預設只做 YES+NO 互補（缺口 ≥0.02、FOK、maker 關）。"
@@ -87,6 +90,7 @@ STATUS_ZH = {
     "paper_filled": "紙盤成交",
     "paper_hedged": "單邊對沖",
     "paper_dumped": "單邊出貨",
+    "dumped": "單邊出貨",
     "paper_settled": "結算",
     "redeemed": "redeem 取回",
     "paper_fok_killed": "FOK殺單",
@@ -661,8 +665,9 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, 
             "實盤會用你把匙簽名落單。\n"
-            "全自動模式下唔會逐單確認。\n"
-            "建議先紙盤睇一日先。確定轉？",
+            "Rev 25 紙盤已經用同一套 CLOB FAK（買用 USDC amount、scratch 賣用 shares+min_price、成交前再等 RTT 重走簿）。\n"
+            "紙盤係真錢 dry-run，但 queue／部分成交／延遲仍然會差一截。\n"
+            "全自動模式下唔會逐單確認。FORCE_PAPER 開住永遠紙盤。確定轉？",
             reply_markup=kb,
         )
         return

@@ -198,6 +198,7 @@ def confirm_pair(
     tail_confirm: float,
     max_usd: float,
     prefer_tail: bool = True,
+    requote: bool = True,
 ) -> TakerSim:
     """After the 250ms taker delay: FAK leftover +EV size at the snapshot
     limits, else hunt the delayed book (requote, no second delay).
@@ -220,7 +221,9 @@ def confirm_pair(
     )
     if fill.ok:
         return fill
-    requote = hunt(
+    if not requote:
+        return fill
+    hunted = hunt(
         slug=setup.slug,
         title=setup.title,
         condition_id=setup.condition_id,
@@ -240,18 +243,18 @@ def confirm_pair(
         end=setup.end,
         maker_window_seconds=0.0,
     )
-    if requote is None or requote.kind != "taker" or requote.net <= 0:
+    if hunted is None or hunted.kind != "taker" or hunted.net <= 0:
         return fill
     return TakerSim(
         True,
-        requote.up_price,
-        requote.down_price,
-        requote.net,
-        requote.cost,
-        requote.fees,
+        hunted.up_price,
+        hunted.down_price,
+        hunted.net,
+        hunted.cost,
+        hunted.fees,
         False,
         "fok_requote",
-        requote.shares,
+        hunted.shares,
     )
 
 

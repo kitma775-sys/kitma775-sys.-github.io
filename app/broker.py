@@ -31,6 +31,7 @@ def paper_execute(setup: Setup) -> FillResult:
             "fees": sim.fees,
             "slipped": sim.slipped,
             "assumed_fill": False,
+            "orders": setup_buy_orders(setup),
         }
         if not sim.ok:
             return FillResult(
@@ -46,7 +47,12 @@ def paper_execute(setup: Setup) -> FillResult:
             "paper",
             (
                 f"紙盤 taker 成交 {setup.shares:.1f} 對 @ "
-                f"{sim.up_price}+{sim.down_price} 成本 ${sim.cost:.2f} 淨利 ${sim.net:.2f}"
+                f"{sim.up_price}+{sim.down_price} 成本 ${sim.cost:.2f}"
+                + (
+                    f" 未結算期望 ${sim.net:.2f}"
+                    if str((setup.extra or {}).get("strategy") or "") in {"twap", "favorite"}
+                    else f" 淨利 ${sim.net:.2f}"
+                )
             ),
             payload,
         )
@@ -85,6 +91,40 @@ def already_redeemed(detail: str) -> bool:
     return any(n in text for n in needles)
 
 
+def buy_fak_kwargs(*, token_id: str, price: float, shares: float) -> dict:
+    """Official CLOB BUY FAK: USDC `amount` + `max_price`. Shares are illegal on BUY."""
+    px = max(float(price), 0.01)
+    sh = max(float(shares), 0.0)
+    amount = round(sh * px, 4)
+    return {
+        "token_id": str(token_id),
+        "side": "BUY",
+        "amount": f"{amount:.4f}",
+        "max_price": f"{px:.4f}",
+        "order_type": "FAK",
+    }
+
+
+def sell_fak_kwargs(*, token_id: str, shares: float, min_price: float) -> dict:
+    """Official CLOB SELL FAK: `shares` + `min_price`. Amount is illegal on SELL."""
+    return {
+        "token_id": str(token_id),
+        "side": "SELL",
+        "shares": f"{max(float(shares), 0.0):.2f}",
+        "min_price": f"{max(float(min_price), 0.01):.4f}",
+        "order_type": "FAK",
+    }
+
+
+def setup_buy_orders(setup: Setup) -> list[dict]:
+    legs = []
+    if float(setup.up_price) >= 0.01:
+        legs.append(buy_fak_kwargs(token_id=setup.up_token, price=setup.up_price, shares=setup.shares))
+    if float(setup.down_price) >= 0.01:
+        legs.append(buy_fak_kwargs(token_id=setup.down_token, price=setup.down_price, shares=setup.shares))
+    return legs
+
+
 class PaperBroker:
     mode = "paper"
 
@@ -100,8 +140,14 @@ class PaperBroker:
     async def list_redeemable(self) -> list[dict]:
         return []
 
-    async def cancel_open_orders(self) -> int:
-        return 0
+    async def execute_sell(self, token_id: str, shares: float, min_price: float) -> FillResult:
+        return FillResult(
+            True,
+            "paper_dumped",
+            "paper",
+            f"紙盤 dump {shares:.1f} @{min_price}",
+            {"token": token_id, "shares": shares, "min_price": min_price, **sell_fak_kwargs(token_id=token_id, shares=shares, min_price=min_price)},
+        )
 
 
 class LiveBroker:
@@ -142,14 +188,8 @@ class LiveBroker:
                         post_only=True,
                     )
                 else:
-                    # place_limit_order cannot FAK; a TypeError fallback used to leave a GTC bid.
-                    resp = await client.place_market_order(
-                        token_id=token,
-                        side="BUY",
-                        shares=f"{setup.shares:.2f}",
-                        max_price=f"{price:.4f}",
-                        order_type="FAK",
-                    )
+                    kw = buy_fak_kwargs(token_id=token, price=price, shares=setup.shares)
+                    resp = await client.place_market_order(**kw)
                 ok = bool(getattr(resp, "ok", False))
                 status = str(getattr(resp, "status", "") or getattr(resp, "code", "") or "").lower()
                 order_id = getattr(resp, "order_id", None)
@@ -193,8 +233,39 @@ class LiveBroker:
             "filled" if setup.kind == "taker" else "resting",
             "live",
             "已提交",
-            {"legs": results},
+            {"legs": results, "orders": setup_buy_orders(setup) if setup.kind == "taker" else []},
         )
+
+    async def execute_sell(self, token_id: str, shares: float, min_price: float) -> FillResult:
+        client = await self._client_ready()
+        kw = sell_fak_kwargs(token_id=token_id, shares=shares, min_price=min_price)
+        try:
+            resp = await client.place_market_order(**kw)
+        except Exception as exc:
+            return FillResult(False, "error", "live", str(exc)[:300], {"order": kw})
+        ok = bool(getattr(resp, "ok", False))
+        status = str(getattr(resp, "status", "") or getattr(resp, "code", "") or "").lower()
+        order_id = getattr(resp, "order_id", None)
+        payload = {
+            "order": kw,
+            "ok": ok,
+            "status": getattr(resp, "status", None) or getattr(resp, "code", None),
+            "id": order_id,
+            "message": str(getattr(resp, "message", "") or ""),
+        }
+        if not ok:
+            return FillResult(False, "rejected", "live", str(getattr(resp, "message", status or "sell rejected")), payload)
+        if status != "matched":
+            if status == "live" and order_id:
+                try:
+                    await client.cancel_order(order_id=str(order_id))
+                except Exception:
+                    try:
+                        await client.cancel_all()
+                    except Exception:
+                        pass
+            return FillResult(False, "rejected", "live", f"sell FAK not matched ({status})", payload)
+        return FillResult(True, "dumped", "live", "已出貨", payload)
 
     async def merge(self, condition_id: str, shares: float) -> FillResult:
         client = await self._client_ready()

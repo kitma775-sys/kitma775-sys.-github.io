@@ -19,6 +19,25 @@ from app.hunter import Level, walk
 from app.paper_sim import seconds_left
 
 
+def walk_dump(bids: list[Level], shares: float) -> tuple[float, float, float]:
+    """Hit bids high-to-low. Returns (filled, vwap, floor_px of last level used)."""
+    ordered = sorted((lv for lv in bids if lv.size > 0 and lv.price > 0), key=lambda x: x.price, reverse=True)
+    need = float(shares)
+    filled = 0.0
+    cost = 0.0
+    floor = 0.0
+    for lv in ordered:
+        if filled + 1e-12 >= need:
+            break
+        take = min(lv.size, need - filled)
+        filled += take
+        cost += take * lv.price
+        floor = lv.price
+    if filled <= 0:
+        return 0.0, 0.0, 0.0
+    return filled, cost / filled, floor
+
+
 @dataclass(frozen=True)
 class RescuePlan:
     action: str  # hedge | dump | hold
@@ -27,6 +46,7 @@ class RescuePlan:
     cash_out: float
     pnl: float
     reason: str
+    floor_px: float = 0.0
 
 
 def plan_rescue(
@@ -40,7 +60,7 @@ def plan_rescue(
     shares = float(shares)
     filled_px = float(filled_px)
     filled_cost = round(shares * filled_px, 6)
-    hold = RescuePlan("hold", 0.0, 0.0, 0.0, round(-filled_cost, 6), "hold_mark0")
+    hold = RescuePlan("hold", 0.0, 0.0, 0.0, round(-filled_cost, 6), "hold_mark0", 0.0)
     candidates: list[RescuePlan] = []
 
     filled_n, ask_px = walk(other_asks, shares, asks=True)
@@ -48,14 +68,14 @@ def plan_rescue(
         fees = taker_fee(shares, ask_px, fee_rate)
         cost = round(shares * ask_px + fees, 6)
         pnl = round(shares - filled_cost - cost, 6)
-        candidates.append(RescuePlan("hedge", round(ask_px, 4), fees, cost, pnl, "hedge_take"))
+        candidates.append(RescuePlan("hedge", round(ask_px, 4), fees, cost, pnl, "hedge_take", round(ask_px, 4)))
 
-    filled_n, bid_px = walk(filled_bids, shares, asks=False)
+    filled_n, bid_px, floor = walk_dump(filled_bids, shares)
     if filled_n + 1e-9 >= shares and bid_px > 0:
         fees = taker_fee(shares, bid_px, fee_rate)
         proceeds = round(max(0.0, shares * bid_px - fees), 6)
         pnl = round(proceeds - filled_cost, 6)
-        candidates.append(RescuePlan("dump", round(bid_px, 4), fees, proceeds, pnl, "dump_bid"))
+        candidates.append(RescuePlan("dump", round(bid_px, 4), fees, proceeds, pnl, "dump_bid", round(float(floor), 4)))
 
     def _key(p: RescuePlan) -> tuple[float, int]:
         rank = {"hedge": 2, "dump": 1, "hold": 0}[p.action]

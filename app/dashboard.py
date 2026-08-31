@@ -59,6 +59,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_min_edge": s.get("twap_min_edge"),
             "twap_gate": ((rt.last_loop or {}).get("tape") or {}).get("twap_gate"),
             "twap_skips": ((rt.last_loop or {}).get("tape") or {}).get("twap_skips"),
+            "clob_rtt_ms": s.get("clob_rtt_ms"),
             "auto_redeem": bool(s.get("auto_redeem", True)),
             "circuit": rt.circuit_tripped(),
             "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(),
