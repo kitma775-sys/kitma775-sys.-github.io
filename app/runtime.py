@@ -284,7 +284,7 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
     return False
 
 
-CORR_CLOCK = frozenset({"btc", "eth"})
+CORR_CLOCK = frozenset({"btc", "eth", "sol", "xrp", "doge", "bnb", "hype", "zec"})
 # Seconds before T0 to subscribe the next 5m book. Hunt still skips future_listing.
 # +5s matches future_listing slack so a 45.1s-to-open print is not missed.
 WS_HUNT_BUFFER_S = 45.0
@@ -544,10 +544,10 @@ def gate_better(cur: dict | None, nxt: dict | None) -> bool:
 
 
 def twap_conflict_open(rt: Runtime, slug: str) -> bool:
-    """Same asset never stacks 5m+15m. BTC/ETH same clock dump together.
+    """Same asset never stacks 5m+15m. Same 5m unix is one slot across coins.
 
-    SOL/XRP/BNB/HYPE/DOGE at the same 5m unix do not block each other — top
-    directional books run many coins in parallel. Pair-lock taker stays off.
+    Live 6h book: multi-coin same-clock stacks (all Up@45 or all Down@45) were
+    the clustered full-loss windows. Pair-lock taker stays off.
     Ended leftover (pending website redeem) must not brick the next 5m.
     """
     parsed = parse_window(slug)
@@ -567,7 +567,7 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
                 return True
             continue
         if peer.horizon == parsed.horizon and peer.start == parsed.start:
-            if {peer.asset, parsed.asset} <= CORR_CLOCK:
+            if peer.asset in CORR_CLOCK and parsed.asset in CORR_CLOCK:
                 return True
     return False
 
@@ -1598,7 +1598,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             favorite_spent=float(inv.get("cost") or 0),
             twap_min_price=setting_num(s, "twap_min_price", 0.45),
             twap_max_price=setting_num(s, "twap_max_price", 0.55),
-            twap_min_left=setting_num(s, "twap_min_left", 12.0),
+            twap_min_left=setting_num(s, "twap_min_left", 120.0),
             twap_max_left=setting_num(s, "twap_max_left", 280.0),
         )
         payload = {
@@ -1717,7 +1717,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 favorite_spent=float(inv.get("cost") or 0),
                 twap_min_price=setting_num(s, "twap_min_price", 0.45),
                 twap_max_price=setting_num(s, "twap_max_price", 0.55),
-                twap_min_left=setting_num(s, "twap_min_left", 12.0),
+                twap_min_left=setting_num(s, "twap_min_left", 120.0),
                 twap_max_left=setting_num(s, "twap_max_left", 280.0),
             )
             if not resized.ok:

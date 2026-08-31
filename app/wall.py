@@ -298,7 +298,7 @@ def _gauges(rt, board: dict, gate: dict, s: dict) -> list[dict]:
     min_lead = float(s.get("twap_min_lead_bps") or 6)
     lo = float(s.get("twap_min_price") or 0.45)
     hi = float(s.get("twap_max_price") or 0.55)
-    min_left = float(s.get("twap_min_left") or 12)
+    min_left = float(s.get("twap_min_left") or 120)
     max_left = float(s.get("twap_max_left") or 280)
     lead_pct = 8
     if lead is not None:

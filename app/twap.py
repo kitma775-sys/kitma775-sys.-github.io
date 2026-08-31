@@ -226,7 +226,7 @@ class TwapParams:
     max_price: float = MID_HI
     min_lead_bps: float = 6.0
     min_edge: float = 0.04
-    min_left: float = 12.0
+    min_left: float = 120.0
     max_left: float = 280.0
     max_spread: float = 0.04
     max_age_ms: float = 3000.0
@@ -257,7 +257,7 @@ def default_params(s: dict | None = None) -> TwapParams:
         max_price=num("twap_max_price", MID_HI),
         min_lead_bps=num("twap_min_lead_bps", 6.0),
         min_edge=num("twap_min_edge", 0.04),
-        min_left=num("twap_min_left", 12.0),
+        min_left=num("twap_min_left", 120.0),
         max_left=num("twap_max_left", 280.0),
         max_spread=num("twap_max_spread", 0.04),
         max_age_ms=num("twap_max_age_ms", 3000.0),

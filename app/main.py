@@ -694,6 +694,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev45 log clocks are Hong Kong time (UTC+8); keep stake and 6bps",
         )
+    if rev < 46:
+        store.patch_settings(strategy_rev=46, twap_min_left=120.0)
+        store.add_event(
+            "info",
+            "rev46 live autopsy: no new TWAP if left<120s; one coin per 5m clock. Keep 6bps, 45–55, scratch, stake.",
+        )
     return n
 
 
