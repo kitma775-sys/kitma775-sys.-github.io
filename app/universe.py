@@ -1,9 +1,9 @@
 """Pick short-dated liquid binaries — the only HTTP-reachable surf set.
 
 Long-dated high-volume books rest at ask_sum ≥ 1.001. Sports tags are not
-game-clock. The books that still *move* are 5m/15m/1h crypto windows.
+game-clock. The books that still *move* are 5m crypto windows (15m/1h are scanned off).
 Soonest expiry first, but mid-window one-sided penny books do not crowd
-out two-ask 15m/1h tails. Skip empty 1.00/1.00 books.
+out two-ask tails. Skip empty 1.00/1.00 books.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-DEFAULT_TAGS = ["5M", "15M", "1H"]
+DEFAULT_TAGS = ["5M"]
 DEFAULT_ASSETS = ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge"]
 EMPTY_YES_ASK = 0.99
 NEAR_EXPIRY_SECONDS = 180.0
@@ -145,7 +145,7 @@ def looks_empty(best_ask: Any, seconds_left: float | None = None) -> bool:
 
 
 def _universe_rank(row: dict) -> tuple[int, float]:
-    """TWAP 12–280s two-ask books first. Last-3-min pennies must not drown 15m mid-band."""
+    """TWAP 12–280s two-ask 5m books first. Last-3-min pennies must not drown mid-band."""
     try:
         left = float(row.get("seconds_left"))
     except (TypeError, ValueError):

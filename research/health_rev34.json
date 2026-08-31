@@ -1,0 +1,23 @@
+{
+  "researched_at_utc": "2026-08-31T05:45:00Z",
+  "question": "Drop 15m and 1H; run 5m Chainlink TWAP across coins only?",
+  "answer": "yes",
+  "why": {
+    "5m": "Same settlement as the engine: Chainlink 60s TWAP vs window-open PTB. Tape grid (twap_freq) is 5m BTC/ETH 45-55 / 6bps / scratch / 12-280s. 7 coins x 2 tokens = 14 CLOB slots, two sockets x8.",
+    "15m": "Same oracle, but 14-token JP CLOB cap means 15m collides with live 5m. 280s max_left is the last 4.7m of a 900s clock with no 15m tape grid. PTB/join and WS ranking kept stealing 5m mid-band.",
+    "1h": "Binance candle close vs open. Chainlink-vs-PTB on that book is the ~9 bps basis hole. Never this engine."
+  },
+  "keep": [
+    "45-55c",
+    "min_lead_bps=6",
+    "scratch",
+    "max_usd=5",
+    "user assets",
+    "paper",
+    "no live"
+  ],
+  "pin": {
+    "tags": ["5M"],
+    "twap_horizons": ["5m"]
+  }
+}

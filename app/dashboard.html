@@ -121,7 +121,7 @@
         tile(s.taker_fok===false ? "關" : "開", "延遲確認"),
         tile(d.ws_status || "off", "WebSocket"),
         tile(String(s.strategy_rev || "—"), "策略 rev"),
-        tile("TWAP " + ((s.assets||["btc","eth"]).join("+").toUpperCase()) + " " + ((s.tags||["5M"]).join("/")), "策略"),
+        tile("TWAP " + ((s.assets||["btc","eth"]).join("+").toUpperCase()) + " " + ((s.twap_horizons||["5m"]).join("/")), "策略"),
         tile(d.chainlink_status || "off", "Chainlink"),
         tile((function(){
           const g = tape.twap_gate || {};
@@ -144,7 +144,7 @@
         tile(tape.stale_pairs==null ? "—" : String(tape.stale_pairs), "過期盤"),
         tile(tape.empty_ask_legs==null ? "—" : String(tape.empty_ask_legs), "單邊空簿"),
         tile(tape.nearest_s==null ? "—" : (Math.round(Number(tape.nearest_s)) + "s"), tape.nearest_slug ? ("最近 " + String(tape.nearest_slug).slice(0,22)) : "最近完場"),
-        tile((Array.isArray(s.tags) ? s.tags : [s.tag || "5M"]).join("+"), "週期"),
+        tile((Array.isArray(s.twap_horizons) ? s.twap_horizons : (Array.isArray(s.tags) ? s.tags : [s.tag || "5M"])).join("+"), "週期"),
         tile(String(s.scan_limit || 16), "每圈最多盤"),
         tile(((d.geo||{}).country || "?") + (d.geo && d.geo.api_open === false ? " 限" : " API✓"), "IP / CLOB"),
         tile(s.auto_redeem===false ? "關" : "開", "自動 redeem"),

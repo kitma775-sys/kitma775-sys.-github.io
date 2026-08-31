@@ -4,7 +4,8 @@ Live ticks must be the same Chainlink USD stream the market settles on.
 Never subtract a Binance/USDT print from Gamma priceToBeat (≈9 bps basis).
 PTB is the first same-source tick at/after the window open.
 
-Settlement (5m and 15m up/down): last `lookback` seconds of Chainlink TWAP >= PTB → Up.
+Settlement (5m up/down): last `lookback` seconds of Chainlink TWAP >= PTB → Up.
+15m uses the same oracle but collides with 5m for 14 CLOB slots and has no tape grid.
 Hourly `*-up-or-down-*` and `*-above-*` settle on Binance candles — never this engine.
 """
 
@@ -36,7 +37,7 @@ CHAINLINK_SYMBOL = {
 CHAINLINK_ASSETS = tuple(CHAINLINK_SYMBOL)
 WINDOW_SECONDS = 300
 DEFAULT_TWAP_ASSETS = ("btc", "eth")
-DEFAULT_TWAP_HORIZONS = ("5m", "15m")
+DEFAULT_TWAP_HORIZONS = ("5m",)
 
 
 def phi(z: float) -> float:
@@ -153,7 +154,7 @@ def hunt_assets(s: dict | None = None) -> tuple[str, ...]:
 
 
 def hunt_horizons(s: dict | None = None) -> tuple[str, ...]:
-    """5M/15M tags ∩ TWAP horizons. 1H never hunts this engine."""
+    """5M tag ∩ pinned TWAP horizons. Rev 34 pins 5m-only. 1H never hunts."""
     d = s or {}
     pinned = set(_token_tuple(d.get("twap_horizons"), DEFAULT_TWAP_HORIZONS))
     tags = d.get("tags")

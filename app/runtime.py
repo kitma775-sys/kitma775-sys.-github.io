@@ -141,7 +141,7 @@ def ws_wanted_tokens(
     """CLOB market WS: scarce slots for books we can actually lift.
 
     14 tokens on two sockets. Require a locked PTB (inventory always).
-    Prefer in-band 45–55 books (5m then 15m) over locked 5m pennies.
+    Prefer in-band 45–55 5m books. 15m/1H are not in the hunt set.
     """
     hold = {str(x) for x in (hold_condition_ids or ()) if x}
     ptb = None if ptb_slugs is None else {str(x) for x in ptb_slugs if x}
@@ -1406,7 +1406,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     tape["empty_ask_legs"] = empty_asks
     tape["ws_status"] = rt.ws_status
     tape["slugs"] = [ev.get("slug") for ev in events[:24] if ev.get("slug")]
-    tape["tags"] = list(s.get("tags") or [s.get("tag") or "15M"])
+    tape["tags"] = list(s.get("tags") or [s.get("tag") or "5M"])
     tape["taker_fok"] = bool(s.get("taker_fok", True))
     tape["snapshot_signals"] = snapshot_signals
     tape["fok_kills"] = fok_kills

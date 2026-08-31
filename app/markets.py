@@ -60,7 +60,7 @@ class MarketData:
         want: int = 16,
         max_horizon: float = 3600.0,
     ) -> list[dict]:
-        tag_list = [str(t).strip() for t in (tags if isinstance(tags, list) else [tags or "15M"]) if str(t).strip()]
+        tag_list = [str(t).strip() for t in (tags if isinstance(tags, list) else [tags or "5M"]) if str(t).strip()]
         if not tag_list:
             tag_list = list(DEFAULT_TAGS)
         asset_list = [str(a).strip() for a in (assets if assets is not None else DEFAULT_ASSETS) if str(a).strip()]

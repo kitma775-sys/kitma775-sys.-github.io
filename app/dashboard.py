@@ -54,7 +54,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_min_left": s.get("twap_min_left"),
             "twap_max_left": s.get("twap_max_left"),
             "twap_assets": s.get("twap_assets") or ["btc", "eth"],
-            "twap_horizons": s.get("twap_horizons") or ["5m", "15m"],
+            "twap_horizons": s.get("twap_horizons") or ["5m"],
             "chainlink_live": [
                 sym
                 for sym, row in ((rt.chainlink.public().get("symbols") or {}).items())

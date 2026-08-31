@@ -1,12 +1,12 @@
-"""Polymarket RTDS Chainlink USD ticks — 5m/15m up/down settlement stream.
+"""Polymarket RTDS Chainlink USD ticks — 5m up/down settlement stream.
 
 wss://ws-live-data.polymarket.com  topic=crypto_prices_chainlink
 No auth. PING every 5s. Symbols are slash pairs (btc/usd). One subscribe
 frame per symbol.
 
-Window-open PTB is the first tick at or after the 5m or 15m start on this
+Window-open PTB is the first tick at or after the 5m start on this
 same stream. Running TWAP is time-weighted over the last `lookback` seconds.
-Hourly Binance candles are not this topic.
+15m leftover inventory can still snapshot; 1H Binance candles are not this topic.
 """
 
 from __future__ import annotations
@@ -173,9 +173,9 @@ class ChainlinkTape:
         asset = asset_from_symbol(symbol)
         if not asset:
             return
-        for horizon, win in HORIZON_SECONDS.items():
-            start = int(ts) - (int(ts) % int(win))
-            self.ensure_ptb(self._window_key(asset, horizon, start))
+        win = int(HORIZON_SECONDS["5m"])
+        start = int(ts) - (int(ts) % win)
+        self.ensure_ptb(self._window_key(asset, "5m", start))
 
     def ensure_ptb(self, slug: str) -> float | None:
         """PTB = first tick at/after T0, only if we saw a tick *before* T0.
