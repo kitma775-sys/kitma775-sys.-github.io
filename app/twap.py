@@ -234,7 +234,11 @@ class TwapParams:
     lookback: int = TWAP_LOOKBACK
     scratch_p: float = 0.48
     scratch_min_bid: float = 0.38
+    scratch_dump_floor: float = 0.22
+    scratch_adverse: float = 0.0
     scratch_left_min: float = 8.0
+    late_left: float = 180.0
+    late_min_price: float = 0.50
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
 
@@ -265,7 +269,11 @@ def default_params(s: dict | None = None) -> TwapParams:
         lookback=int(num("twap_lookback", TWAP_LOOKBACK)),
         scratch_p=num("twap_scratch_p", 0.48),
         scratch_min_bid=num("twap_scratch_min_bid", 0.38),
+        scratch_dump_floor=num("twap_scratch_dump_floor", 0.22),
+        scratch_adverse=num("twap_scratch_adverse", 0.0),
         scratch_left_min=num("twap_scratch_left_min", 8.0),
+        late_left=num("twap_late_left", 180.0),
+        late_min_price=num("twap_late_min_price", 0.50),
         assets=assets,
         horizons=horizons,
     )
@@ -314,6 +322,8 @@ def twap_entry_reason(
         return "twap_window"
     if ask is None or not in_mid_band(ask, params.min_price, params.max_price):
         return "twap_band"
+    if left < params.late_left and float(ask) + 1e-12 < params.late_min_price:
+        return "twap_late_cheap"
     if bid is None:
         return "twap_no_bid"
     if ask + 1e-12 < bid:
@@ -347,17 +357,27 @@ def should_scratch(
     fee_rate: float,
     left: float | None,
     params: TwapParams,
+    fill_px: float | None = None,
+    adverse: float | None = None,
 ) -> tuple[bool, str]:
     if left is None or left < params.scratch_left_min:
         return False, "twap_scratch_late"
-    if bid is None or float(bid) + 1e-12 < params.scratch_min_bid:
+    if bid is None or float(bid) + 1e-12 < params.scratch_dump_floor:
         return False, "twap_scratch_no_bid"
     if fair_p is None:
         return True, "twap_scratch_no_fair"
     proceeds = scratch_proceeds(shares, bid, fee_rate)
     held = hold_value(shares, fair_p)
-    if proceeds + 1e-9 >= held:
+    if proceeds + 1e-9 >= held and float(bid) + 1e-12 >= params.scratch_min_bid:
         return True, "twap_scratch_better"
+    stop = float(params.scratch_adverse if adverse is None else adverse)
+    if (
+        stop > 1e-12
+        and fill_px is not None
+        and float(fill_px) > 0
+        and float(bid) + 1e-12 <= float(fill_px) - stop
+    ):
+        return True, "twap_scratch_stop"
     if float(fair_p) < params.scratch_p:
         return True, "twap_scratch_weak"
     if lead_bps_signed is not None and float(lead_bps_signed) < 0:

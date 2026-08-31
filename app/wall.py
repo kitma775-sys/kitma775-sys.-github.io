@@ -29,6 +29,7 @@ SKIP_ZH = {
     "twap_stale": "盤過期",
     "twap_thin": "盤薄",
     "twap_band": "價帶外",
+    "twap_late_cheap": "遲平倉",
     "twap_no_bid": "無 bid",
     "twap_crossed": "交叉盤",
     "twap_wide": "spread 闊",

@@ -17,7 +17,7 @@ from app.twap import chainlink_symbols_for, default_params, future_listing, hunt
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
-from app.rescue import is_redeemable_market, parse_outcome_prices, plan_rescue, walk_dump
+from app.rescue import RescuePlan, is_redeemable_market, parse_outcome_prices, plan_rescue, walk_dump
 from app.risk import approve
 from app.store import Store
 from app.universe import DEFAULT_ASSETS, DEFAULT_TAGS
@@ -303,6 +303,7 @@ _GATE_RANK = {
     "twap_stale": 8,
     "twap_thin": 9,
     "twap_band": 10,
+    "twap_late_cheap": 10,
     "twap_window": 11,
     "twap_no_ptb": 12,
     "twap_no_feed": 13,
@@ -1262,7 +1263,10 @@ async def _hunt_loop(rt: Runtime) -> None:
 
 
 async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
-    """Sell weak 5m TWAP inventory at the bid-walk VWAP. Never hedge the other side.
+    """Sell weak 5m TWAP inventory. Decide on top bid; dump at bid-walk VWAP.
+
+    Flip/weak/no_fair may dump below the 38¢ better-floor (down to dump_floor).
+    Partial size is allowed when the book cannot walk full size. Never hedge.
 
     Paper `twap` and live `twap_live` stay on separate rows. Scratch only
     walks the current mode's inventory so a Telegram live flip cannot dump
@@ -1312,34 +1316,47 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         book = up_book if leg == "up" else dn_book
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
         left = seconds_left(ev.get("end"))
-        filled_n, dump_vwap, _floor = walk_dump(book.get("bids") or [], shares)
-        bid = dump_vwap if filled_n + 1e-9 >= shares else None
+        bids = book.get("bids") or []
+        filled_n, dump_vwap, floor = walk_dump(bids, shares)
+        top_bid = _top(bids, asks=False)
+        decide_bid = float(top_bid) if top_bid is not None else None
+        filled_px = float(inv.get("cost") or 0) / shares if shares else 0.5
         go, why = should_scratch(
             fair_p=fair,
             lead_bps_signed=signed,
-            bid=bid,
+            bid=decide_bid,
             shares=shares,
             fee_rate=fee_rate,
             left=left,
             params=params,
+            fill_px=filled_px,
         )
         if not go:
             continue
-        filled_px = float(inv.get("cost") or 0) / shares if shares else 0.5
-        plan = plan_rescue(
-            filled_px=filled_px,
-            shares=shares,
-            other_asks=[],
-            filled_bids=book.get("bids") or [],
-            fee_rate=fee_rate,
-        )
-        if plan.action != "dump":
+        dump_sh = shares if filled_n + 1e-9 >= shares else filled_n
+        min_sh = float(s.get("min_shares") or 5)
+        if dump_sh < 0.01:
             continue
+        if dump_sh + 1e-9 < shares and dump_sh + 1e-9 < min_sh:
+            continue
+        if dump_vwap <= 0:
+            continue
+        sell_fee = taker_fee(dump_sh, dump_vwap, fee_rate)
+        proceeds = round(max(0.0, dump_sh * dump_vwap - sell_fee), 6)
+        plan = RescuePlan(
+            "dump",
+            round(dump_vwap, 4),
+            sell_fee,
+            proceeds,
+            round(proceeds - filled_px * dump_sh, 6),
+            why,
+            round(float(floor), 4),
+        )
         row = {
             "id": None,
             "slug": inv.get("slug") or ev["slug"],
             "condition_id": cid,
-            "shares": shares,
+            "shares": dump_sh,
             "up_price": filled_px if leg == "up" else 0.0,
             "down_price": filled_px if leg == "down" else 0.0,
             "up_token": ev["up_token"],
@@ -1600,6 +1617,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             twap_max_price=setting_num(s, "twap_max_price", 0.55),
             twap_min_left=setting_num(s, "twap_min_left", 120.0),
             twap_max_left=setting_num(s, "twap_max_left", 280.0),
+            twap_late_left=setting_num(s, "twap_late_left", 180.0),
+            twap_late_min_price=setting_num(s, "twap_late_min_price", 0.50),
         )
         payload = {
             "title": setup.title,
@@ -1719,6 +1738,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 twap_max_price=setting_num(s, "twap_max_price", 0.55),
                 twap_min_left=setting_num(s, "twap_min_left", 120.0),
                 twap_max_left=setting_num(s, "twap_max_left", 280.0),
+                twap_late_left=setting_num(s, "twap_late_left", 180.0),
+                twap_late_min_price=setting_num(s, "twap_late_min_price", 0.50),
             )
             if not resized.ok:
                 fok_kills += 1
@@ -1734,6 +1755,12 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         fill_payload = {"detail": result.detail, **(result.payload or {})}
         if setup.kind == "taker" and not fill_payload.get("orders"):
             fill_payload["orders"] = setup_buy_orders(setup)
+        if is_twap_setup(setup):
+            extra = setup.extra or {}
+            if extra.get("fair_p") is not None:
+                fill_payload["fair_p"] = extra.get("fair_p")
+            if extra.get("lead_bps") is not None:
+                fill_payload["lead_bps"] = extra.get("lead_bps")
         rt.store.add_trade(
             slug=setup.slug,
             kind=setup.kind,

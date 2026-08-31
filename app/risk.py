@@ -43,6 +43,8 @@ def approve(
     twap_max_price: float = 0.55,
     twap_min_left: float = 120.0,
     twap_max_left: float = 280.0,
+    twap_late_left: float = 180.0,
+    twap_late_min_price: float = 0.50,
 ) -> RiskDecision:
     if killed:
         return RiskDecision(False, "kill_switch")
@@ -71,6 +73,8 @@ def approve(
             return RiskDecision(False, "twap_out_of_band")
         if seconds_left is None or seconds_left < float(twap_min_left) or seconds_left > float(twap_max_left) + 1e-9:
             return RiskDecision(False, "twap_window")
+        if seconds_left < float(twap_late_left) and rich + 1e-12 < float(twap_late_min_price):
+            return RiskDecision(False, "twap_late_cheap")
         spent = float(favorite_spent or 0) if (inventory_up > 0.01 or inventory_down > 0.01) else 0.0
         new_cost = float(cost) if cost is not None else float(setup.cost)
         if spent + new_cost > float(max_usd_per_trade) + 0.05:

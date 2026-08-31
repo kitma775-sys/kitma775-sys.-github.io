@@ -700,6 +700,17 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev46 live autopsy: no new TWAP if left<120s; one coin per 5m clock. Keep 6bps, 45–55, scratch, stake.",
         )
+    if rev < 47:
+        store.patch_settings(
+            strategy_rev=47,
+            twap_late_left=180.0,
+            twap_late_min_price=0.50,
+            twap_scratch_dump_floor=0.22,
+        )
+        store.add_event(
+            "info",
+            "rev47 hit-rate: no 45¢ if left<180s; flip/weak dump down to 22¢. Keep 6bps, scratch, stake, one coin/clock.",
+        )
     return n
 
 
