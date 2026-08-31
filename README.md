@@ -23,7 +23,7 @@ cp .env.example .env
 python main.py
 ```
 
-- Dashboard：`http://127.0.0.1:8080/?t=DASHBOARD_TOKEN`
+- Dashboard：`http://127.0.0.1:8080/?t=DASHBOARD_TOKEN`（Telegram 主頁有「🖥 開 Dashboard」一撳打開；要 `DASHBOARD_PUBLIC_URL` + `DASHBOARD_TOKEN`）
 - Telegram：搵 bot 撳 **Start**，第一個進嚟嘅人成為主人（或設 `TELEGRAM_OWNER_ID`）
 
 ```bash
@@ -40,6 +40,8 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_OWNER_ID=
 TELEGRAM_CHAT_ID=
 DASHBOARD_TOKEN=
+# 可選。空則 Telegram「開 Dashboard」用 https://surf-arb.zeabur.app
+DASHBOARD_PUBLIC_URL=
 DATA_DIR=/data
 TRADING_MODE=paper
 ENGINE_AUTOSTART=true

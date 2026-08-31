@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from urllib.parse import quote
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
@@ -97,20 +98,37 @@ def _owner(update: Update, rt: Runtime) -> bool:
     return user.id == stored
 
 
+def dashboard_open_url(rt: Runtime) -> str | None:
+    """Owner-only HTTPS link with dashboard token. Missing base or token → no button."""
+    base = str(rt.env.dashboard_public_url or "").strip().rstrip("/")
+    token = str(rt.env.dashboard_token or "").strip()
+    if not base or not token:
+        return None
+    if not (base.startswith("https://") or base.startswith("http://")):
+        return None
+    return f"{base}/?t={quote(token, safe='')}"
+
+
 def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     run = "⏸ 暫停" if s.get("engine_running") else "▶️ 繼續跑"
     run_cb = "pause" if s.get("engine_running") else "resume"
-    rows = [
-        [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
-        [InlineKeyboardButton(run, callback_data=run_cb), InlineKeyboardButton("📜 最近紀錄", callback_data="log")],
-        [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")],
-        [InlineKeyboardButton("⚙️ 高階設定", callback_data="set"), InlineKeyboardButton("🧪／🔴 盤口模式", callback_data="mode")],
-        [InlineKeyboardButton("🆘 緊急停機", callback_data="kill")],
-    ]
+    rows: list[list[InlineKeyboardButton]] = []
+    dash = dashboard_open_url(rt)
+    if dash:
+        rows.append([InlineKeyboardButton("🖥 開 Dashboard", url=dash)])
+    rows.extend(
+        [
+            [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
+            [InlineKeyboardButton(run, callback_data=run_cb), InlineKeyboardButton("📜 最近紀錄", callback_data="log")],
+            [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")],
+            [InlineKeyboardButton("⚙️ 高階設定", callback_data="set"), InlineKeyboardButton("🧪／🔴 盤口模式", callback_data="mode")],
+            [InlineKeyboardButton("🆘 緊急停機", callback_data="kill")],
+        ]
+    )
     if rt.circuit_tripped():
         rows.insert(
-            1,
+            1 if dash else 0,
             [InlineKeyboardButton("🧊 解除今日熔斷（今日PnL重新計）", callback_data="circuit1")],
         )
     return InlineKeyboardMarkup(rows)

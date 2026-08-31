@@ -158,6 +158,7 @@ class Env:
     clob_passphrase: str = ""
     force_paper: bool = False
     paper_starting_cash: float = 500.0
+    dashboard_public_url: str = ""
 
 
 def load_env() -> Env:
@@ -179,6 +180,10 @@ def load_env() -> Env:
         clob_passphrase=os.getenv("CLOB_PASSPHRASE", "").strip(),
         force_paper=os.getenv("FORCE_PAPER", "false").lower() in {"1", "true", "yes"},
         paper_starting_cash=float(os.getenv("PAPER_STARTING_CASH", "500") or 500),
+        dashboard_public_url=(
+            os.getenv("DASHBOARD_PUBLIC_URL", "").strip().rstrip("/")
+            or "https://surf-arb.zeabur.app"
+        ),
     )
 
 

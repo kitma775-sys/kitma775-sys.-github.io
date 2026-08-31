@@ -651,6 +651,30 @@ def test_home_text_shows_fok_kill_tape(tmp_path):
     assert "互補洞仍然會先吃" not in text
 
 
+def test_telegram_dashboard_url_button(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import dashboard_open_url, home_kb, home_text
+
+    st = Store(tmp_path / "dashbtn.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    assert dashboard_open_url(rt) is None
+    assert all(not getattr(btn, "url", None) for row in home_kb(rt).inline_keyboard for btn in row)
+
+    rt = Runtime(
+        st,
+        Env(dashboard_token="tok+/=x", dashboard_public_url="https://surf-arb.zeabur.app"),
+    )
+    url = dashboard_open_url(rt)
+    assert url == "https://surf-arb.zeabur.app/?t=tok%2B%2F%3Dx"
+    buttons = [btn for row in home_kb(rt).inline_keyboard for btn in row]
+    dash = next(b for b in buttons if b.text == "🖥 開 Dashboard")
+    assert dash.url == url
+    assert "tok+/=x" not in home_text(rt)
+    assert "開 Dashboard" not in home_text(rt)
+
+
 def test_asks_cross_bid_requires_size_through():
     from app.hunter import Level
     from app.paper_sim import asks_cross_bid
