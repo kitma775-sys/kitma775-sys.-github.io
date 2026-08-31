@@ -676,6 +676,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev42 CLOB 503 is a Polymarket-wide pause, not a wallet miss; announce once per outage; keep stake and 6bps",
         )
+    if rev < 43:
+        store.patch_settings(strategy_rev=43)
+        store.add_event(
+            "info",
+            "rev43 operator board: Telegram status is a one-shot; live shows CLOB USDC only; paper shows paper ledger; dashboard matches",
+        )
     return n
 
 

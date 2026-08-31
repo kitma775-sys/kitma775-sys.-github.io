@@ -74,6 +74,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "clob_halted": rt.clob_halted(),
             "clob_halt_reason": rt._clob_halt_reason if rt.clob_halted() else "",
             "live_onchain_limited": bool(rt.live_onchain_limited),
+            "live_usdc": rt.live_usdc,
             "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(mode="live"),
             "daily_loss_limit_usd": s.get("daily_loss_limit_usd"),
             "paper_equity": None if paper is None else paper["equity"],

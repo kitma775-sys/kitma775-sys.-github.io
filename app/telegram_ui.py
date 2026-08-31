@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import time
 from urllib.parse import quote
 
@@ -9,8 +8,7 @@ from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
-from app.geo import telegram_line
-from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory
+from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory, operator_board, refresh_live_usdc
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
 
@@ -36,6 +34,7 @@ def _rev_blurb(s: dict) -> str:
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
         "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
+        "主頁／而家狀況／Dashboard 跟盤口模式：實盤只睇可用 USDC 同實盤倉，紙盤只睇紙盤帳。"
     )
 
 
@@ -136,7 +135,14 @@ def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
             [InlineKeyboardButton(run, callback_data=run_cb), InlineKeyboardButton("📜 最近紀錄", callback_data="log")],
-            [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")],
+        ]
+    )
+    if rt.mode() == "paper":
+        rows.append(
+            [InlineKeyboardButton("💵 紙盤本金", callback_data="bank"), InlineKeyboardButton("♻️ 重置紙盤", callback_data="reset1")]
+        )
+    rows.extend(
+        [
             [InlineKeyboardButton("⚙️ 高階設定", callback_data="set"), InlineKeyboardButton("🧪／🔴 盤口模式", callback_data="mode")],
             [InlineKeyboardButton("🆘 緊急停機", callback_data="kill")],
         ]
@@ -193,25 +199,59 @@ def _signed(n: float) -> str:
 
 
 def _paper_block(rt: Runtime) -> str:
+    """Paper ledger only. Live surfaces use operator_board() instead."""
     p = rt.store.paper_state()
     planned = rt.paper_bankroll()
     extra = ""
     if abs(planned - float(p["starting"])) > 0.009:
         extra = f" · 下次重置 ${planned:.0f}"
-    paper_line = (
+    return (
         f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 凍結 ${p.get('reserved') or 0:.2f} · 權益 ${p['equity']:.2f}{extra}\n"
         f"累計 PnL {_signed(p['total_pnl'])} · 今日 {_signed(p['today_pnl'])} · 掛單 {int(p.get('resting') or 0)}"
     )
-    if rt.mode() == "live":
-        live_pnl = rt.store.today_pnl(mode="live")
-        leftover_n = len(leftover_paper_inventory(rt))
-        leftover = f" · 舊紙倉 {leftover_n} 檔完場靜默入帳" if leftover_n else ""
+
+
+def _money_line(rt: Runtime) -> str:
+    b = operator_board(rt)
+    if b["mode"] == "live":
+        usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
+        return f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])}"
+    return (
+        f"現金 ${b['cash']:.2f} · 權益 ${b['equity']:.2f} · 今日 {_signed(b['today_pnl'])}\n"
+        f"本金 ${b['starting']:.2f} · 單筆 ${b['stake']:.0f}"
+    )
+
+
+def settings_text(rt: Runtime) -> str:
+    """Long strategy copy — shown once when opening 設定, not on every status tap."""
+    return "\n".join(
+        [
+            "⚙️ 設定（改完即時生效）",
+            "",
+            _rev_blurb(rt.settings()),
+            "",
+            TG_SET_HINT,
+            "加減只改倉位／風控／掃描。",
+        ]
+    )
+
+
+def mode_text(rt: Runtime) -> str:
+    b = operator_board(rt)
+    if b["mode"] == "live":
+        usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
         return (
-            f"實盤今日 {_signed(live_pnl)}{leftover}\n"
-            f"紙盤帳（轉實盤前剩單）\n"
-            + paper_line
+            "而家：🔴 實盤\n"
+            f"可用 USDC {usdc} · 單筆 ${b['stake']:.0f} · 今日 {_signed(b['today_pnl'])}\n"
+            f"開倉 {b['open_n']} · 持倉成本 ${b['open_cost']:.2f}\n"
+            "轉返紙盤會只睇紙盤帳，唔會改錢包。"
         )
-    return paper_line
+    return (
+        "而家：🧪 紙盤\n"
+        f"{_money_line(rt)}\n"
+        f"下次重置本金 ${rt.paper_bankroll():.0f}。\n"
+        "實盤要 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
+    )
 
 
 def bank_text(rt: Runtime) -> str:
@@ -298,126 +338,28 @@ def _label(key: str) -> str:
 
 
 def home_text(rt: Runtime) -> str:
-    s = rt.settings()
-    p = rt.store.paper_state()
-    st = rt.store.stats()
-    limit = float(s.get("daily_loss_limit_usd") or 0)
-    if s.get("killed"):
-        state = "🆘 已緊急停機"
-    elif not s.get("engine_running"):
-        state = "⏸ 暫停緊"
-    elif limit > 0 and p["today_pnl"] <= -abs(limit):
-        state = "🧊 日虧熔斷（停新倉）"
-    else:
-        state = "🟢 全自動運行中" if s.get("auto_execute") else "🟡 只掃描，唔落單"
-    mode = "🧪 紙盤" if rt.mode() == "paper" else "🔴 實盤"
-    keys = "匙已備" if live_keys_ready(rt.env) else "未交實盤匙"
-    if rt.env.force_paper:
-        keys = "FORCE_PAPER 鎖住實盤"
-    blockers = live_switch_blockers(rt.env, rt.geo)
-    if blockers and rt.mode() == "paper":
-        keys = "實盤未就緒：" + "／".join(LIVE_BLOCKER_ZH.get(b, b) for b in blockers)
-    geo_line = telegram_line(rt.geo)
-    last = rt.last_loop or {}
-    halt = ""
-    if rt.mode() == "live" and rt.clob_halted():
-        halt = "\n⏸ Polymarket CLOB 全站暫停（官方 503），唔係錢包問題。status.polymarket.com"
-    return (
-        f"🏄 衝浪套利 Bot\n"
-        f"{state} · {mode}{halt}\n"
-        f"{_paper_block(rt)}\n"
-        f"今日掃描 {st['scans_24h']} · 成交 {st['trades_24h']}"
-        + (f" · 對沖 {st['hedges_24h']}" if st.get("hedges_24h") else "")
-        + "\n"
-        f"開倉市場 {st['open_markets']} · {keys}\n"
-        f"上一圈：{last.get('status','—')} 市場{last.get('markets','—')} 信號{last.get('signals','—')} 成交{last.get('fills','—')} WS {last.get('ws_status') or rt.ws_status}"
-        f"{_tape_line(last)}"
-        f"{geo_line}\n\n"
-        + _rev_blurb(s)
-        + "\n未交匙／FORCE_PAPER 開住永遠紙盤。真金要撳兩次確認。"
-    )
-
-
-def _tape_line(last: dict) -> str:
-    tape = last.get("tape") or {}
-    if not tape.get("n"):
-        bits = []
-        if tape.get("ws_status"):
-            bits.append(f"WS {tape['ws_status']}")
-        if tape.get("chainlink_status"):
-            bits.append(f"CL {tape['chainlink_status']}")
-        if tape.get("stale_pairs"):
-            bits.append(f"過期 {int(tape['stale_pairs'])}")
-        if tape.get("empty_ask_legs"):
-            bits.append(f"單邊空簿 {int(tape['empty_ask_legs'])}")
-        err = tape.get("book_errors")
-        if err:
-            bits.append(f"拉簿失敗 {err}")
-        if bits:
-            return "\n盤口：" + " · ".join(bits)
-        return ""
-    bits = [f"盤口 {tape['n']} 盤"]
-    if tape.get("ws_status"):
-        bits.append(f"WS {tape['ws_status']}")
-    if tape.get("chainlink_status"):
-        bits.append(f"CL {tape['chainlink_status']}")
-    gate = tape.get("twap_gate") or {}
-    if gate.get("reason"):
-        lead = gate.get("lead_bps")
-        ask = gate.get("ask")
-        left = gate.get("left")
-        bits.append(
-            "TWAP "
-            + (f"{int(left)}s " if left is not None else "")
-            + (f"lead {lead:+.1f}bps " if lead is not None else "")
-            + (f"ask {ask} " if ask is not None else "")
-            + str(gate.get("reason"))
-        )
-    if tape.get("ws_pairs") is not None:
-        bits.append(f"WS盤 {int(tape.get('ws_pairs') or 0)}")
-    if tape.get("http_pairs"):
-        bits.append(f"HTTP {int(tape['http_pairs'])}")
-    if tape.get("stale_pairs"):
-        bits.append(f"過期 {int(tape['stale_pairs'])}")
-    if tape.get("empty_ask_legs"):
-        bits.append(f"單邊空簿 {int(tape['empty_ask_legs'])}")
-    if tape.get("taker_fok") and (tape.get("snapshot_signals") or tape.get("fok_kills") or tape.get("fok_fills")):
-        bits.append(
-            f"FOK 影{int(tape.get('snapshot_signals') or 0)}/"
-            f"成{int(tape.get('fok_fills') or 0)}/"
-            f"殺{int(tape.get('fok_kills') or 0)}"
-        )
-    if tape.get("nearest_s") is not None:
-        slug = str(tape.get("nearest_slug") or "")[:28]
-        bits.append(f"最近 {int(tape['nearest_s'])}s {slug}".rstrip())
-    names = [str(x) for x in (tape.get("slugs") or []) if x][:4]
-    if names:
-        bits.append("掃 " + ", ".join(names))
-    extra = f" · 拉簿失敗 {tape['book_errors']}" if tape.get("book_errors") else ""
-    return "\n" + " · ".join(bits) + extra
+    b = operator_board(rt)
+    mode = "🔴 實盤" if b["mode"] == "live" else "🧪 紙盤"
+    lines = [
+        "🏄 衝浪套利 Bot",
+        f"{b['state']} · {mode}",
+        _money_line(rt),
+        f"開倉 {b['open_n']} · 持倉成本 ${b['open_cost']:.2f} · WS {b['ws']} · CL {b['chainlink']}",
+    ]
+    lines.extend(b["notes"])
+    return "\n".join(lines)
 
 
 def _status_text(rt: Runtime) -> str:
-    s = rt.settings()
-    assets = ", ".join(a.upper() for a in (s.get("assets") or []))
-    return (
-        home_text(rt)
-        + "\n\n高階參數\n"
-        + f"策略 rev {int(s.get('strategy_rev') or 0)} · WS {rt.ws_status} · Chainlink {rt.chainlink_status}\n"
-        + f"{_strategy_label(s)}（鎖定，唔做互補／大熱）\n"
-        + f"單筆 ≤ ${s['max_usd_per_trade']} · 日虧熔斷 ${s['daily_loss_limit_usd']} · 掃描 {s['poll_seconds']}s\n"
-        + f"TWAP lead≥{float(s.get('twap_min_lead_bps') or 6):.0f}bps · 剩餘 {float(s.get('twap_min_left') or 12):.0f}–{float(s.get('twap_max_left') or 280):.0f}s · 缺口 ≥{float(s.get('twap_min_edge') or 0.04):.2f}\n"
-        + f"FOK {'開' if s.get('taker_fok', True) else '關'} · RTT {float(s.get('clob_rtt_ms') or 150):.0f}ms · redeem {'開' if s.get('auto_redeem', True) else '關'}\n"
-        + f"週期 {', '.join(s.get('tags') or [s.get('tag') or '5M'])}（鎖定 5 分鐘） · 每圈 ≤ {s.get('scan_limit') or 16}\n"
-        + f"幣：{assets or '全部'}（TWAP 入場＝有 Chainlink 嘅 5 分鐘盤）"
-    )
+    """Same short board as home — strategy essay lives in 設定."""
+    return home_text(rt)
 
 
 def _pos_text(rt: Runtime) -> str:
     inv = mode_inventory(rt)
     rest = rt.store.resting_open() if rt.mode() == "paper" else []
     leftover = leftover_paper_inventory(rt)
-    lines = [_paper_block(rt), "", "📦 倉位"]
+    lines = [_money_line(rt), "", "📦 倉位"]
     if leftover:
         lines.append(f"紙盤剩倉 {len(leftover)} 檔（完場入紙盤帳，唔彈 Telegram）")
     if rest:
@@ -509,14 +451,17 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
     s = rt.settings()
 
     if data == "home":
+        await refresh_live_usdc(rt)
         await q.answer()
         await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "status":
-        await q.answer()
+        await refresh_live_usdc(rt, force=True)
+        await q.answer("已更新")
         await _safe_edit(q, _status_text(rt), reply_markup=home_kb(rt))
         return
     if data == "pos":
+        await refresh_live_usdc(rt)
         await q.answer()
         await _safe_edit(q, _pos_text(rt), reply_markup=home_kb(rt))
         return
@@ -539,7 +484,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             await q.answer("而家冇熔斷")
             await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
             return
-        p = rt.store.paper_state()
+        b = operator_board(rt)
         kb = InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("確認：今日 PnL 由 0 再計", callback_data="circuit2")],
@@ -547,10 +492,15 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
             ]
         )
         await q.answer()
+        if b["mode"] == "live":
+            usdc = "—" if b["cash"] is None else f"${b['cash']:.2f}"
+            now = f"而家可用 USDC {usdc} · 實盤今日 {_signed(b['today_pnl'])}。"
+        else:
+            now = f"而家權益 ${b['equity']:.2f} · 今日 {_signed(b['today_pnl'])}。"
         await _safe_edit(
             q,
             "解除今日熔斷唔會清倉、唔會改本金。\n"
-            f"而家權益 ${p['equity']:.2f} · 今日 {_signed(p['today_pnl'])}。\n"
+            f"{now}\n"
             "撳確認之後今日 PnL 由 0 再計，會再開新倉。每盤仍然 ≤ 單筆上限。",
             reply_markup=kb,
         )
@@ -585,13 +535,9 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await _safe_edit(q, home_text(rt), reply_markup=home_kb(rt))
         return
     if data == "mode":
+        await refresh_live_usdc(rt)
         await q.answer()
-        await _safe_edit(q, 
-            f"而家：{'紙盤' if rt.mode()=='paper' else '實盤'}\n"
-            f"策略鎖定 Chainlink 5 分鐘 TWAP（多幣種；15m／1H 已砍）。紙盤用同一套 CLOB FAK dry-run。下次重置本金 ${rt.paper_bankroll():.0f}。\n"
-            "實盤要環境變數有 POLYMARKET_PRIVATE_KEY，關 FORCE_PAPER，再撳兩次確認。",
-            reply_markup=mode_kb(rt),
-        )
+        await _safe_edit(q, mode_text(rt), reply_markup=mode_kb(rt))
         return
     if data == "paper":
         rt.store.patch_settings(live_trading=False)
@@ -651,9 +597,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(q, 
             "實盤會用你把匙簽名落單。\n"
-            "而家只做 Chainlink 5 分鐘 TWAP（多幣種）。15 分鐘同 1 小時已砍。紙盤同真錢同一套 CLOB FAK。\n"
-            "紙盤係真錢 dry-run，但 queue／部分成交／延遲仍然會差一截。\n"
-            "CLOB 買賣唔使 Builder key。完場鏈上 redeem 要 gasless；未填嘅話可以喺 Polymarket 網站 redeem。\n"
+            "轉咗之後主頁同 Dashboard 只顯示錢包可用 USDC、實盤倉同實盤今日 PnL。\n"
             "全自動模式下唔會逐單確認。FORCE_PAPER 開住永遠紙盤。確定轉？",
             reply_markup=kb,
         )
@@ -679,7 +623,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer()
         await _safe_edit(
             q,
-            TG_SET_HINT + "\n加減只改倉位／風控／掃描。",
+            settings_text(rt),
             reply_markup=settings_kb(rt),
         )
         return
@@ -687,7 +631,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await q.answer("策略已鎖定 TWAP", show_alert=True)
         await _safe_edit(
             q,
-            TG_SET_HINT,
+            settings_text(rt),
             reply_markup=settings_kb(rt),
         )
         return
@@ -725,7 +669,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         if key in TOGGLES:
             rt.store.patch_settings(**{key: not bool(s.get(key))})
         await q.answer("已更新")
-        await _safe_edit(q, TG_SET_HINT, reply_markup=settings_kb(rt))
+        await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
         return
     if data.startswith("inc:") or data.startswith("dec:"):
         key = data.split(":", 1)[1]
@@ -744,7 +688,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
                 await q.answer(note)
             else:
                 await q.answer()
-            await _safe_edit(q, TG_SET_HINT, reply_markup=settings_kb(rt))
+            await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
             return
         nxt = cur + step if data.startswith("inc:") else cur - step
         nxt = min(hi, max(lo, nxt))
@@ -753,7 +697,7 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         else:
             rt.store.patch_settings(**{key: round(nxt, 4)})
         await q.answer()
-        await _safe_edit(q, TG_SET_HINT, reply_markup=settings_kb(rt))
+        await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
         return
     await q.answer()
 
@@ -777,7 +721,7 @@ async def run_telegram(rt: Runtime) -> None:
         try:
             await application.bot.send_message(
                 chat_id=owner,
-                text=_clip(home_text(rt) + f"\n\n紙盤下次重置本金 ${rt.paper_bankroll():.0f}。現金／權益／PnL 睇上面同 dashboard。"),
+                text=_clip(home_text(rt)),
                 reply_markup=home_kb(rt),
             )
         except Exception:

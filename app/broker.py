@@ -180,6 +180,9 @@ class PaperBroker:
     async def list_redeemable(self) -> list[dict]:
         return []
 
+    async def collateral_usdc(self) -> float | None:
+        return None
+
     async def execute_sell(self, token_id: str, shares: float, min_price: float) -> FillResult:
         order = sell_fak_kwargs(token_id=token_id, shares=shares, min_price=min_price)
         payload = {"token": token_id, "min_price": min_price, **order}
@@ -213,6 +216,11 @@ class LiveBroker:
             kw["wallet"] = self.wallet
         self._client = await AsyncSecureClient.create(**kw)
         return self._client
+
+    async def collateral_usdc(self) -> float | None:
+        client = await self._client_ready()
+        bal = await client.get_balance_allowance(asset_type="COLLATERAL")
+        return int(getattr(bal, "balance", 0) or 0) / 1_000_000
 
     async def execute_pair(self, setup: Setup) -> FillResult:
         client = await self._client_ready()

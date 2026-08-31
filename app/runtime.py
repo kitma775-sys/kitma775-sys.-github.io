@@ -41,6 +41,113 @@ def leftover_paper_inventory(rt: Runtime) -> list[dict]:
     return [r for r in rt.store.inventory_open() if not is_live_inventory_kind(r.get("kind"))]
 
 
+def store_live_usdc(rt: Runtime, usdc: float) -> None:
+    rt.live_usdc = round(float(usdc), 6)
+    rt._live_usdc_at = time.time()
+    rt.store.kv_set("live_usdc", json.dumps({"usdc": rt.live_usdc, "ts": rt._live_usdc_at}))
+
+
+def load_live_usdc(rt: Runtime) -> None:
+    if rt.live_usdc is not None:
+        return
+    raw = rt.store.kv_get("live_usdc")
+    if not raw:
+        return
+    try:
+        row = json.loads(raw)
+        rt.live_usdc = float(row["usdc"] if isinstance(row, dict) else row)
+        rt._live_usdc_at = float((row or {}).get("ts") or 0) if isinstance(row, dict) else 0.0
+    except (TypeError, ValueError, json.JSONDecodeError, KeyError):
+        return
+
+
+async def refresh_live_usdc(rt: Runtime, *, force: bool = False) -> float | None:
+    if rt.mode() != "live":
+        return None
+    now = time.time()
+    if not force and now - float(getattr(rt, "_live_usdc_at", 0) or 0) < 45:
+        return rt.live_usdc
+    fn = getattr(rt.broker(), "collateral_usdc", None)
+    if not callable(fn):
+        return rt.live_usdc
+    try:
+        usdc = await fn()
+    except Exception as exc:
+        rt.store.add_event("warn", f"live usdc {fmt_exc(exc)}"[:180])
+        return rt.live_usdc
+    if usdc is None:
+        return rt.live_usdc
+    store_live_usdc(rt, float(usdc))
+    return rt.live_usdc
+
+
+def operator_board(rt: Runtime) -> dict[str, Any]:
+    """Mode-aware operator snapshot. Telegram home and the dashboard share this."""
+    s = rt.settings()
+    live = rt.mode() == "live"
+    inv = mode_inventory(rt)
+    leftover_n = len(leftover_paper_inventory(rt))
+    last = rt.last_loop or {}
+    if s.get("killed"):
+        state = "🆘 已緊急停機"
+    elif not s.get("engine_running"):
+        state = "⏸ 暫停緊"
+    elif rt.circuit_tripped():
+        state = "🧊 日虧熔斷（停新倉）"
+    else:
+        state = "🟢 全自動運行中" if s.get("auto_execute") else "🟡 只掃描，唔落單"
+    notes: list[str] = []
+    halted = bool(live and rt.clob_halted())
+    if halted:
+        notes.append("⏸ Polymarket CLOB 全站暫停 · status.polymarket.com")
+    stake = float(s.get("max_usd_per_trade") or 5)
+    open_cost = round(sum(float(r.get("cost") or 0) for r in inv), 2)
+    base = {
+        "mode": "live" if live else "paper",
+        "state": state,
+        "stake": stake,
+        "open_n": len(inv),
+        "open_cost": open_cost,
+        "ws": rt.ws_status,
+        "chainlink": rt.chainlink_status,
+        "halted": halted,
+        "notes": notes,
+        "signals": last.get("signals"),
+        "fills": last.get("fills"),
+        "rev": int(s.get("strategy_rev") or 0),
+        "leftover_paper_n": leftover_n,
+    }
+    if live:
+        usdc = rt.live_usdc
+        base.update(
+            {
+                "cash_label": "可用 USDC",
+                "cash": None if usdc is None else round(float(usdc), 2),
+                "today_pnl": round(float(rt.store.today_pnl(mode="live")), 2),
+                "equity": None,
+                "starting": None,
+                "reserved": None,
+                "total_pnl": None,
+                "resting_n": 0,
+            }
+        )
+        return base
+    p = rt.store.paper_state()
+    base.update(
+        {
+            "cash_label": "紙盤現金",
+            "cash": round(float(p["cash"]), 2),
+            "today_pnl": round(float(p["today_pnl"]), 2),
+            "equity": round(float(p["equity"]), 2),
+            "starting": round(float(p["starting"]), 2),
+            "reserved": round(float(p.get("reserved") or 0), 2),
+            "total_pnl": round(float(p["total_pnl"]), 2),
+            "resting_n": int(p.get("resting") or 0),
+        }
+    )
+    return base
+
+
 def _gasless_key_error(exc: BaseException) -> bool:
     text = str(exc).lower()
     return "builder api key" in text or "relayer api key" in text
@@ -121,6 +228,7 @@ async def arm_live_wallet(rt: Runtime) -> str | None:
         except Exception as exc:
             return f"讀唔到 USDC 餘額：{fmt_exc(exc)}"[:180]
         rt.live_usdc = usdc
+        store_live_usdc(rt, usdc)
         if usdc + 1e-9 < 5.0:
             return f"錢包 USDC ≈ ${usdc:.2f}，少過最低一注 $5"
         try:
@@ -601,10 +709,12 @@ class Runtime:
         self._http_at: dict[str, float] = {}
         self.skip_live_preflight = False
         self.live_usdc = None
+        self._live_usdc_at = 0.0
         self.live_onchain_limited = False
         self._clob_halt_until = 0.0
         self._clob_halt_reason = ""
         self._clob_halt_announced = False
+        load_live_usdc(self)
 
     def clob_halted(self) -> bool:
         return time.time() < float(self._clob_halt_until or 0)
@@ -732,7 +842,7 @@ class Runtime:
             "chainlink_status": self.chainlink_status,
             "inventory": mode_inventory(self)[:20],
             "leftover_paper_n": len(leftover),
-            "resting": self.store.resting_open()[:20],
+            "resting": [] if self.mode() == "live" else self.store.resting_open()[:20],
             "trades": trades,
             "scans": scans,
             "events": [e for e in self.store.recent_events(40) if float(e.get("ts") or 0) >= self.started_at - 30][:15],
@@ -740,6 +850,7 @@ class Runtime:
             "clob_halt_reason": self._clob_halt_reason if self.clob_halted() else "",
             "live_onchain_limited": bool(self.live_onchain_limited),
             "live_usdc": self.live_usdc,
+            "board": operator_board(self),
         }
 
 
@@ -772,6 +883,7 @@ async def _universe_loop(rt: Runtime) -> None:
         try:
             await _ensure_http(rt)
             await _refresh_universe(rt)
+            await refresh_live_usdc(rt)
             backoff = 1.0
         except Exception as exc:
             detail = fmt_exc(exc)
