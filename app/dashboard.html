@@ -87,6 +87,7 @@
         " · rev " + (s.strategy_rev || "?") +
         ((d.last_loop||{}).status === "circuit_breaker" ? " · 日虧熔斷停新倉" : "") +
         (d.clob_halted ? " · CLOB 停手" : "") +
+        (d.leftover_paper_n ? (" · 舊紙倉 " + d.leftover_paper_n) : "") +
         " · 掃描 " + (st.scans_24h||0) + " · 成交 " + (st.trades_24h||0) +
         (st.hedges_24h ? (" · 對沖 " + st.hedges_24h) : "") +
         " · 持倉成本 $" + Number((d.paper||st).inventory_value||0).toFixed(2) +

@@ -34,6 +34,13 @@ def mode_inventory(rt: Runtime, *, open_only: bool = True) -> list[dict]:
     return [r for r in rows if inventory_matches_mode(r.get("kind"), live=live)]
 
 
+def leftover_paper_inventory(rt: Runtime) -> list[dict]:
+    """Paper rows still open after a live flip. They only settle into the paper book."""
+    if rt.mode() != "live":
+        return []
+    return [r for r in rt.store.inventory_open() if not is_live_inventory_kind(r.get("kind"))]
+
+
 def _gasless_key_error(exc: BaseException) -> bool:
     text = str(exc).lower()
     return "builder api key" in text or "relayer api key" in text
@@ -152,7 +159,7 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
     key = favorite_window_key(slug)
     if not key:
         return False
-    for row in rt.store.inventory_open():
+    for row in mode_inventory(rt):
         other = str(row.get("slug") or "")
         if not other or other == slug:
             continue
@@ -429,7 +436,7 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
     parsed = parse_window(slug)
     if not parsed:
         return favorite_same_window_open(rt, slug)
-    for row in rt.store.inventory_open():
+    for row in mode_inventory(rt):
         other = str(row.get("slug") or "")
         if not other or other == slug:
             continue
@@ -657,8 +664,12 @@ class Runtime:
         st = self.store.stats()
         paper = self.store.paper_state()
         noisy = {"paper_leg_fill", "paper_resting", "resting"}
-        trades = [t for t in self.store.recent_trades(40) if t.get("status") not in noisy][:15]
+        trades = [t for t in self.store.recent_trades(40) if t.get("status") not in noisy]
+        if self.mode() == "live":
+            trades = [t for t in trades if t.get("mode") != "paper"]
+        trades = trades[:15]
         scans = [x for x in self.store.recent_scans(40) if float(x.get("ts") or 0) >= self.started_at - 2][:12]
+        leftover = leftover_paper_inventory(self)
         return {
             "mode": self.mode(),
             "keys_ready": live_keys_ready(self.env),
@@ -675,7 +686,8 @@ class Runtime:
             "ws_status": self.ws_status,
             "chainlink": self.chainlink.public(),
             "chainlink_status": self.chainlink_status,
-            "inventory": self.store.inventory_open()[:20],
+            "inventory": mode_inventory(self)[:20],
+            "leftover_paper_n": len(leftover),
             "resting": self.store.resting_open()[:20],
             "trades": trades,
             "scans": scans,
@@ -1204,7 +1216,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
     twap_params = default_params(s)
     twap_skips: dict[str, int] = {}
     twap_gate: dict | None = None
-    hold_cids = {str(r.get("condition_id") or "") for r in rt.store.inventory_open() if r.get("condition_id")}
+    hold_cids = {str(r.get("condition_id") or "") for r in mode_inventory(rt) if r.get("condition_id")}
     if not circuit:
         try:
             await _scratch_twap(rt, events)
@@ -2506,6 +2518,9 @@ async def _redeem_resolved(rt: Runtime) -> int:
             f"redeem {job['slug'] or cid} up={up:.2f}@{up_p} down={down:.2f}@{dn_p} payout=${payout:.2f}",
         )
         n += 1
+        leftover_live = paper_books and not paper_mode
+        if leftover_live:
+            continue
         if s.get("notify_signals"):
             extra = f" · 淨 ${settle_net:.2f}" if directional else ""
             flag = "🧪紙盤" if paper_books else "🔴實盤"

@@ -10,7 +10,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 
 from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_share_qty, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
 from app.geo import telegram_line
-from app.runtime import Runtime, arm_live_wallet
+from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
 
@@ -35,6 +35,7 @@ def _rev_blurb(s: dict) -> str:
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
         "CLOB 503／trading is disabled 會停手約 90 秒，只通知一次，唔連串刷 ❌。"
+        "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
     )
 
 
@@ -197,10 +198,20 @@ def _paper_block(rt: Runtime) -> str:
     extra = ""
     if abs(planned - float(p["starting"])) > 0.009:
         extra = f" · 下次重置 ${planned:.0f}"
-    return (
+    paper_line = (
         f"本金 ${p['starting']:.2f} · 現金 ${p['cash']:.2f} · 凍結 ${p.get('reserved') or 0:.2f} · 權益 ${p['equity']:.2f}{extra}\n"
         f"累計 PnL {_signed(p['total_pnl'])} · 今日 {_signed(p['today_pnl'])} · 掛單 {int(p.get('resting') or 0)}"
     )
+    if rt.mode() == "live":
+        live_pnl = rt.store.today_pnl(mode="live")
+        leftover_n = len(leftover_paper_inventory(rt))
+        leftover = f" · 舊紙倉 {leftover_n} 檔完場靜默入帳" if leftover_n else ""
+        return (
+            f"實盤今日 {_signed(live_pnl)}{leftover}\n"
+            f"紙盤帳（轉實盤前剩單）\n"
+            + paper_line
+        )
+    return paper_line
 
 
 def bank_text(rt: Runtime) -> str:
@@ -403,9 +414,12 @@ def _status_text(rt: Runtime) -> str:
 
 
 def _pos_text(rt: Runtime) -> str:
-    inv = rt.store.inventory_open()
-    rest = rt.store.resting_open()
+    inv = mode_inventory(rt)
+    rest = rt.store.resting_open() if rt.mode() == "paper" else []
+    leftover = leftover_paper_inventory(rt)
     lines = [_paper_block(rt), "", "📦 倉位"]
+    if leftover:
+        lines.append(f"紙盤剩倉 {len(leftover)} 檔（完場入紙盤帳，唔彈 Telegram）")
     if rest:
         lines.append("掛單（未碰到盤口唔入 PnL）")
         for row in rest[:10]:
@@ -416,6 +430,8 @@ def _pos_text(rt: Runtime) -> str:
                 f"\n  Up {up_f} · Down {dn_f} · 鎖 ${float(row.get('reserved') or 0):.2f}"
             )
     if not inv and not rest:
+        if leftover:
+            return "\n".join(lines)
         lines.append("而家無倉、無掛單。")
         return "\n".join(lines)
     for row in inv[:15]:
@@ -439,7 +455,10 @@ def _pos_text(rt: Runtime) -> str:
 
 
 def _log_text(rt: Runtime) -> str:
-    trades = [t for t in rt.store.recent_trades(24) if t.get("status") not in NOISE_TRADE][:8]
+    trades = [t for t in rt.store.recent_trades(24) if t.get("status") not in NOISE_TRADE]
+    if rt.mode() == "live":
+        trades = [t for t in trades if t.get("mode") != "paper"]
+    trades = trades[:8]
     if not trades:
         return "近期無成交／對沖／結算。掛單同單邊碰到唔再當成問題單顯示。"
     lines = ["📜 最近紀錄（隱藏掛單／單邊碰到）"]
