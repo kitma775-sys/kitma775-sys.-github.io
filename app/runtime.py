@@ -480,6 +480,47 @@ def ws_token_shards(
     return [toks[i * n : (i + 1) * n] for i in range(max(1, int(sockets)))]
 
 
+def ws_sub_plan(old_chunk: list[str] | tuple[str, ...], new_chunk: list[str] | tuple[str, ...]) -> dict[str, Any]:
+    """Keep vs in-place resub vs idle when a shard's token list changes.
+
+    Polymarket market WS supports ``operation`` subscribe/unsubscribe without
+    reconnect. Breaking the socket blanks every book (``initial_dump`` is off)
+    until the next delta — that is the 45–55¢ flash miss on 5m prewarm.
+    """
+    old = [t for t in old_chunk if t]
+    new = [t for t in new_chunk if t]
+    if not new:
+        return {"action": "idle", "add": [], "drop": list(old)}
+    old_set = set(old)
+    new_set = set(new)
+    if old_set == new_set:
+        return {"action": "keep", "add": [], "drop": []}
+    add = [t for t in new if t not in old_set]
+    drop = [t for t in old if t not in new_set]
+    return {"action": "resub", "add": add, "drop": drop}
+
+
+def ws_sub_frames(plan: dict[str, Any]) -> list[str]:
+    """Unsubscribe first so a prewarm never briefly holds 8+new on one socket."""
+    frames: list[str] = []
+    drop = [t for t in (plan.get("drop") or []) if t]
+    add = [t for t in (plan.get("add") or []) if t]
+    if drop:
+        frames.append(json.dumps({"assets_ids": drop, "operation": "unsubscribe"}))
+    if add:
+        frames.append(
+            json.dumps(
+                {
+                    "assets_ids": add,
+                    "operation": "subscribe",
+                    "custom_feature_enabled": True,
+                    "initial_dump": False,
+                }
+            )
+        )
+    return frames
+
+
 def _event_ask_hint(ev: dict) -> float | None:
     """Cheap ask from Gamma outcomePrices / bestAsk when CLOB is not on WS yet."""
     prices: list[float] = []
@@ -1245,8 +1286,28 @@ async def _ws_socket(rt: Runtime, index: int) -> None:
                     async for raw in ws:
                         now_shards = ws_token_shards(rt.books.wanted)
                         now_chunk = now_shards[index] if index < len(now_shards) else []
-                        if now_chunk != chunk:
+                        plan = ws_sub_plan(chunk, now_chunk)
+                        if plan["action"] == "idle":
                             break
+                        if plan["action"] == "resub":
+                            try:
+                                for frame in ws_sub_frames(plan):
+                                    await ws.send(frame)
+                            except Exception:
+                                break
+                            chunk = list(now_chunk)
+                            now = time.time()
+                            stamps = getattr(rt, "_ws_info_ts", {})
+                            rkey = f"r{index}"
+                            if now - float(stamps.get(rkey) or 0) > 60:
+                                rt.store.add_event(
+                                    "info",
+                                    f"ws resub +{len(plan['add'])} -{len(plan['drop'])} shard {index}",
+                                )
+                                stamps[rkey] = now
+                                rt._ws_info_ts = stamps
+                        elif now_chunk != chunk:
+                            chunk = list(now_chunk)
                         changed = rt.books.apply_message(raw)
                         if changed:
                             rt._hunt_event.set()

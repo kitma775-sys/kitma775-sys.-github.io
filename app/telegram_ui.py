@@ -59,7 +59,7 @@ def _rev_blurb(s: dict) -> str:
         "高階設定有「逆向思維」掣：開咗就買 TWAP lead 嘅對家，持有到結算（BM scratch 同 90s 確認都會一入場就倒貨所以關掉）。預設關。"
         "Binance 18 日同一批入場 fade 全樣本 −EV；現場 8W/32L 係 scratch 剩低嘅持有倉，唔係全部信號都應該買對家。"
         "BTC/ETH 各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死。"
-        "CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
+        "CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗用 subscribe/unsubscribe 唔斷線；仙價未到預熱唔甩槽；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"

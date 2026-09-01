@@ -788,6 +788,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev56 live FOK: skip second RTT re-walk (Rev 10: no second wait). Keep 250ms delay + no leftover cheaper, first-cross 6bps 45–55, BTC+ETH, 90s confirm, reverse off, stake.",
         )
+    if rev < 57:
+        store.patch_settings(strategy_rev=57)
+        store.add_event(
+            "info",
+            "rev57 CLOB WS: prewarm next 5m with subscribe/unsubscribe in place. Reconnect + initial_dump=false blanks current books and misses the 45–55 flash. Keep 250ms FOK, no leftover cheaper, first-cross 6bps 45–55, BTC+ETH, 90s confirm, reverse off, stake.",
+        )
     return n
 
 
