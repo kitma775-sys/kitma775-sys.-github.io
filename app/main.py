@@ -782,6 +782,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev55 per-asset clock: BTC and ETH may take the same 5m unix (tape n=593 independent). Same coin still one horizon; fill/dump keeps that coin until T1 so scratch cannot reverse. Keep first-cross, 90s confirm, BTC+ETH hunt, 6bps, reverse off, stake.",
         )
+    if rev < 56:
+        store.patch_settings(strategy_rev=56)
+        store.add_event(
+            "info",
+            "rev56 live FOK: skip second RTT re-walk (Rev 10: no second wait). Keep 250ms delay + no leftover cheaper, first-cross 6bps 45–55, BTC+ETH, 90s confirm, reverse off, stake.",
+        )
     return n
 
 

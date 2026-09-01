@@ -2157,6 +2157,19 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
 
 
 async def _fetch_fok_books(rt: Runtime, ev: dict) -> tuple[dict, dict] | None:
+    """Delayed-book confirm: prefer a fresh WS pair over a new HTTP RTT.
+
+    Hunt already subscribed these tokens. HTTP after the 250ms itode wait
+    ages the delayed book another 100–300ms and is how sticky 45–55 holes
+    become `fok_short` / `clob_rtt_miss`.
+    """
+    up_t = str(ev.get("up_token") or "")
+    dn_t = str(ev.get("down_token") or "")
+    cached = rt.books.pair(up_t, dn_t, max_age_ms=1500.0) if up_t and dn_t else None
+    if cached:
+        up_book, dn_book = cached["up"], cached["down"]
+        if (up_book.get("asks") or []) and (dn_book.get("asks") or []):
+            return up_book, dn_book
     if rt.data is None:
         return None
     try:
@@ -2203,10 +2216,13 @@ def _confirm_from_books(
 
 
 async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
-    """Wait 250ms, FAK leftover or requote, then wait CLOB RTT and re-walk with no requote.
+    """Wait 250ms, FAK leftover at the locked limit or requote (no cheaper).
 
-    The second pass is the paper dry-run of a live FAK that is sent after confirm:
-    same limit, no new quote. A miss is `clob_rtt_miss`, not a ghost fill.
+    Paper then waits CLOB RTT and re-walks with no requote so a miss is
+    `clob_rtt_miss`, not a ghost fill. Live skips that second walk: Rev 10
+    already forbade a second wait (requote+itode misses 300–400ms holes).
+    First confirm already passed `twap_no_cheaper`; sending FAK is the same
+    first-cross sleeve. Exchange itode still revalidates the live order.
     """
     s = rt.settings()
     delay_ms = setting_num(s, "fok_delay_ms", 250.0)
@@ -2221,6 +2237,8 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
     paper = rt.store.paper_state() if rt.mode() == "paper" else None
     first = _confirm_from_books(rt, ev, setup, up_book, dn_book, s, fee_rate, paper, allow_requote=True)
     rtt = setting_num(s, "clob_rtt_ms", 150.0)
+    if rt.mode() == "live":
+        rtt = 0.0
     if not first.ok or rtt <= 0:
         return first
     if first.shares > 0:

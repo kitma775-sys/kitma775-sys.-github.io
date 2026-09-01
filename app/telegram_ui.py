@@ -52,6 +52,7 @@ def _rev_blurb(s: dict) -> str:
         f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，只hunt BTC+ETH。"
         "45–55¢，剩餘 120–280s，lead 6–40 bps，弱倉 scratch。BTC 同 ETH 可以同一 5 分鐘 unix 各做一注；同一幣 scratch 之後唔反手。"
         "第一下有效 6bps 就鎖價：FOK miss 重試同一限價，唔追遲嚟嘅 45¢ leftover。"
+        "實盤 FOK：250ms 確認之後即刻 FAK，唔再等第二轉 RTT（嗰轉係 `clob_rtt_miss` 全殺單嘅原因）。"
         "90 秒剩餘時如果同邊 bid 從未印到 62¢，當未確認 dump（唔會因為而家 59¢ 就斬已印過 62 嘅贏家）。"
         "高階設定有「止賺 bid」：預設 87¢，Telegram 0/80/85/87/90/95。bid 全倉夠價先走，唔會用 87¢ 一檔 walk 落 40¢。"
         "唔設價止蝕：8¢ stop 同一條回測把 PnL 由 +$845 削到 +$754；弱倉／反手 scratch 已經係資訊止蝕。"
@@ -97,7 +98,7 @@ TOGGLES = {
     "auto_redeem": ("自動 redeem", "完場官方結果後自動取回：紙盤入帳，實盤 redeemPositions"),
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
-    "taker_fok": ("FOK 確認", "250ms 後 FAK；再等 RTT 重走簿，唔 requote。殺單 0.4s 可再試"),
+    "taker_fok": ("FOK 確認", "250ms 後 FAK。實盤唔再等 RTT 第二走。殺單 0.4s 可再試"),
     "twap_reverse": (
         "逆向思維",
         "撳咗就買 TWAP lead 嘅對家，持有到結算。研究：Binance 18 日 fade 全樣本 −EV；現場持有倉 8W/32L 係 scratch 剩毒，唔係開掣理由。預設關。",
