@@ -4380,6 +4380,7 @@ def test_performance_today_curve_follows_window_close_not_batch_redeem(tmp_path)
     from app.config import Env
     from app.runtime import Runtime
     from app.wall import performance_today, utc_day_start
+    import time
 
     st = Store(tmp_path / "curve-order.sqlite")
     st.ensure_paper(500)
@@ -4387,7 +4388,12 @@ def test_performance_today_curve_follows_window_close_not_batch_redeem(tmp_path)
     rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
     rt.live_usdc = 20.84
     day = int(utc_day_start())
-    sol0 = day + 11 * 3600
+    now_s = time.time()
+    preferred = day + 11 * 3600
+    # 11:00 UTC is after "now" in early UTC hours; keep the sequence in the past
+    # so the curve can append the trailing now-point.
+    sol0 = preferred if preferred + 1800 < now_s else int(now_s - 1800)
+    sol0 = max(day + 5, sol0)
     hype_w = sol0 + 300
     xrp_w = sol0 + 300
     sol1 = sol0 + 900
