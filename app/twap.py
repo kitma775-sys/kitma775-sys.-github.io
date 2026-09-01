@@ -45,6 +45,34 @@ def phi(z: float) -> float:
     return 0.5 * (1.0 + math.erf(float(z) / math.sqrt(2.0)))
 
 
+def settlement_tau(left_s: float, lookback: int = TWAP_LOOKBACK) -> float | None:
+    """Seconds of Brownian uncertainty for the remaining settlement TWAP."""
+    if left_s is None or float(left_s) <= 0:
+        return None
+    lb = max(int(lookback), 1)
+    left = float(left_s)
+    if left <= lb:
+        return max(left, 1.0)
+    tau = (left - lb) + 0.5 * lb
+    return min(max(tau, 8.0), 180.0)
+
+
+def lead_z(
+    lead_bps: float,
+    vol_bps_sqrt_s: float | None,
+    left_s: float,
+    *,
+    lookback: int = TWAP_LOOKBACK,
+) -> float | None:
+    """Signed z of current TWAP lead vs remaining settlement noise."""
+    if vol_bps_sqrt_s is None or float(vol_bps_sqrt_s) <= 1e-9:
+        return None
+    tau = settlement_tau(left_s, lookback)
+    if tau is None:
+        return None
+    return float(lead_bps) / (float(vol_bps_sqrt_s) * math.sqrt(tau))
+
+
 def fair_p_up(lead_bps: float, vol_bps_sqrt_s: float | None, left_s: float, *, lookback: int = TWAP_LOOKBACK) -> float | None:
     """P(settlement TWAP stays on the current side of PTB) under a BM approx.
 
@@ -52,15 +80,10 @@ def fair_p_up(lead_bps: float, vol_bps_sqrt_s: float | None, left_s: float, *, l
     is shorter. Before that, uncertainty is the walk until the TWAP window plus
     the window itself — cap tau so a 2 bps lead at t+20s is not treated as 87%.
     """
-    if vol_bps_sqrt_s is None or vol_bps_sqrt_s <= 1e-9 or left_s <= 0:
+    z = lead_z(lead_bps, vol_bps_sqrt_s, left_s, lookback=lookback)
+    if z is None:
         return None
-    lb = max(int(lookback), 1)
-    if left_s <= lb:
-        tau = max(float(left_s), 1.0)
-    else:
-        tau = float(left_s - lb) + 0.5 * lb
-        tau = min(max(tau, 8.0), 180.0)
-    return round(phi(float(lead_bps) / (float(vol_bps_sqrt_s) * math.sqrt(tau))), 6)
+    return round(phi(float(z)), 6)
 
 
 def lead_bps(twap: float, ptb: float) -> float | None:

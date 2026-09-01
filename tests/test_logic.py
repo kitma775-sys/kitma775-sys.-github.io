@@ -4972,7 +4972,7 @@ def test_time_weighted_twap_step_path():
 
 
 def test_fair_p_up_and_lead():
-    from app.twap import fair_p_up, lead_bps, phi
+    from app.twap import fair_p_up, lead_bps, lead_z, phi, settlement_tau
 
     assert abs(phi(0.0) - 0.5) < 1e-9
     assert lead_bps(100080.0, 100000.0) == 8.0
@@ -4980,6 +4980,11 @@ def test_fair_p_up_and_lead():
     assert fair_p_up(80.0, 1.0, 9.0) > 0.99
     assert fair_p_up(-80.0, 1.0, 9.0) < 0.01
     assert fair_p_up(8.0, None, 90.0) is None
+    assert settlement_tau(160.0) == 130.0
+    assert settlement_tau(40.0) == 40.0
+    z = lead_z(6.62, 0.69, 160.0)
+    assert z is not None and abs(z - 6.62 / (0.69 * (130.0 ** 0.5))) < 1e-9
+    assert abs(fair_p_up(6.62, 0.69, 160.0) - phi(z)) < 1e-6
 
 
 def test_twap_entry_reason_and_scratch():
