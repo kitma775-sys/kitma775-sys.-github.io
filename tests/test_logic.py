@@ -4927,6 +4927,48 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "止賺" not in home_text(rt)
 
 
+def test_cheap_bounce_is_not_a_second_engine():
+    """Wounded 20-30¢ dogs bounce often; every exit still −EV. Do not ship."""
+    import json
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "cheap_bounce.py"
+    spec = importlib.util.spec_from_file_location("cheap_bounce_research", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert abs(mod.pnl_hold(0.25, True) - (3 / 0.25 * 0.75 - 3 / 0.25 * 0.07 * 0.25 * 0.75)) < 1e-4
+    assert mod.pnl_hold(0.25, False) < 0
+    assert mod.pnl_scratch(0.25, 0.45) > 0
+    ev = {"slug": "btc-updown-5m-1", "asset": "btc", "start": 1000, "end": 1300, "winner": "Up"}
+    prints = [
+        {"ts": 1010, "px": 0.70, "outcome": "Up", "size": 10},
+        {"ts": 1012, "px": 0.28, "outcome": "Down", "size": 8},
+        {"ts": 1100, "px": 0.46, "outcome": "Down", "size": 8},
+        {"ts": 1280, "px": 0.10, "outcome": "Down", "size": 8},
+    ]
+    row = mod.find_entry(ev, prints, early_s=90, dog_lo=0.20, dog_hi=0.32, fav_lo=0.62, fav_hi=0.88, min_size=0.0)
+    assert row is not None and row["side"] == "Down" and row["bounce_45"] is True
+    hold = mod.simulate(row, mode="hold")
+    tp = mod.simulate(row, mode="tp45")
+    assert hold["exit_why"] == "settle" and hold["won"] is False
+    assert tp["scratched"] is True and tp["pnl"] > hold["pnl"]
+
+    data = json.loads(path.with_name("cheap_bounce.json").read_text())
+    assert data["ship"] is False
+    assert data["do_not_default_on"] is True
+    core = data["core_btc_eth_twap60"]
+    assert core["hold"]["all"]["n"] >= 1000
+    assert core["hold"]["path"]["bounce_45"] >= 0.5
+    assert core["hold"]["path"]["settle_wr_if_hold"] < 0.40
+    assert core["hold"]["all"]["pnl_usd"] < 0
+    assert core["tp45"]["robust"] is False
+    assert core["tp45"]["all"]["pnl_usd"] <= core["hold"]["all"]["pnl_usd"]
+    assert core["hold"]["path"]["mid_band_frac"] > 0.5
+    assert data["findings"]["top_strategy"].startswith("No")
+
+
 def test_top_5m_follow_is_not_a_ship_signal():
     """Top 5m wallets are not 97¢ farmers; Binance-TWAP follow sign-flips train vs holdout."""
     import json
