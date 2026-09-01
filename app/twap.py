@@ -266,7 +266,7 @@ class TwapParams:
     alt_min_left: float = 180.0
     max_lead_bps: float = 40.0
     scratch_late_left: float = 90.0
-    scratch_late_bid: float = 0.40
+    scratch_late_bid: float = 1.0
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
     core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
@@ -315,7 +315,7 @@ def default_params(s: dict | None = None) -> TwapParams:
         alt_min_left=num("twap_alt_min_left", 180.0),
         max_lead_bps=num("twap_max_lead_bps", 40.0),
         scratch_late_left=num("twap_scratch_late_left", 90.0),
-        scratch_late_bid=num("twap_scratch_late_bid", 0.40),
+        scratch_late_bid=num("twap_scratch_late_bid", 1.0),
         assets=assets,
         horizons=horizons,
         core_assets=core,
@@ -433,14 +433,14 @@ def should_scratch(
         return True, "twap_scratch_stop"
     if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
         return True, "twap_scratch_wild"
-    # Last-90s dying book: live alts rode fair 0.74→$0 because weak/flip never
-    # fired. BTC/ETH research tape stays +EV without this; require an alt asset.
+    # Alts do not take binary settlement. Live held-alt tape is 5W/24L; books
+    # that stayed 45–55¢ skipped the old bid<40 last-90s dump then paid $0.
+    # BTC/ETH research+live stay hold-to-settle. Bid still needs dump_floor.
     is_alt = asset is not None and str(asset).lower() not in set(params.core_assets)
     if (
         is_alt
         and params.scratch_late_left > params.scratch_left_min
         and float(left) < params.scratch_late_left
-        and float(bid) + 1e-12 < params.scratch_late_bid
     ):
         return True, "twap_scratch_book"
     if float(fair_p) < params.scratch_p:

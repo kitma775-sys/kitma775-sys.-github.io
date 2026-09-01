@@ -723,6 +723,16 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev48 pnl: alts min_left 180; lock 5m clock after fill; reject lead>40bps; alt last-90s bid<40¢ dump. Keep 6bps, BTC/ETH 120s, scratch, stake.",
         )
+    if rev < 49:
+        store.patch_settings(
+            strategy_rev=49,
+            twap_scratch_late_left=90.0,
+            twap_scratch_late_bid=1.0,
+        )
+        store.add_event(
+            "info",
+            "rev49 pnl: alts dump in last 90s if a bid exists (no hold-to-settle). Keep 6bps, BTC/ETH 120s, alt 180s, clock lock, lead cap 40, stake.",
+        )
     return n
 
 

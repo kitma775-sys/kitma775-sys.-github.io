@@ -36,7 +36,7 @@ SKIP_ZH = {
     "twap_lead": "lead 唔夠",
     "twap_lead_wild": "lead 離譜",
     "twap_scratch_wild": "lead 離譜出",
-    "twap_scratch_book": "尾盤書死",
+    "twap_scratch_book": "山寨尾盤離場",
     "twap_no_fair": "無公平價",
     "twap_edge": "edge 唔夠",
     "twap_conflict": "已有倉",
