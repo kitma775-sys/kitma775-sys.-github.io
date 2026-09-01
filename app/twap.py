@@ -261,12 +261,13 @@ class TwapParams:
     scratch_dump_floor: float = 0.22
     scratch_adverse: float = 0.0
     scratch_left_min: float = 8.0
-    late_left: float = 180.0
-    late_min_price: float = 0.50
-    alt_min_left: float = 180.0
+    late_left: float = 0.0
+    late_min_price: float = MID_LO
+    alt_min_left: float = 120.0
     max_lead_bps: float = 40.0
-    scratch_late_left: float = 90.0
+    scratch_late_left: float = 0.0
     scratch_late_bid: float = 1.0
+    reverse: bool = False
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
     core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
@@ -310,16 +311,33 @@ def default_params(s: dict | None = None) -> TwapParams:
         scratch_dump_floor=num("twap_scratch_dump_floor", 0.22),
         scratch_adverse=num("twap_scratch_adverse", 0.0),
         scratch_left_min=num("twap_scratch_left_min", 8.0),
-        late_left=num("twap_late_left", 180.0),
-        late_min_price=num("twap_late_min_price", 0.50),
-        alt_min_left=num("twap_alt_min_left", 180.0),
+        late_left=num("twap_late_left", 0.0),
+        late_min_price=num("twap_late_min_price", MID_LO),
+        alt_min_left=num("twap_alt_min_left", 120.0),
         max_lead_bps=num("twap_max_lead_bps", 40.0),
-        scratch_late_left=num("twap_scratch_late_left", 90.0),
+        scratch_late_left=num("twap_scratch_late_left", 0.0),
         scratch_late_bid=num("twap_scratch_late_bid", 1.0),
+        reverse=bool(d.get("twap_reverse")),
         assets=assets,
         horizons=horizons,
         core_assets=core,
     )
+
+
+def opposite_leg(leg: str | None) -> str | None:
+    if leg == "up":
+        return "down"
+    if leg == "down":
+        return "up"
+    return None
+
+
+def trade_leg(snap: TwapSnap | None, params: TwapParams) -> str | None:
+    """Book to lift. Reverse thinking fades the Chainlink lead."""
+    if snap is None:
+        return None
+    side = snap.side
+    return opposite_leg(side) if params.reverse else side
 
 
 def entry_min_left(asset: str, params: TwapParams) -> float:
@@ -384,6 +402,9 @@ def twap_entry_reason(
         return "twap_lead"
     if params.max_lead_bps > params.min_lead_bps and abs(snap.lead_bps) > params.max_lead_bps + 1e-12:
         return "twap_lead_wild"
+    if params.reverse:
+        # Fade skips BM fair/edge: that filter is calibrated to the lead side.
+        return None
     fair = snap.fair_p_side
     if fair is None:
         return "twap_no_fair"
@@ -417,6 +438,11 @@ def should_scratch(
         return False, "twap_scratch_late"
     if bid is None or float(bid) + 1e-12 < params.scratch_dump_floor:
         return False, "twap_scratch_no_bid"
+    if params.reverse:
+        # Fade holds the dog. BM weak/flip/better would dump on the same tick as entry.
+        if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
+            return True, "twap_scratch_wild"
+        return False, "twap_hold"
     if fair_p is None:
         return True, "twap_scratch_no_fair"
     proceeds = scratch_proceeds(shares, bid, fee_rate)

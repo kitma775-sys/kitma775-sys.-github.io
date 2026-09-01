@@ -44,9 +44,9 @@ def approve(
     twap_max_price: float = 0.55,
     twap_min_left: float = 120.0,
     twap_max_left: float = 280.0,
-    twap_late_left: float = 180.0,
-    twap_late_min_price: float = 0.50,
-    twap_alt_min_left: float = 180.0,
+    twap_late_left: float = 0.0,
+    twap_late_min_price: float = 0.45,
+    twap_alt_min_left: float = 120.0,
     twap_core_assets: tuple[str, ...] | list[str] | None = None,
 ) -> RiskDecision:
     if killed:

@@ -62,6 +62,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_scratch_dump_floor": s.get("twap_scratch_dump_floor"),
             "twap_scratch_late_left": s.get("twap_scratch_late_left"),
             "twap_scratch_late_bid": s.get("twap_scratch_late_bid"),
+            "twap_reverse": bool(s.get("twap_reverse")),
             "twap_assets": s.get("twap_assets") or ["btc", "eth"],
             "twap_horizons": s.get("twap_horizons") or ["5m"],
             "chainlink_live": [

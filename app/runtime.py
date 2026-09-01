@@ -13,7 +13,7 @@ from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
-from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
+from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, trade_leg, twap_entry_reason
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -101,6 +101,8 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
     halted = bool(live and rt.clob_halted())
     if halted:
         notes.append("⏸ Polymarket CLOB 全站暫停 · status.polymarket.com")
+    if s.get("twap_reverse"):
+        notes.append("🔄 逆向思維開緊：買 TWAP lead 對家，持有到結算")
     stake = float(s.get("max_usd_per_trade") or 5)
     open_cost = round(sum(float(r.get("cost") or 0) for r in inv), 2)
     perf = performance_today(rt)
@@ -688,7 +690,7 @@ def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float
             why = "twap_no_feed"
         ask, bid = up_ask, _top(up_book.get("bids") or [], asks=False)
     else:
-        side = snap.side
+        side = trade_leg(snap, params)
         asks = (up_book.get("asks") or []) if side == "up" else (dn_book.get("asks") or [])
         bids = (up_book.get("bids") or []) if side == "up" else (dn_book.get("bids") or [])
         ask = _top(asks, asks=True)
@@ -702,14 +704,22 @@ def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float
             fee_rate=fee_rate,
             params=params,
         ) or "ready"
+    fair = None
+    if snap is not None and snap.fair_p_up is not None:
+        shown = trade_leg(snap, params) if setup is None or not is_twap_setup(setup) else str((setup.extra or {}).get("leg") or snap.side)
+        if shown == "up":
+            fair = snap.fair_p_up
+        elif shown == "down":
+            fair = round(1.0 - snap.fair_p_up, 4)
     return {
         "slug": ev.get("slug"),
         "left": None if left is None else round(float(left), 1),
         "lead_bps": None if snap is None else round(float(snap.lead_bps), 3),
         "ask": None if ask is None else round(float(ask), 4),
-        "fair": None if snap is None or snap.fair_p_side is None else round(float(snap.fair_p_side), 4),
+        "fair": None if fair is None else round(float(fair), 4),
         "reason": why,
-        "side": None if snap is None else snap.side,
+        "side": None if snap is None else (str((setup.extra or {}).get("leg")) if is_twap_setup(setup) else trade_leg(snap, params)),
+        "reverse": bool(getattr(params, "reverse", False)),
     }
 
 
@@ -1678,9 +1688,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             twap_max_price=setting_num(s, "twap_max_price", 0.55),
             twap_min_left=setting_num(s, "twap_min_left", 120.0),
             twap_max_left=setting_num(s, "twap_max_left", 280.0),
-            twap_late_left=setting_num(s, "twap_late_left", 180.0),
-            twap_late_min_price=setting_num(s, "twap_late_min_price", 0.50),
-            twap_alt_min_left=setting_num(s, "twap_alt_min_left", 180.0),
+            twap_late_left=setting_num(s, "twap_late_left", 0.0),
+            twap_late_min_price=setting_num(s, "twap_late_min_price", 0.45),
+            twap_alt_min_left=setting_num(s, "twap_alt_min_left", 120.0),
             twap_core_assets=s.get("twap_core_assets") or ["btc", "eth"],
         )
         payload = {
@@ -1801,9 +1811,9 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 twap_max_price=setting_num(s, "twap_max_price", 0.55),
                 twap_min_left=setting_num(s, "twap_min_left", 120.0),
                 twap_max_left=setting_num(s, "twap_max_left", 280.0),
-                twap_late_left=setting_num(s, "twap_late_left", 180.0),
-                twap_late_min_price=setting_num(s, "twap_late_min_price", 0.50),
-                twap_alt_min_left=setting_num(s, "twap_alt_min_left", 180.0),
+                twap_late_left=setting_num(s, "twap_late_left", 0.0),
+                twap_late_min_price=setting_num(s, "twap_late_min_price", 0.45),
+                twap_alt_min_left=setting_num(s, "twap_alt_min_left", 120.0),
                 twap_core_assets=s.get("twap_core_assets") or ["btc", "eth"],
             )
             if not resized.ok:

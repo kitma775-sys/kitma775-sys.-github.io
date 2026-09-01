@@ -1,0 +1,40 @@
+{
+  "researched_at_utc": "2026-09-01T07:40:00Z",
+  "question": "TG reverse-thinking: same TWAP gates, buy the other 5m leg, hold to settle",
+  "do_not_default_on": true,
+  "live_holds_only": {
+    "n": 40,
+    "follow_w_l": [8, 32],
+    "follow_pnl_usd": -60.42,
+    "fade_w_l": [32, 8],
+    "fade_pnl_usd": 70.33,
+    "scratch_n": 34,
+    "scratch_pnl_usd": 39.84,
+    "caveat": "Holds are the residual after BM scratch. Fading only those 40 is not the same as fading every entry. Scratch +$40 would be given up, and BM scratch would dump a fade on the same tick as entry."
+  },
+  "binance_proxy_clock_first_rev46_window": {
+    "n": 1294,
+    "follow_hold_to_settle": {
+      "all_pnl_usd_5": 827.59,
+      "holdout_pnl_usd_5": 245.86,
+      "holdout_hit": 0.5845,
+      "robust": true
+    },
+    "fade_hold_other_px_1_minus_entry": {
+      "all_pnl_usd_5": -1354.82,
+      "holdout_pnl_usd_5": -444.82,
+      "holdout_hit": 0.4155,
+      "live_stake_3_holdout_usd": -266.89,
+      "robust": false,
+      "every_asset_negative": true
+    }
+  },
+  "implementation": {
+    "same_when": "45-55, 6-40 bps, 120-280s all coins, one unix",
+    "opposite_what": "lift trade_leg = opposite(snap.side)",
+    "skip_bm_edge": true,
+    "scratch": "only wild-lead; no weak/flip/better/book",
+    "default": false
+  },
+  "ship": "Toggle in Telegram settings. Default off. Restoring rev46 window is independent of fade."
+}

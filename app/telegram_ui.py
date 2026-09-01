@@ -28,8 +28,9 @@ def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
     return (
         f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，多幣種。"
-        "45–55¢，BTC/ETH 剩餘 120–280s，SOL/HYPE/XRP/DOGE/BNB 要 180s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
-        "剩餘少過 180s 唔買 45¢（要 ≥50¢）。反轉／弱倉可以低過 38¢ dump。山寨最後 90s 有買盤就 dump，唔持有到結算。"
+        "45–55¢，全幣剩餘 120–280s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
+        "高階設定有「逆向思維」掣：開咗就買 TWAP lead 嘅對家，持有到結算（BM scratch 會一入場就倒貨所以關掉）。預設關。"
+        "Binance 18 日同一批入場 fade 全樣本 −EV；現場 8W/32L 係 scratch 剩低嘅持有倉，唔係全部信號都應該買對家。"
         "全幣各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死 ETH/SOL。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
@@ -70,6 +71,10 @@ TOGGLES = {
     "notify_signals": ("成交通知", "有紙盤／實盤動作即時彈"),
     "notify_rejects": ("跳過通知", "風控擋咗都會話你知（會嘈）"),
     "taker_fok": ("FOK 確認", "250ms 後 FAK；再等 RTT 重走簿，唔 requote。殺單 0.4s 可再試"),
+    "twap_reverse": (
+        "逆向思維",
+        "撳咗就買 TWAP lead 嘅對家，持有到結算。研究：Binance 18 日 fade 全樣本 −EV；現場持有倉 8W/32L 係 scratch 剩毒，唔係開掣理由。預設關。",
+    ),
 }
 
 

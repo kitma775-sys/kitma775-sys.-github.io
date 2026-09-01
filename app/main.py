@@ -739,6 +739,19 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev50 rtds: recycle hung Chainlink sockets if age>20s. Keep 6bps, scratch, alt 90s dump, stake.",
         )
+    if rev < 51:
+        store.patch_settings(
+            strategy_rev=51,
+            twap_alt_min_left=120.0,
+            twap_late_left=0.0,
+            twap_late_min_price=0.45,
+            twap_scratch_late_left=0.0,
+            twap_reverse=False,
+        )
+        store.add_event(
+            "info",
+            "rev51 restore rev46 window (all coins 120s, no late-45, no alt 90s dump) + TG reverse-thinking toggle default off. Keep 6bps, lead cap 40, clock lock, rtds recycle, stake.",
+        )
     return n
 
 

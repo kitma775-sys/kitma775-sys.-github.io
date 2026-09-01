@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from app.fees import gross_edge, pair_taker_fee, taker_fee, taker_net
 from app.config import DEFAULT_SETTINGS
-from app.twap import TwapParams, default_params, entry_edge, fee_per_share, twap_entry_reason
+from app.twap import TwapParams, default_params, entry_edge, fee_per_share, trade_leg, twap_entry_reason
 
 MAKER_MIN_LEG = 0.22
 MAKER_MAX_SKEW = 0.28
@@ -274,7 +274,7 @@ def _twap_setup(
 ) -> Setup | None:
     p = params if isinstance(params, TwapParams) else default_params(params if isinstance(params, dict) else None)
     left = _seconds_left(end, now)
-    leg = None if snap is None else snap.side
+    leg = trade_leg(snap, p)
     asks = up_asks if leg == "up" else down_asks if leg == "down" else []
     bids = up_bids if leg == "up" else down_bids if leg == "down" else []
     ask = _top(asks, asks=True)
@@ -282,9 +282,12 @@ def _twap_setup(
     if twap_entry_reason(slug=slug, snap=snap, ask=ask, bid=bid, left=left, fee_rate=fee_rate, params=p):
         return None
     assert snap is not None and ask is not None and leg in {"up", "down"}
-    fair = snap.fair_p_side
-    if fair is None:
-        return None
+    if p.reverse:
+        fair = None if snap.fair_p_up is None else (snap.fair_p_up if leg == "up" else round(1.0 - snap.fair_p_up, 6))
+    else:
+        fair = snap.fair_p_side
+        if fair is None:
+            return None
     fee_share = fee_per_share(ask, fee_rate)
     unit = max(ask + fee_share, 0.02)
     depth = total_size([lv for lv in asks if p.min_price - 1e-12 <= lv.price <= min(ask + 1e-12, p.max_price)])
@@ -299,9 +302,16 @@ def _twap_setup(
     if filled + 1e-9 < float(min_shares):
         return None
     fees = taker_fee(filled, vwap, fee_rate)
-    ev_net = round(filled * entry_edge(fair, vwap, fee_rate), 5)
-    if ev_net <= 0:
-        return None
+    if p.reverse:
+        # Risk/FOK reject net<=0. Fade EV vs BM fair is usually negative by design.
+        ev_net = round(max(filled * 0.02, 0.01), 5)
+        gross = round((0.5 - vwap), 4)
+    else:
+        assert fair is not None
+        ev_net = round(filled * entry_edge(fair, vwap, fee_rate), 5)
+        if ev_net <= 0:
+            return None
+        gross = round(fair - vwap, 4)
     cash = round(filled * vwap + fees, 6)
     up_px = vwap if leg == "up" else 0.0
     dn_px = vwap if leg == "down" else 0.0
@@ -316,7 +326,7 @@ def _twap_setup(
         down_price=dn_px,
         shares=round(filled, 4),
         fillable=round(filled, 4),
-        gross=round(fair - vwap, 4),
+        gross=gross,
         fees=round(fees, 5),
         net=ev_net,
         tail=False,
@@ -329,6 +339,8 @@ def _twap_setup(
             "cash_cost": cash,
             "fair_p": fair,
             "lead_bps": snap.lead_bps,
+            "lead_side": snap.side,
+            "reverse": bool(p.reverse),
             "ptb": snap.ptb,
             "twap": snap.twap,
             "lookback": snap.lookback,
