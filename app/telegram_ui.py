@@ -40,7 +40,7 @@ def assets_help(s: dict) -> str:
     names = "+".join(hunted) or "—"
     return (
         f"而家會買：{names}\n\n"
-        "幣種過濾係掃描開關；Rev 54 策略另外鎖定只買 BTC+ETH。\n"
+        "幣種過濾係掃描開關；策略另外鎖定只買 BTC+ETH。\n"
         "剔晒 SOL/XRP/BNB 都唔會入場。Dashboard 槽位只顯示會買嘅幣，所以得 BTC+ETH 係正確。\n"
         "可以熄 BTC 或 ETH 再收窄。最少留一個會買嘅幣。"
     )
@@ -50,7 +50,7 @@ def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
     return (
         f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，只hunt BTC+ETH。"
-        "45–55¢，剩餘 120–280s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
+        "45–55¢，剩餘 120–280s，lead 6–40 bps，弱倉 scratch。BTC 同 ETH 可以同一 5 分鐘 unix 各做一注；同一幣 scratch 之後唔反手。"
         "第一下有效 6bps 就鎖價：FOK miss 重試同一限價，唔追遲嚟嘅 45¢ leftover。"
         "90 秒剩餘時如果同邊 bid 從未印到 62¢，當未確認 dump（唔會因為而家 59¢ 就斬已印過 62 嘅贏家）。"
         "高階設定有「止賺 bid」：預設 87¢，Telegram 0/80/85/87/90/95。bid 全倉夠價先走，唔會用 87¢ 一檔 walk 落 40¢。"
@@ -697,12 +697,12 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         await _safe_edit(q, assets_help(s), reply_markup=assets_kb(rt))
         return
     if data.startswith("assetlock:"):
-        await q.answer("Rev 54 鎖定只買 BTC+ETH，剔呢個唔會入場", show_alert=True)
+        await q.answer("策略鎖定只買 BTC+ETH，剔呢個唔會入場", show_alert=True)
         return
     if data.startswith("asset:"):
         coin = data.split(":", 1)[1]
         if coin not in _hunt_pin(s):
-            await q.answer("Rev 54 鎖定只買 BTC+ETH，剔呢個唔會入場", show_alert=True)
+            await q.answer("策略鎖定只買 BTC+ETH，剔呢個唔會入場", show_alert=True)
             return
         cur = list(s.get("assets") or [])
         if coin in cur:

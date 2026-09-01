@@ -776,6 +776,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev54 first-cross + 90s unconfirmed dump: hunt BTC+ETH only, lock first 6bps 45–55 ask (no leftover chase), dump if same-side bid never printed 62¢ by 90s left. Keep 6bps, 45–55, 120–280, BM scratch, TP 87, clock lock, reverse off, stake.",
         )
+    if rev < 55:
+        store.patch_settings(strategy_rev=55)
+        store.add_event(
+            "info",
+            "rev55 per-asset clock: BTC and ETH may take the same 5m unix (tape n=593 independent). Same coin still one horizon; fill/dump keeps that coin until T1 so scratch cannot reverse. Keep first-cross, 90s confirm, BTC+ETH hunt, 6bps, reverse off, stake.",
+        )
     return n
 
 

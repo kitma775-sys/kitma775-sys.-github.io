@@ -294,7 +294,6 @@ def favorite_same_window_open(rt: Runtime, slug: str) -> bool:
     return False
 
 
-CORR_CLOCK = frozenset({"btc", "eth", "sol", "xrp", "doge", "bnb", "hype", "zec"})
 # Seconds before T0 to subscribe the next 5m book. Hunt still skips future_listing.
 # +5s matches future_listing slack so a 45.1s-to-open print is not missed.
 WS_HUNT_BUFFER_S = 45.0
@@ -556,11 +555,15 @@ def gate_better(cur: dict | None, nxt: dict | None) -> bool:
     return False
 
 
+def _twap_clock_key(parsed) -> tuple[int, str]:
+    return (int(parsed.start), parsed.asset)
+
+
 def _remember_twap_clock(rt: Runtime, slug: str) -> None:
     parsed = parse_window(slug)
     if not parsed or parsed.horizon != "5m":
         return
-    rt._twap_clocks_taken[int(parsed.start)] = float(parsed.start + parsed.window_seconds)
+    rt._twap_clocks_taken[_twap_clock_key(parsed)] = float(parsed.start + parsed.window_seconds)
 
 
 def _trade_leg_px(row: dict) -> float | None:
@@ -678,16 +681,17 @@ def _hydrate_twap_clocks(rt: Runtime) -> None:
     for t in rows:
         parsed = parse_window(str(t.get("slug") or ""))
         if parsed is not None and parsed.horizon == "5m" and float(parsed.start + parsed.window_seconds) > now:
-            rt._twap_clocks_taken[int(parsed.start)] = float(parsed.start + parsed.window_seconds)
+            rt._twap_clocks_taken[_twap_clock_key(parsed)] = float(parsed.start + parsed.window_seconds)
     for row in mode_inventory(rt):
         _remember_twap_clock(rt, str(row.get("slug") or ""))
 
 
 def twap_conflict_open(rt: Runtime, slug: str) -> bool:
-    """Same asset never stacks 5m+15m. Same 5m unix is one slot across coins.
+    """Same asset never stacks 5m+15m. BTC and ETH may share a 5m unix.
 
-    After a fill or dump the clock stays taken until window end so scratch
-    cannot immediately reverse the same 5m (live SOL −$3.60 on one clock).
+    After a fill or dump that coin's unix stays taken until T1 so scratch
+    cannot reverse the same slug (live SOL −$3.60). Cross-asset lock was a
+    live overlay; the shipped first_dump_by90_h2 tape counted coins independently.
     Ended leftover (pending website redeem) must not brick the next 5m.
     """
     parsed = parse_window(slug)
@@ -695,10 +699,10 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
         return favorite_same_window_open(rt, slug)
     now = time.time()
     _hydrate_twap_clocks(rt)
-    for start, exp in list(rt._twap_clocks_taken.items()):
+    for key, exp in list(rt._twap_clocks_taken.items()):
         if now >= float(exp):
-            rt._twap_clocks_taken.pop(start, None)
-    if parsed.horizon == "5m" and int(parsed.start) in rt._twap_clocks_taken:
+            rt._twap_clocks_taken.pop(key, None)
+    if parsed.horizon == "5m" and _twap_clock_key(parsed) in rt._twap_clocks_taken:
         return True
     for row in mode_inventory(rt):
         other = str(row.get("slug") or "")
@@ -710,10 +714,6 @@ def twap_conflict_open(rt: Runtime, slug: str) -> bool:
         peer_live = now < float(peer.start + peer.window_seconds)
         if peer.asset == parsed.asset:
             if peer_live or peer.start == parsed.start:
-                return True
-            continue
-        if peer.horizon == parsed.horizon and peer.start == parsed.start:
-            if peer.asset in CORR_CLOCK and parsed.asset in CORR_CLOCK:
                 return True
     return False
 
@@ -886,7 +886,7 @@ class Runtime:
         self.wall_tape: list[dict] = []
         self._redeem_wait_logged: set[str] = set()
         self._dump_fail_logged: set[str] = set()
-        self._twap_clocks_taken: dict[int, float] = {}
+        self._twap_clocks_taken: dict[tuple[int, str], float] = {}
         self._twap_clocks_hydrated = False
         self._twap_first_px: dict[str, tuple[float, float]] = {}
         self._twap_first_hydrated = False
