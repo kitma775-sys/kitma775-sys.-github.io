@@ -83,6 +83,13 @@ DO_NOT_SHIP_NAMES = {
     "indep_first_min120",
     "clock_core_only",  # do not cut Telegram coins
     "clock_alts_only",
+    # Rank/filter on BM fair: calibrate_fair.json said tightening fair/z hurts.
+    # pick_edge trusts the same fair as a clock ranker (holdout +$10 is noise).
+    "clock_pick_edge",
+    "first_pick_edge",
+    "clock_fair58",
+    "clock_fair62",
+    "first_fair58",
 }
 
 
@@ -529,39 +536,14 @@ def pack(rows: list[dict]) -> dict:
     return rec
 
 
-def grid(events: list[dict]) -> dict:
+def grid(events: list[dict], *, resim: bool = False) -> dict:
     twap_ev = [e for e in events if e["end"] >= TWAP60]
     newest = max(e["end"] for e in twap_ev)
-    t0, t1 = TWAP60 - 180, newest + 5
     rp.SYMBOL.update(SYMBOL)
-    series_of = {}
-    for asset in ASSETS:
-        if asset in SKIP_PRINT_ASSETS:
-            print(f"load series skip {asset}", flush=True)
-            series_of[asset] = None
-            continue
-        print(f"load series {asset}", flush=True)
-        try:
-            series_of[asset] = rp.load_series(asset, t0, t1)
-        except Exception as exc:
-            print(f"  no series {asset} {type(exc).__name__}", flush=True)
-            series_of[asset] = None
-
-    params_loose = TwapParams(
-        min_price=0.45,
-        max_price=0.55,
-        min_lead_bps=6.0,
-        min_edge=0.04,
-        min_left=120.0,
-        max_left=280.0,
-        late_left=0.0,
-        late_min_price=0.0,
-        max_lead_bps=40.0,
-    )
 
     last_rows: list[dict] = []
     first_rows: list[dict] = []
-    if SIM_CACHE.exists():
+    if SIM_CACHE.exists() and not resim:
         try:
             cached = json.loads(SIM_CACHE.read_text())
             last_rows = list(cached.get("last") or [])
@@ -571,39 +553,64 @@ def grid(events: list[dict]) -> dict:
             last_rows, first_rows = [], []
     have_last = {r["slug"] for r in last_rows}
     have_first = {r["slug"] for r in first_rows}
-
-    for asset in ASSETS:
-        series = series_of.get(asset)
-        if series is None:
-            print(f"sim skip {asset} (no 1s series)", flush=True)
-            continue
-        evs = [e for e in twap_ev if e["asset"] == asset]
-        n_ok = 0
-        for i, ev in enumerate(evs, 1):
-            if ev["slug"] in have_last or ev["slug"] in have_first:
-                if ev["slug"] in have_last:
-                    n_ok += 1
-                continue
-            prints = load_prints(ev)
-            if not prints:
-                continue
-            got = simulate_window(ev, series, prints, params_loose)
-            if got.get("last"):
-                last_rows.append(got["last"])
-                have_last.add(ev["slug"])
-                n_ok += 1
-            if got.get("first"):
-                first_rows.append(got["first"])
-                have_first.add(ev["slug"])
-            if i % 400 == 0:
-                print(f"  {asset} {i}/{len(evs)} last={n_ok}", flush=True)
-                SIM_CACHE.write_text(json.dumps({"last": last_rows, "first": first_rows}))
-        print(
-            f"sim {asset} windows={len(evs)} last={sum(1 for r in last_rows if r['asset']==asset)} "
-            f"first={sum(1 for r in first_rows if r['asset']==asset)}",
-            flush=True,
+    need_sim = resim or not last_rows
+    series_loaded: dict[str, bool] = {}
+    if need_sim:
+        t0, t1 = TWAP60 - 180, newest + 5
+        params_loose = TwapParams(
+            min_price=0.45,
+            max_price=0.55,
+            min_lead_bps=6.0,
+            min_edge=0.04,
+            min_left=120.0,
+            max_left=280.0,
+            late_left=0.0,
+            late_min_price=0.0,
+            max_lead_bps=40.0,
         )
-        SIM_CACHE.write_text(json.dumps({"last": last_rows, "first": first_rows}))
+        for asset in ASSETS:
+            if asset in SKIP_PRINT_ASSETS:
+                print(f"load series skip {asset}", flush=True)
+                series_loaded[asset] = False
+                continue
+            print(f"load series {asset}", flush=True)
+            try:
+                series = rp.load_series(asset, t0, t1)
+            except Exception as exc:
+                print(f"  no series {asset} {type(exc).__name__}", flush=True)
+                series_loaded[asset] = False
+                continue
+            series_loaded[asset] = True
+            evs = [e for e in twap_ev if e["asset"] == asset]
+            n_ok = 0
+            for i, ev in enumerate(evs, 1):
+                if not resim and (ev["slug"] in have_last or ev["slug"] in have_first):
+                    if ev["slug"] in have_last:
+                        n_ok += 1
+                    continue
+                prints = load_prints(ev)
+                if not prints:
+                    continue
+                got = simulate_window(ev, series, prints, params_loose)
+                if got.get("last"):
+                    last_rows.append(got["last"])
+                    have_last.add(ev["slug"])
+                    n_ok += 1
+                if got.get("first"):
+                    first_rows.append(got["first"])
+                    have_first.add(ev["slug"])
+                if i % 400 == 0:
+                    print(f"  {asset} {i}/{len(evs)} last={n_ok}", flush=True)
+                    SIM_CACHE.write_text(json.dumps({"last": last_rows, "first": first_rows}))
+            print(
+                f"sim {asset} windows={len(evs)} last={sum(1 for r in last_rows if r['asset']==asset)} "
+                f"first={sum(1 for r in first_rows if r['asset']==asset)}",
+                flush=True,
+            )
+            SIM_CACHE.write_text(json.dumps({"last": last_rows, "first": first_rows}))
+    else:
+        have_assets = {r["asset"] for r in last_rows}
+        series_loaded = {a: (a in have_assets) for a in ASSETS}
 
     variants = []
 
@@ -620,7 +627,6 @@ def grid(events: list[dict]) -> dict:
             flush=True,
         )
 
-    # Independent (overstated vs live)
     add("indep_last_min120", last_rows, clock=False, pick="last")
     add("indep_first_min120", first_rows, clock=False, pick="first")
 
@@ -678,32 +684,36 @@ def grid(events: list[dict]) -> dict:
     v("clock_core_only", last_rows, alt_min=180, core_min=120, min_lead=6, late=True, assets=set(CORE))
     v("clock_alts_only", last_rows, alt_min=180, core_min=120, min_lead=6, late=True, assets=set(ASSETS) - set(CORE))
     v("rev48_no_clock", last_rows, alt_min=180, core_min=120, min_lead=6, late=True, clock=False)
-    # Same filters on first-take (closer to live FOK).
     v("first_alt200", first_rows, alt_min=200, core_min=120, min_lead=6, late=True)
     v("first_lead8", first_rows, alt_min=180, core_min=120, min_lead=8, late=True)
     v("first_edge05", first_rows, alt_min=180, core_min=120, min_lead=6, late=True, min_edge=0.05)
+    v("first_pick_edge", first_rows, alt_min=180, core_min=120, min_lead=6, late=True, rank="edge")
+    v("first_fair58", first_rows, alt_min=180, core_min=120, min_lead=6, late=True, min_fair=0.58)
+    v("first_no_late_cheap", first_rows, alt_min=180, core_min=120, min_lead=6, late=False)
 
-    base = next(x for x in variants if x["name"] == "rev48_clock_last")
-    base_first = next(x for x in variants if x["name"] == "rev48_clock_first")
-    base_h = base["holdout"]["pnl_usd"]
+    base_last = next(x for x in variants if x["name"] == "rev48_clock_last")
+    live = next(x for x in variants if x["name"] == "rev48_clock_first")
+    live_h = live["holdout"]["pnl_usd"]
+    live_train = live["train"]["pnl_usd"]
 
     def core_hold_pnl(rec: dict) -> float:
         by = rec["holdout"].get("by_asset") or {}
         return round(sum(float((by.get(a) or {}).get("pnl_usd") or 0) for a in CORE), 2)
 
-    base_core = core_hold_pnl(base)
+    live_core = core_hold_pnl(live)
+    not_a_change = {"rev48_clock_first", "rev48_clock_last"}
     winners = []
     for x in variants:
-        if x["name"] == "rev48_clock_last":
+        if x["name"] in not_a_change or x["name"] in DO_NOT_SHIP_NAMES:
             continue
         if not x["robust"]:
             continue
-        if x["holdout"]["pnl_usd"] + 1e-9 < base_h:
+        if x["holdout"]["pnl_usd"] + 1e-9 < live_h:
             continue
-        if x["name"] in DO_NOT_SHIP_NAMES:
+        if x["train"]["pnl_usd"] + 1e-9 < 0.95 * live_train:
             continue
         cand_core = core_hold_pnl(x)
-        if base_core > 0 and cand_core + 1e-9 < 0.95 * base_core:
+        if live_core > 0 and cand_core + 1e-9 < 0.95 * live_core:
             continue
         winners.append(
             {
@@ -711,21 +721,26 @@ def grid(events: list[dict]) -> dict:
                 "holdout_pnl": x["holdout"]["pnl_usd"],
                 "holdout_hit": x["holdout"].get("take_win_rate"),
                 "train_pnl": x["train"]["pnl_usd"],
-                "delta_vs_rev48_hold": round(x["holdout"]["pnl_usd"] - base_h, 2),
+                "delta_vs_live_first_hold": round(x["holdout"]["pnl_usd"] - live_h, 2),
+                "delta_vs_live_first_train": round(x["train"]["pnl_usd"] - live_train, 2),
                 "core_holdout_pnl": cand_core,
-                "core_holdout_vs_base": round(cand_core - base_core, 2),
+                "core_holdout_vs_live": round(cand_core - live_core, 2),
             }
         )
-    winners.sort(key=lambda z: z["delta_vs_rev48_hold"], reverse=True)
+    winners.sort(key=lambda z: z["delta_vs_live_first_hold"], reverse=True)
 
     coverage = {}
     for a in ASSETS:
         evs = [e for e in twap_ev if e["asset"] == a]
-        n_print = sum(1 for e in evs if (CACHE / f"{e['slug']}.json").exists() and load_prints(e))
+        n_print = 0
+        for e in evs:
+            fp = CACHE / f"{e['slug']}.json"
+            if fp.exists() and fp.stat().st_size > 8:
+                n_print += 1
         coverage[a] = {
             "windows": len(evs),
             "with_prints": n_print,
-            "series": series_of.get(a) is not None,
+            "series": bool(series_loaded.get(a)),
             "last_takes": sum(1 for r in last_rows if r["asset"] == a),
         }
 
@@ -739,6 +754,7 @@ def grid(events: list[dict]) -> dict:
             "notional_research": NOTIONAL,
             "notional_live": LIVE_STAKE,
             "assets": list(ASSETS),
+            "note": "Calendar listed 30d; simulated only windows with end>=TWAP-60 (2026-08-14).",
         },
         "coverage": coverage,
         "variants": [
@@ -762,15 +778,20 @@ def grid(events: list[dict]) -> dict:
         ],
         "shippable_vs_rev48_clock": winners,
         "baselines": {
-            "rev48_clock_last_holdout": base_h,
-            "rev48_clock_first_holdout": base_first["holdout"]["pnl_usd"],
-            "rev48_clock_last_core_holdout": base_core,
+            "live_like": "rev48_clock_first",
+            "rev48_clock_last_holdout": base_last["holdout"]["pnl_usd"],
+            "rev48_clock_first_holdout": live_h,
+            "rev48_clock_first_train": live_train,
+            "rev48_clock_first_core_holdout": live_core,
         },
         "do_not_ship": [
+            "rev48_clock_first vs last — live FOK is already first-take",
             "clock_all_min120 — live alt 120–180 held 0/3 (−$8.33) even if proxy likes it",
             "clock_all_min180 — do not raise BTC/ETH min_left to 180",
             "rev48_no_clock / indep_* — live is one coin per unix",
             "clock_core_only — do not cut Telegram coins",
+            "first_pick_edge / clock_pick_edge — ranks on BM fair; calibrate_fair said not to trust fair; +$10 holdout / hit down / XRP sleeve −$19",
+            "clock_fair* / first_fair58 — min_fair tightens a miscalibrated BM",
             "scratch_adverse 0.08",
             "lower 6bps without dual-split +EV",
         ],
@@ -787,16 +808,37 @@ def main() -> None:
     if stage == "ingest":
         print("ingest done", flush=True)
         return
-    report = grid(events)
+    report = grid(events, resim=stage == "resim" or "--resim" in sys.argv)
+    live_name = (report.get("baselines") or {}).get("live_like") or "rev48_clock_first"
+    by_name = {v["name"]: v for v in report.get("variants") or []}
+    live = by_name.get(live_name) or by_name.get("rev48_clock_first")
+    near = []
+    for name in ("first_pick_edge", "first_edge05", "first_alt200"):
+        v = by_name.get(name)
+        if not v or not live:
+            continue
+        near.append(
+            {
+                "name": name,
+                "holdout_pnl": v["holdout"]["pnl_usd"],
+                "train_pnl": v["train"]["pnl_usd"],
+                "holdout_hit": v["holdout"].get("take_win_rate"),
+                "delta_hold": round(v["holdout"]["pnl_usd"] - live["holdout"]["pnl_usd"], 2),
+                "delta_train": round(v["train"]["pnl_usd"] - live["train"]["pnl_usd"], 2),
+            }
+        )
     if not report.get("shippable_vs_rev48_clock"):
         report["findings"] = {
-            "headline": "Keep Rev 48. No clock-lock variant beat it on holdout without reopening a live-known bleed.",
+            "headline": "Keep Rev 48. Live-like first-take already beats last-take; no param/rank change beat first on train+holdout without a live-known bleed.",
             "ship": False,
+            "strategy_rev": 48,
+            "near_miss": near,
         }
     else:
         report["findings"] = {
-            "headline": f"Candidates: {[w['name'] for w in report['shippable_vs_rev48_clock'][:5]]}",
+            "headline": f"Candidates vs live first-take: {[w['name'] for w in report['shippable_vs_rev48_clock'][:5]]}",
             "ship": True,
+            "near_miss": near,
         }
     OUT.write_text(json.dumps(report, indent=2) + "\n")
     print("wrote", OUT, flush=True)
