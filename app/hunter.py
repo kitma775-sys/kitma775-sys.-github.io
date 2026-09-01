@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from app.fees import gross_edge, pair_taker_fee, taker_fee, taker_net
 from app.config import DEFAULT_SETTINGS
-from app.twap import TwapParams, default_params, entry_edge, fee_per_share, trade_leg, twap_entry_reason
+from app.twap import TwapParams, default_params, entry_edge, fee_per_share, reverse_placeholder_net, trade_leg, twap_entry_reason
 
 MAKER_MIN_LEG = 0.22
 MAKER_MAX_SKEW = 0.28
@@ -304,7 +304,7 @@ def _twap_setup(
     fees = taker_fee(filled, vwap, fee_rate)
     if p.reverse:
         # Risk/FOK reject net<=0. Fade EV vs BM fair is usually negative by design.
-        ev_net = round(max(filled * 0.02, 0.01), 5)
+        ev_net = reverse_placeholder_net(filled)
         gross = round((0.5 - vwap), 4)
     else:
         assert fair is not None

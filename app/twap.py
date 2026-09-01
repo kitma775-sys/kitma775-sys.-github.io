@@ -359,6 +359,22 @@ def entry_edge(fair_p: float, px: float, fee_rate: float) -> float:
     return float(fair_p) - float(px) - fee_per_share(px, fee_rate)
 
 
+def reverse_placeholder_net(shares: float) -> float:
+    """Risk/FOK reject net<=0. Fade EV vs BM fair is usually negative by design."""
+    return round(max(float(shares) * 0.02, 0.01), 5)
+
+
+def twap_post_fok_net(*, reverse: bool, shares: float, px: float, fair_p, fee_rate: float) -> float:
+    """After FOK confirm, follow still marks BM edge; fade must not."""
+    if reverse:
+        return reverse_placeholder_net(shares)
+    try:
+        fair = float(fair_p or 0)
+    except (TypeError, ValueError):
+        fair = 0.0
+    return round(float(shares) * entry_edge(fair, float(px), fee_rate), 5)
+
+
 def twap_entry_reason(
     *,
     slug: str,

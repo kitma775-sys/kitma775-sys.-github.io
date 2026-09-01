@@ -1763,11 +1763,17 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
             setup.fees = confirm.fees
             setup.gross = round(1.0 - (confirm.up_price + confirm.down_price), 4)
             if is_twap_setup(setup):
-                from app.twap import entry_edge as _twap_edge
+                from app.twap import twap_post_fok_net
 
                 px = float(confirm.up_price or confirm.down_price)
-                fair = float((setup.extra or {}).get("fair_p") or 0)
-                setup.net = round(float(setup.shares) * _twap_edge(fair, px, fee_rate), 5)
+                extra = setup.extra or {}
+                setup.net = twap_post_fok_net(
+                    reverse=bool(extra.get("reverse")),
+                    shares=setup.shares,
+                    px=px,
+                    fair_p=extra.get("fair_p"),
+                    fee_rate=fee_rate,
+                )
                 setup.extra["cash_cost"] = confirm.cost
                 setup.extra["fill_px"] = px
             else:

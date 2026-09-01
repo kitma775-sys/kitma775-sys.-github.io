@@ -752,6 +752,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev51 restore rev46 window (all coins 120s, no late-45, no alt 90s dump) + TG reverse-thinking toggle default off. Keep 6bps, lead cap 40, clock lock, rtds recycle, stake.",
         )
+    if rev < 52:
+        store.patch_settings(strategy_rev=52)
+        store.add_event(
+            "info",
+            "rev52 fok: reverse keeps placeholder net after confirm so BM fade fair cannot non_positive_net-kill a filled FOK. Keep reverse toggle, 6bps, stake.",
+        )
     return n
 
 
