@@ -27,13 +27,16 @@ def _strategy_label(s: dict) -> str:
 def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
     return (
-        f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，多幣種。"
-        "45–55¢，全幣剩餘 120–280s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
+        f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，只hunt BTC+ETH。"
+        "45–55¢，剩餘 120–280s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
+        "第一下有效 6bps 就鎖價：FOK miss 重試同一限價，唔追遲嚟嘅 45¢ leftover。"
+        "90 秒剩餘時如果同邊 bid 從未印到 62¢，當未確認 dump（唔會因為而家 59¢ 就斬已印過 62 嘅贏家）。"
         "高階設定有「止賺 bid」：預設 87¢，Telegram 0/80/85/87/90/95。bid 全倉夠價先走，唔會用 87¢ 一檔 walk 落 40¢。"
         "唔設價止蝕：8¢ stop 同一條回測把 PnL 由 +$845 削到 +$754；弱倉／反手 scratch 已經係資訊止蝕。"
-        "高階設定有「逆向思維」掣：開咗就買 TWAP lead 嘅對家，持有到結算（BM scratch 會一入場就倒貨所以關掉）。預設關。"
+        "高階設定有「逆向思維」掣：開咗就買 TWAP lead 嘅對家，持有到結算（BM scratch 同 90s 確認都會一入場就倒貨所以關掉）。預設關。"
         "Binance 18 日同一批入場 fade 全樣本 −EV；現場 8W/32L 係 scratch 剩低嘅持有倉，唔係全部信號都應該買對家。"
-        "全幣各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死 ETH/SOL。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
+        "BTC/ETH 各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死。"
+        "CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
@@ -45,7 +48,7 @@ def _rev_blurb(s: dict) -> str:
 
 
 TG_SET_HINT = (
-    "高階設定。策略鎖定 Chainlink 5 分鐘 TWAP（多幣種）。"
+    "高階設定。策略鎖定 Chainlink 5 分鐘 TWAP（只hunt BTC+ETH）。"
     "15 分鐘同 1 小時已砍：15m 搶 14 個 CLOB 槽而且冇獨立盤帶；1H 係 Binance 收線。"
     "唔會切去互補或大熱。"
     "單筆最低 $3：5 分鐘盤 CLOB 最少 5 股，45–55¢ 連 fee 約 $2.84，$2 買唔入。"

@@ -764,6 +764,18 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev53 tp: sell when full-size bid >= 87¢ (TG 0/80/85/87/90/95). Keep BM scratch, no price stop, no reverse patch, 6bps, stake.",
         )
+    if rev < 54:
+        store.patch_settings(
+            strategy_rev=54,
+            twap_assets=["btc", "eth"],
+            twap_confirm_px=0.62,
+            twap_confirm_left=90.0,
+            twap_no_cheaper=True,
+        )
+        store.add_event(
+            "info",
+            "rev54 first-cross + 90s unconfirmed dump: hunt BTC+ETH only, lock first 6bps 45–55 ask (no leftover chase), dump if same-side bid never printed 62¢ by 90s left. Keep 6bps, 45–55, 120–280, BM scratch, TP 87, clock lock, reverse off, stake.",
+        )
     return n
 
 

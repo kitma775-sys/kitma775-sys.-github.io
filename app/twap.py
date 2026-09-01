@@ -23,6 +23,7 @@ MID_HI = 0.55
 BTC_5M_RE = re.compile(r"^btc-updown-5m-(\d+)$")
 UPDOWN_RE = re.compile(r"^([a-z0-9]+)-updown-(5m|15m)-(\d+)$")
 HORIZON_SECONDS = {"5m": 300, "15m": 900}
+WINDOW_SECONDS = 300
 TAG_TO_HORIZON = {"5M": "5m", "15M": "15m"}
 CHAINLINK_SYMBOL = {
     "btc": "btc/usd",
@@ -35,7 +36,9 @@ CHAINLINK_SYMBOL = {
     "zec": "zec/usd",
 }
 CHAINLINK_ASSETS = tuple(CHAINLINK_SYMBOL)
-WINDOW_SECONDS = 300
+CHEAPER_EPS = 0.005
+CONFIRM_PX = 0.62
+CONFIRM_LEFT = 90.0
 DEFAULT_TWAP_ASSETS = ("btc", "eth")
 DEFAULT_TWAP_CORE = ("btc", "eth")
 DEFAULT_TWAP_HORIZONS = ("5m",)
@@ -269,6 +272,9 @@ class TwapParams:
     scratch_late_bid: float = 1.0
     reverse: bool = False
     take_profit: float = 0.0
+    confirm_px: float = 0.0
+    confirm_left: float = 90.0
+    no_cheaper: bool = True
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
     core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
@@ -320,10 +326,20 @@ def default_params(s: dict | None = None) -> TwapParams:
         scratch_late_bid=num("twap_scratch_late_bid", 1.0),
         reverse=bool(d.get("twap_reverse")),
         take_profit=num("twap_tp_bid", 0.87),
+        confirm_px=num("twap_confirm_px", 0.62),
+        confirm_left=num("twap_confirm_left", 90.0),
+        no_cheaper=bool(True if d.get("twap_no_cheaper") is None else d.get("twap_no_cheaper")),
         assets=assets,
         horizons=horizons,
         core_assets=core,
     )
+
+
+def cheaper_than_first(ask: float | None, first_px: float | None, eps: float = CHEAPER_EPS) -> bool:
+    """True when this ask is a leftover hunt vs the first 6bps print."""
+    if ask is None or first_px is None:
+        return False
+    return float(ask) + 1e-12 < float(first_px) - float(eps)
 
 
 def take_profit_px(params: TwapParams) -> float | None:
@@ -397,6 +413,7 @@ def twap_entry_reason(
     left: float | None,
     fee_rate: float,
     params: TwapParams,
+    first_px: float | None = None,
 ) -> str | None:
     """None means enter. Otherwise a stable skip reason."""
     if snap is None or not snap.connected:
@@ -419,6 +436,8 @@ def twap_entry_reason(
         return "twap_window"
     if ask is None or not in_mid_band(ask, params.min_price, params.max_price):
         return "twap_band"
+    if params.no_cheaper and cheaper_than_first(ask, first_px):
+        return "twap_no_cheaper"
     if left < params.late_left and float(ask) + 1e-12 < params.late_min_price:
         return "twap_late_cheap"
     if bid is None:
@@ -462,6 +481,7 @@ def should_scratch(
     fill_px: float | None = None,
     adverse: float | None = None,
     asset: str | None = None,
+    high_water: float | None = None,
 ) -> tuple[bool, str]:
     if left is None or left < params.scratch_left_min:
         return False, "twap_scratch_late"
@@ -475,6 +495,14 @@ def should_scratch(
     tp = take_profit_px(params)
     if tp is not None and bid is not None and float(bid) + 1e-12 >= tp:
         return True, "twap_scratch_tp"
+    if (
+        params.confirm_px > 1e-12
+        and params.confirm_left > params.scratch_left_min
+        and left is not None
+        and float(left) < params.confirm_left
+        and (high_water is None or float(high_water) + 1e-12 < params.confirm_px)
+    ):
+        return True, "twap_scratch_unconfirmed"
     if fair_p is None:
         return True, "twap_scratch_no_fair"
     proceeds = scratch_proceeds(shares, bid, fee_rate)

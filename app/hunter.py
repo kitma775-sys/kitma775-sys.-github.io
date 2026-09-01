@@ -143,6 +143,7 @@ def hunt(
     favorite_dir: str = "auto",
     twap_snap=None,
     twap_params=None,
+    first_px: float | None = None,
 ) -> Setup | None:
     mode = (strategy_mode or "complement").strip().lower()
     if mode not in {"complement", "favorite", "auto", "twap"}:
@@ -233,6 +234,7 @@ def hunt(
             now=now,
             snap=twap_snap,
             params=twap_params,
+            first_px=first_px,
         )
         if tw:
             return tw
@@ -271,6 +273,7 @@ def _twap_setup(
     now,
     snap,
     params,
+    first_px: float | None = None,
 ) -> Setup | None:
     p = params if isinstance(params, TwapParams) else default_params(params if isinstance(params, dict) else None)
     left = _seconds_left(end, now)
@@ -279,7 +282,9 @@ def _twap_setup(
     bids = up_bids if leg == "up" else down_bids if leg == "down" else []
     ask = _top(asks, asks=True)
     bid = _top(bids, asks=False)
-    if twap_entry_reason(slug=slug, snap=snap, ask=ask, bid=bid, left=left, fee_rate=fee_rate, params=p):
+    if twap_entry_reason(
+        slug=slug, snap=snap, ask=ask, bid=bid, left=left, fee_rate=fee_rate, params=p, first_px=first_px
+    ):
         return None
     assert snap is not None and ask is not None and leg in {"up", "down"}
     if p.reverse:

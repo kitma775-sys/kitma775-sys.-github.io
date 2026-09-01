@@ -2317,7 +2317,7 @@ def test_rev6_boot_cancels_resting_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 1
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2357,7 +2357,7 @@ def test_rev13_widens_window_without_paper_reset(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_window_seconds"]) == 60
@@ -2390,7 +2390,7 @@ def test_rev15_opens_90_99_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
@@ -2421,7 +2421,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert h.status_code == 200
     body = h.json()
     assert body["ok"] is True
-    assert body["strategy_rev"] == 53
+    assert body["strategy_rev"] == 54
     assert body.get("auto_redeem") is True
     assert body.get("strategy_mode") == "twap"
     assert float(body.get("max_usd_per_trade") or 0) == 5.0
@@ -2446,6 +2446,10 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert float(body.get("twap_scratch_late_bid") or 0) == 1.0
     assert body.get("twap_reverse") is False
     assert float(body.get("twap_tp_bid") or 0) == 0.87
+    assert float(body.get("twap_confirm_px") or 0) == 0.62
+    assert float(body.get("twap_confirm_left") or 0) == 90.0
+    assert body.get("twap_no_cheaper") is True
+    assert body.get("twap_assets") == ["btc", "eth"]
     assert body.get("twap_horizons") == ["5m"]
     assert float(body.get("clob_rtt_ms") or 0) == 150.0
     assert "clob_ws_wanted_n" in body
@@ -3055,7 +3059,7 @@ def test_rev16_enables_auto_redeem_keeps_band_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("auto_redeem") is True
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
@@ -3089,7 +3093,7 @@ def test_rev17_favorite_only_five_usd_keeps_window_and_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("strategy_mode") == "twap"
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
@@ -3123,7 +3127,7 @@ def test_rev18_pins_180s_window_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_min_price"]) == 0.97
@@ -3155,7 +3159,7 @@ def test_rev19_waits_for_binary_redeem_pins_97_98_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert float(s["favorite_min_price"]) == 0.97
     assert float(s["favorite_max_price"]) == 0.98
     assert float(s["max_usd_per_trade"]) == 5.0
@@ -3195,7 +3199,7 @@ def test_rev20_pins_60s_locked_favorite_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert float(s["favorite_window_seconds"]) == 60
     assert float(s["favorite_min_price"]) == 0.97
     assert s["live_trading"] is False
@@ -3234,7 +3238,7 @@ def test_rev21_pins_five_usd_and_kills_down_requote(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("strategy_mode") == "twap"
     assert float(s["max_usd_per_trade"]) == 5.0
     assert float(s["favorite_window_seconds"]) == 60
@@ -3358,7 +3362,7 @@ def test_rev22_stops_favorite_keeps_paper_and_edge(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("strategy_mode") == "twap"
     assert float(s["min_edge"]) == 0.02
     assert float(s.get("twap_min_lead_bps") or 0) == 6.0
@@ -3400,7 +3404,7 @@ def test_rev23_twap_engine_keeps_paper_and_complement_edge(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("strategy_mode") == "twap"
     assert float(s["min_edge"]) == 0.02
     assert float(s["twap_min_price"]) == 0.45
@@ -4195,7 +4199,11 @@ def test_live_leftover_paper_does_not_block_twap(tmp_path):
     assert snap["board"]["mode"] == "live"
     assert snap["board"]["cash"] == 19.76
     assert snap["board"]["leftover_paper_n"] == 1
-    assert snap["board"]["notes"] == ["💰 止賺 87¢：全倉 bid 夠價先走，弱倉 scratch 照舊"]
+    assert snap["board"]["notes"] == [
+        "💰 止賺 87¢：全倉 bid 夠價先走，弱倉 scratch 照舊",
+        "🔒 第一下 6bps 唔追平；90s 未印 62¢ dump",
+        "🎯 只hunt BTC+ETH",
+    ]
 
 
 def test_operator_board_splits_live_and_paper(tmp_path):
@@ -4565,7 +4573,7 @@ def test_wall_slots_keep_open_window_not_future_listing(tmp_path):
     note_wall_gate(
         rt,
         {
-            "slug": "xrp-updown-5m-1788174000",
+            "slug": "eth-updown-5m-1788174000",
             "reason": "twap_band",
             "lead_bps": -9.2,
             "ask": 0.80,
@@ -4576,7 +4584,7 @@ def test_wall_slots_keep_open_window_not_future_listing(tmp_path):
     note_wall_gate(
         rt,
         {
-            "slug": "xrp-updown-5m-1788174600",
+            "slug": "eth-updown-5m-1788174600",
             "reason": "future_listing",
             "ask": 0.495,
             "left": 840,
@@ -4609,11 +4617,11 @@ def test_wall_slots_keep_open_window_not_future_listing(tmp_path):
         },
     )
     wall = operator_wall(rt, operator_board(rt))
-    xrp = next(s for s in wall["slots"] if s["asset"] == "xrp")
+    eth = next(s for s in wall["slots"] if s["asset"] == "eth")
     btc = next(s for s in wall["slots"] if s["asset"] == "btc")
-    assert xrp["reason"] == "twap_band"
-    assert xrp["reason_zh"] == "價帶外"
-    assert abs(float(xrp["ask"]) - 0.80) < 1e-9
+    assert eth["reason"] == "twap_band"
+    assert eth["reason_zh"] == "價帶外"
+    assert abs(float(eth["ask"]) - 0.80) < 1e-9
     assert btc["reason"] == "twap_lead"
     assert btc["reason_zh"] == "lead 唔夠"
     assert all(row["reason"] != "future_listing" for row in wall["tape"])
@@ -4868,7 +4876,7 @@ def test_fair_p_stay_brownian():
 def test_strategy_mode_of_defaults_to_twap():
     from app.config import DEFAULT_SETTINGS, strategy_mode_of
 
-    assert DEFAULT_SETTINGS["strategy_rev"] == 53
+    assert DEFAULT_SETTINGS["strategy_rev"] == 54
     assert DEFAULT_SETTINGS["strategy_mode"] == "twap"
     assert strategy_mode_of(None) == "twap"
     assert strategy_mode_of({}) == "twap"
@@ -4907,6 +4915,9 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     essay = settings_text(rt)
     assert "唔做 YES+NO 互補" in essay
     assert "120–280s" in essay
+    assert "只hunt BTC+ETH" in essay
+    assert "第一下有效 6bps" in essay
+    assert "90 秒剩餘" in essay
     assert "同一 5 分鐘 unix 只做一個幣" in essay
     assert "scratch 之後唔反手" in essay
     assert "逆向思維" in essay
@@ -5041,6 +5052,30 @@ def test_high_wr_research_is_not_a_live_patch():
     assert data["findings"]["top_strategy"].startswith("No live patch")
     assert (data["btc_eth"]["last_bm"].get("hold_never_62") or {}).get("take_win_rate", 1) < 0.40
     assert (data["btc_eth"]["last_bm"].get("hold_confirmed") or {}).get("take_win_rate", 0) >= 0.80
+
+
+def test_rev54_ship_json_is_plus_ev_btc_eth():
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    data = json.loads((Path(__file__).resolve().parents[1] / "research" / "rev54_ship.json").read_text())
+    assert data["ship"] is True
+    assert data["pick"] == "first_dump_by90_h2"
+    assert data["hunt_assets"] == ["btc", "eth"]
+    assert data["btc_eth"]["train"]["pnl_usd"] > 0
+    assert data["btc_eth"]["holdout"]["pnl_usd"] > 0
+    assert data["live_cf_dump_by90_h2"]["dumped_winners"] == 0
+    assert "price_sl_8c" in data["do_not"]
+    assert "dump_mid90" in data["do_not"]
+    p = default_params(DEFAULT_SETTINGS)
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert p.no_cheaper is True
+    assert abs(p.confirm_px - 0.62) < 1e-9
+    assert DEFAULT_SETTINGS["twap_assets"] == ["btc", "eth"]
+    assert DEFAULT_SETTINGS["strategy_rev"] == 54
 
 
 def test_top_5m_follow_is_not_a_ship_signal():
@@ -5275,6 +5310,130 @@ def test_twap_entry_reason_and_scratch():
     live_p = default_params(DEFAULT_SETTINGS)
     assert abs(float(take_profit_px(live_p) or 0) - 0.87) < 1e-9
     assert take_profit_px(TwapParams(take_profit=0.0)) is None
+    assert abs(live_p.confirm_px - 0.62) < 1e-9
+    assert abs(live_p.confirm_left - 90.0) < 1e-9
+    assert live_p.no_cheaper is True
+    assert live_p.assets == ("btc", "eth")
+
+
+def test_rev54_first_cross_and_unconfirmed_dump():
+    from app.hunter import is_twap_setup
+    from app.twap import TwapParams, cheaper_than_first, should_scratch, twap_entry_reason
+
+    snap = _twap_snap()
+    params = TwapParams(confirm_px=0.62, confirm_left=90.0, no_cheaper=True)
+    assert cheaper_than_first(0.45, 0.53) is True
+    assert cheaper_than_first(0.528, 0.53) is False
+    assert cheaper_than_first(0.53, 0.53) is False
+    assert cheaper_than_first(0.45, None) is False
+    assert twap_entry_reason(
+        slug="btc-updown-5m-1000", snap=snap, ask=0.45, bid=0.44, left=180.0, fee_rate=0.07, params=params, first_px=0.53
+    ) == "twap_no_cheaper"
+    assert twap_entry_reason(
+        slug="btc-updown-5m-1000", snap=snap, ask=0.53, bid=0.52, left=180.0, fee_rate=0.07, params=params, first_px=0.53
+    ) is None
+    go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=params, high_water=0.50
+    )
+    assert go is True and why == "twap_scratch_unconfirmed"
+    go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=params, high_water=0.70
+    )
+    assert go is False and why == "twap_hold"
+    go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.50, shares=10, fee_rate=0.07, left=120.0, params=params, high_water=None
+    )
+    assert go is False and why == "twap_hold"
+    fade = TwapParams(reverse=True, confirm_px=0.62, confirm_left=90.0)
+    go, why = should_scratch(
+        fair_p=0.30, lead_bps_signed=-8.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=fade, high_water=None
+    )
+    assert go is False and why == "twap_hold"
+    kw = dict(
+        slug="btc-updown-5m-1000",
+        title="btc 5m",
+        condition_id="0xtwap",
+        up_token="u",
+        down_token="d",
+        up_bids=_L((0.52, 20)),
+        down_bids=_L((0.48, 20)),
+        max_usd=5,
+        min_shares=5,
+        min_edge=0.02,
+        fee_rate=0.07,
+        prefer_tail=True,
+        tail_confirm=0.9,
+        maker_first=False,
+        end=_late_end(180),
+        strategy_mode="twap",
+        twap_snap=snap,
+        twap_params=params,
+    )
+    leftover = hunt(**kw, up_asks=_L((0.45, 40)), down_asks=_L((0.52, 40)), first_px=0.53)
+    assert leftover is None
+    first = hunt(**kw, up_asks=_L((0.53, 40)), down_asks=_L((0.52, 40)), first_px=0.53)
+    assert first is not None and is_twap_setup(first)
+
+
+def test_confirm_twap_rejects_leftover_cheaper_fill(tmp_path):
+    from app.config import Env
+    from app.hunter import Setup
+    from app.runtime import Runtime, _confirm_twap
+
+    st = Store(tmp_path / "first-cross-confirm.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    setup = Setup(
+        slug="btc-updown-5m-1000",
+        title="btc",
+        condition_id="c",
+        up_token="u",
+        down_token="d",
+        kind="taker",
+        up_price=0.53,
+        down_price=0.0,
+        shares=10,
+        fillable=10,
+        gross=0.2,
+        fees=0.1,
+        net=1.0,
+        tail=False,
+        extra={"strategy": "twap", "leg": "up", "fill_px": 0.53},
+    )
+    ev = {
+        "slug": setup.slug,
+        "title": "btc",
+        "condition_id": "c",
+        "up_token": "u",
+        "down_token": "d",
+        "end": _late_end(180),
+        "min_size": 5,
+        "fee_rate": 0.07,
+    }
+    leftover = _confirm_twap(
+        rt,
+        ev,
+        setup,
+        {"asks": _L((0.45, 40)), "bids": _L((0.44, 20))},
+        {"asks": _L((0.55, 20)), "bids": _L((0.54, 20))},
+        st.settings(),
+        0.07,
+        st.paper_state(),
+    )
+    assert leftover.ok is False
+    assert leftover.reason == "twap_no_cheaper"
+    same = _confirm_twap(
+        rt,
+        ev,
+        setup,
+        {"asks": _L((0.53, 40)), "bids": _L((0.52, 20))},
+        {"asks": _L((0.55, 20)), "bids": _L((0.54, 20))},
+        st.settings(),
+        0.07,
+        st.paper_state(),
+    )
+    assert same.ok is True
+    assert abs(float(same.up_price) - 0.53) < 1e-9
 
 
 def test_twap_gate_row_reports_window_and_signal():
@@ -5805,7 +5964,7 @@ def test_rev24_copies_whale_timing_not_pairlock(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("strategy_mode") == "twap"
     assert float(s["twap_max_left"]) == 280.0
     assert float(s["twap_min_lead_bps"]) == 6.0
@@ -5840,7 +5999,7 @@ def test_rev25_aligns_paper_clob_fak_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s.get("strategy_mode") == "twap"
     assert float(s["twap_max_left"]) == 280.0
     assert float(s["clob_rtt_ms"]) == 150.0
@@ -5870,7 +6029,7 @@ def test_rev26_locks_twap_only_keeps_paper_and_universe(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["strategy_mode"] == "twap"
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth"]
@@ -6038,7 +6197,7 @@ def test_rev27_opens_280s_and_eth_keeps_paper(tmp_path):
     n = apply_strategy_rev(st)
     assert n == 0
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth"]
     assert float(s["twap_max_left"]) == 280.0
@@ -6047,10 +6206,12 @@ def test_rev27_opens_280s_and_eth_keeps_paper(tmp_path):
     assert float(s["twap_min_price"]) == 0.45
     assert float(s["twap_max_price"]) == 0.55
     assert "eth" in s["twap_assets"]
-    assert "sol" in s["twap_assets"]
+    assert "sol" not in s["twap_assets"]
+    assert s["twap_assets"] == ["btc", "eth"]
     assert s["twap_horizons"] == ["5m"]
     assert s["live_trading"] is False
-    assert "sol" in DEFAULT_SETTINGS["twap_assets"]
+    assert "sol" not in DEFAULT_SETTINGS["twap_assets"]
+    assert DEFAULT_SETTINGS["twap_assets"] == ["btc", "eth"]
     assert DEFAULT_SETTINGS["twap_horizons"] == ["5m"]
     p = default_params(s)
     assert p.max_left == 280.0
@@ -6161,7 +6322,9 @@ def test_parse_window_settlement_allowlist():
 
     live = default_params(DEFAULT_SETTINGS)
     assert live.horizons == ("5m",)
+    assert live.assets == ("btc", "eth")
     assert slug_allowed("btc-updown-5m-1000", live) is True
+    assert slug_allowed("sol-updown-5m-1000", live) is False
     assert slug_allowed("sol-updown-15m-1000", live) is False
     leftover = default_params(
         {
@@ -6346,7 +6509,7 @@ def test_rev28_does_not_open_user_scan_filters(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth"]
     assert int(s.get("scan_limit") or 0) == 40
@@ -6678,12 +6841,88 @@ def test_rev36_pins_hysteresis_keeps_user_coins_and_paper(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
     assert float(s["twap_min_lead_bps"]) == 6.0
     assert float(s["max_usd_per_trade"]) == 5.0
     assert s["live_trading"] is False
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert apply_strategy_rev(st) == 0
+
+
+def test_rev54_pins_btc_eth_hunt_keeps_telegram_coins_and_live(tmp_path):
+    from app.main import apply_strategy_rev
+    from app.twap import default_params, hunt_assets
+
+    st = Store(tmp_path / "rev54.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(9)
+    st.patch_settings(
+        strategy_rev=53,
+        strategy_mode="twap",
+        tags=["5M"],
+        assets=["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"],
+        twap_assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge", "zec"],
+        live_trading=True,
+        max_usd_per_trade=3.0,
+        twap_reverse=False,
+    )
+    before = st.paper_state()
+    apply_strategy_rev(st)
+    s = st.settings()
+    assert s["strategy_rev"] == 54
+    assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
+    assert s["twap_assets"] == ["btc", "eth"]
+    assert float(s["twap_confirm_px"]) == 0.62
+    assert float(s["twap_confirm_left"]) == 90.0
+    assert s["twap_no_cheaper"] is True
+    assert s["live_trading"] is True
+    assert float(s["max_usd_per_trade"]) == 3.0
+    assert s["twap_reverse"] is False
+    assert hunt_assets(s) == ("btc", "eth")
+    p = default_params(s)
+    assert p.assets == ("btc", "eth")
+    assert p.no_cheaper is True
+    after = st.paper_state()
+    assert after["cash"] == before["cash"]
+    assert apply_strategy_rev(st) == 0
+
+
+def test_rev54_pins_btc_eth_hunt_keeps_telegram_coins_and_live(tmp_path):
+    from app.main import apply_strategy_rev
+    from app.twap import default_params, hunt_assets
+
+    st = Store(tmp_path / "rev54.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(9)
+    st.patch_settings(
+        strategy_rev=53,
+        strategy_mode="twap",
+        tags=["5M"],
+        assets=["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"],
+        twap_assets=["btc", "eth", "sol", "xrp", "bnb", "hype", "doge", "zec"],
+        live_trading=True,
+        max_usd_per_trade=3.0,
+        twap_reverse=False,
+    )
+    before = st.paper_state()
+    apply_strategy_rev(st)
+    s = st.settings()
+    assert s["strategy_rev"] == 54
+    assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
+    assert s["twap_assets"] == ["btc", "eth"]
+    assert float(s["twap_confirm_px"]) == 0.62
+    assert float(s["twap_confirm_left"]) == 90.0
+    assert s["twap_no_cheaper"] is True
+    assert s["live_trading"] is True
+    assert float(s["max_usd_per_trade"]) == 3.0
+    assert s["twap_reverse"] is False
+    assert hunt_assets(s) == ("btc", "eth")
+    p = default_params(s)
+    assert p.assets == ("btc", "eth")
+    assert p.no_cheaper is True
     after = st.paper_state()
     assert after["cash"] == before["cash"]
     assert apply_strategy_rev(st) == 0
@@ -6711,7 +6950,7 @@ def test_rev35_pins_prewarm_keeps_user_coins_and_paper(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["twap_horizons"] == ["5m"]
     assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
@@ -6873,7 +7112,7 @@ def test_rev30_does_not_reset_paper_or_user_filters(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
     assert int(s.get("max_open_markets") or 0) == 10
@@ -6906,7 +7145,7 @@ def test_rev31_does_not_reset_paper_or_user_filters(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
     assert int(s.get("max_open_markets") or 0) == 10
@@ -6937,7 +7176,7 @@ def test_rev32_does_not_reset_paper_or_user_filters(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
     assert float(s["twap_min_lead_bps"]) == 6.0
@@ -6967,7 +7206,7 @@ def test_rev33_does_not_reset_paper_or_user_filters(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["assets"] == ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
     assert float(s["twap_min_lead_bps"]) == 6.0
@@ -7001,7 +7240,7 @@ def test_rev34_pins_5m_only_keeps_user_coins_and_paper(tmp_path):
     before = st.paper_state()
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert s["tags"] == ["5M"]
     assert s["tag"] == "5M"
     assert s["twap_horizons"] == ["5m"]
@@ -7033,7 +7272,7 @@ def test_rev46_late_entry_gate_and_same_clock_all_coins(tmp_path):
     st.patch_settings(strategy_rev=45, twap_min_left=12.0, live_trading=True, max_usd_per_trade=3.0)
     apply_strategy_rev(st)
     s = st.settings()
-    assert s["strategy_rev"] == 53
+    assert s["strategy_rev"] == 54
     assert float(s["twap_min_left"]) == 120.0
     assert float(s["twap_late_left"]) == 0.0
     assert float(s["twap_late_min_price"]) == 0.45

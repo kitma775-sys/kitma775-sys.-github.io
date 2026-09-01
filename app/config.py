@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 53,
+    "strategy_rev": 54,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -69,8 +69,13 @@ DEFAULT_SETTINGS = {
     "twap_reverse": False,
     # 0 = off. Default 87¢ locks a runner; 80/85/87/90/95 via Telegram.
     "twap_tp_bid": 0.87,
+    # Rev 54: first-cross + 90s unconfirmed dump. Hunt pin is BTC+ETH;
+    # Telegram `assets` may still list alts (hysteresis) but hunt = ∩ twap_assets.
+    "twap_confirm_px": 0.62,
+    "twap_confirm_left": 90.0,
+    "twap_no_cheaper": True,
     "twap_core_assets": ["btc", "eth"],
-    "twap_assets": ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge", "zec"],
+    "twap_assets": ["btc", "eth"],
     "twap_horizons": ["5m"],
     "twap_lookback": 60.0,
     "twap_rescore_seconds": 15.0,

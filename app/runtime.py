@@ -13,7 +13,7 @@ from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
-from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
+from app.twap import chainlink_symbols_for, cheaper_than_first, default_params, future_listing, hunt_assets, hunt_horizons, parse_window, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -107,6 +107,10 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         tp = setting_num(s, "twap_tp_bid", 0.87)
         if tp > 1e-12:
             notes.append(f"💰 止賺 {int(round(tp * 100))}¢：全倉 bid 夠價先走，弱倉 scratch 照舊")
+        notes.append("🔒 第一下 6bps 唔追平；90s 未印 62¢ dump")
+    hunted = [str(a).upper() for a in hunt_assets(s) if str(a).strip()]
+    if hunted and set(a.lower() for a in hunted) <= {"btc", "eth"}:
+        notes.append("🎯 只hunt BTC+ETH")
     stake = float(s.get("max_usd_per_trade") or 5)
     open_cost = round(sum(float(r.get("cost") or 0) for r in inv), 2)
     perf = performance_today(rt)
@@ -311,6 +315,7 @@ _GATE_RANK = {
     "twap_thin": 9,
     "twap_band": 10,
     "twap_late_cheap": 10,
+    "twap_no_cheaper": 10,
     "twap_window": 11,
     "twap_no_ptb": 12,
     "twap_no_feed": 13,
@@ -558,6 +563,108 @@ def _remember_twap_clock(rt: Runtime, slug: str) -> None:
     rt._twap_clocks_taken[int(parsed.start)] = float(parsed.start + parsed.window_seconds)
 
 
+def _trade_leg_px(row: dict) -> float | None:
+    try:
+        up = float(row.get("up_price") or 0)
+        dn = float(row.get("down_price") or 0)
+    except (TypeError, ValueError):
+        return None
+    px = up if up > 0.01 else dn
+    if 0.01 < px < 1.0:
+        return px
+    return None
+
+
+def _expire_twap_maps(rt: Runtime, now: float | None = None) -> None:
+    ts = time.time() if now is None else float(now)
+    for slug, (_px, exp) in list(rt._twap_first_px.items()):
+        if ts >= float(exp):
+            rt._twap_first_px.pop(slug, None)
+    open_cids = {str(r.get("condition_id") or "") for r in mode_inventory(rt) if r.get("condition_id")}
+    for cid in list(rt._twap_high_bid):
+        if cid not in open_cids:
+            rt._twap_high_bid.pop(cid, None)
+
+
+def _hydrate_twap_first_px(rt: Runtime) -> None:
+    """Restart-safe: leftover 45¢ after a FOK-kill still counts as second look."""
+    if rt._twap_first_hydrated:
+        return
+    rt._twap_first_hydrated = True
+    now = time.time()
+    try:
+        rows = rt.store.trades_since(
+            now - 900.0,
+            mode=rt.mode(),
+            limit=400,
+            statuses=("filled", "dumped", "paper_filled", "paper_dumped", "fok_killed", "paper_fok_killed"),
+        )
+    except Exception:
+        rows = []
+    for t in rows:
+        slug = str(t.get("slug") or "")
+        parsed = parse_window(slug)
+        if parsed is None or float(parsed.start + parsed.window_seconds) <= now:
+            continue
+        px = _trade_leg_px(t)
+        if px is None or slug in rt._twap_first_px:
+            continue
+        rt._twap_first_px[slug] = (float(px), float(parsed.start + parsed.window_seconds))
+    for row in mode_inventory(rt):
+        slug = str(row.get("slug") or "")
+        parsed = parse_window(slug)
+        if parsed is None or slug in rt._twap_first_px:
+            continue
+        shares = float(row.get("up") or 0) + float(row.get("down") or 0)
+        cost = float(row.get("cost") or 0)
+        if shares <= 0.01 or cost <= 0:
+            continue
+        rt._twap_first_px[slug] = (cost / shares, float(parsed.start + parsed.window_seconds))
+
+
+def _twap_first_px_of(rt: Runtime, slug: str) -> float | None:
+    _hydrate_twap_first_px(rt)
+    _expire_twap_maps(rt)
+    row = rt._twap_first_px.get(slug)
+    return None if row is None else float(row[0])
+
+
+def _lock_twap_first_px(rt: Runtime, slug: str, px: float | None) -> None:
+    parsed = parse_window(slug)
+    if parsed is None or px is None:
+        return
+    try:
+        val = float(px)
+    except (TypeError, ValueError):
+        return
+    if val <= 0 or slug in rt._twap_first_px:
+        return
+    rt._twap_first_px[slug] = (val, float(parsed.start + parsed.window_seconds))
+
+
+def _touch_twap_high_bid(rt: Runtime, cid: str, bid: float | None) -> None:
+    if not cid or bid is None:
+        return
+    try:
+        px = float(bid)
+    except (TypeError, ValueError):
+        return
+    prev = float(rt._twap_high_bid.get(cid) or 0.0)
+    if px > prev:
+        rt._twap_high_bid[cid] = px
+
+
+def _touch_held_high_bid(rt: Runtime, cid: str, up_book: dict, dn_book: dict) -> None:
+    row = rt.store.inventory_one(cid)
+    up, down = float(row.get("up") or 0), float(row.get("down") or 0)
+    if up <= 0.01 and down <= 0.01:
+        return
+    if up > 0.01 and down > 0.01:
+        return
+    book = up_book if up > down else dn_book
+    _touch_twap_high_bid(rt, cid, _top((book or {}).get("bids") or [], asks=False))
+
+
 def _hydrate_twap_clocks(rt: Runtime) -> None:
     """Restart-safe: a dumped 5m clock stays taken until T1."""
     if rt._twap_clocks_hydrated:
@@ -676,7 +783,7 @@ def _holding_twap_assets(rt: Runtime) -> tuple[str, ...]:
     return tuple(out)
 
 
-def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float, params, setup, chainlink=None) -> dict:
+def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float, params, setup, chainlink=None, first_px: float | None = None) -> dict:
     """Why this TWAP book did or did not produce a lift."""
     left = seconds_left(ev.get("end"))
     up_ask = _top(up_book.get("asks") or [], asks=True)
@@ -707,6 +814,7 @@ def _twap_gate_row(ev: dict, snap, up_book: dict, dn_book: dict, fee_rate: float
             left=left,
             fee_rate=fee_rate,
             params=params,
+            first_px=first_px,
         ) or "ready"
     fair = None
     if snap is not None and snap.fair_p_up is not None:
@@ -780,6 +888,9 @@ class Runtime:
         self._dump_fail_logged: set[str] = set()
         self._twap_clocks_taken: dict[int, float] = {}
         self._twap_clocks_hydrated = False
+        self._twap_first_px: dict[str, tuple[float, float]] = {}
+        self._twap_first_hydrated = False
+        self._twap_high_bid: dict[str, float] = {}
         load_live_usdc(self)
 
     def clob_halted(self) -> bool:
@@ -1395,6 +1506,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         decide_bid = float(top_bid) if top_bid is not None else None
         filled_px = float(inv.get("cost") or 0) / shares if shares else 0.5
         held = parse_window(str(inv.get("slug") or ev.get("slug") or ""))
+        _touch_twap_high_bid(rt, cid, decide_bid)
         go, why = should_scratch(
             fair_p=fair,
             lead_bps_signed=signed,
@@ -1405,6 +1517,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
             params=params,
             fill_px=filled_px,
             asset=None if held is None else held.asset,
+            high_water=rt._twap_high_bid.get(cid),
         )
         if not go:
             continue
@@ -1552,6 +1665,8 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
         if not up_book.get("asks") or not dn_book.get("asks"):
             empty_asks += 1
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
+        if cid and cid in hold_cids:
+            _touch_held_high_bid(rt, cid, up_book, dn_book)
         quotes.append(
             book_quote(
                 slug=ev["slug"],
@@ -1620,11 +1735,28 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     strategy_mode="twap",
                     twap_snap=snap,
                     twap_params=twap_params,
+                    first_px=_twap_first_px_of(rt, slug),
                 )
             except Exception as exc:
                 rt.store.add_event("warn", f"hunt {ev.get('slug')}: {fmt_exc(exc)}")
                 continue
-        gate = _twap_gate_row(ev, snap, up_book, dn_book, fee_rate, twap_params, setup, chainlink=rt.chainlink)
+            if setup:
+                _lock_twap_first_px(
+                    rt,
+                    slug,
+                    float((setup.extra or {}).get("fill_px") or setup.up_price or setup.down_price),
+                )
+        gate = _twap_gate_row(
+            ev,
+            snap,
+            up_book,
+            dn_book,
+            fee_rate,
+            twap_params,
+            setup,
+            chainlink=rt.chainlink,
+            first_px=_twap_first_px_of(rt, slug),
+        )
         if is_future:
             gate["reason"] = "future_listing"
         elif is_conflict:
@@ -2201,11 +2333,12 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
 
 
 def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper, *, allow_requote: bool = True) -> TakerSim:
-    """One-leg FAK in 45–55¢. Cheaper requote is fine; flipping the leg is not."""
+    """One-leg FAK in 45–55¢. First-cross: no leftover cheaper fill; flipping the leg is not."""
     params = default_params(s)
     leg = str((setup.extra or {}).get("leg") or "up")
     asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
     limit = setup.up_price if leg == "up" else setup.down_price
+    first_px = _twap_first_px_of(rt, str(ev.get("slug") or setup.slug or "")) or float(limit)
     min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
     fill = fak_one(
         asks=asks,
@@ -2218,6 +2351,8 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
     )
     if fill.ok:
         px = fill.up_price
+        if params.no_cheaper and cheaper_than_first(px, first_px):
+            return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
         return TakerSim(
             True,
             px if leg == "up" else 0.0,
@@ -2231,6 +2366,9 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
         )
     if not allow_requote:
         return fill
+    top = _top(asks, asks=True)
+    if params.no_cheaper and cheaper_than_first(top, first_px):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
     snap = rt.chainlink.snapshot(
         str(ev.get("slug") or setup.slug),
         lookback=int(params.lookback),
@@ -2261,12 +2399,15 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
         strategy_mode="twap",
         twap_snap=snap,
         twap_params=params,
+        first_px=first_px,
     )
     if hunted is None or not is_twap_setup(hunted) or hunted.net <= 0:
         return fill
     if str((hunted.extra or {}).get("leg") or leg) != leg:
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_flip")
     new_px = float((hunted.extra or {}).get("fill_px") or hunted.up_price or hunted.down_price)
+    if params.no_cheaper and cheaper_than_first(new_px, first_px):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
     if new_px - 1e-12 > float(limit):
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_up_requote")
     return TakerSim(
