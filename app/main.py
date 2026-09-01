@@ -758,6 +758,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev52 fok: reverse keeps placeholder net after confirm so BM fade fair cannot non_positive_net-kill a filled FOK. Keep reverse toggle, 6bps, stake.",
         )
+    if rev < 53:
+        store.patch_settings(strategy_rev=53, twap_tp_bid=0.87)
+        store.add_event(
+            "info",
+            "rev53 tp: sell when full-size bid >= 87¢ (TG 0/80/85/87/90/95). Keep BM scratch, no price stop, no reverse patch, 6bps, stake.",
+        )
     return n
 
 

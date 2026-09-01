@@ -268,6 +268,7 @@ class TwapParams:
     scratch_late_left: float = 0.0
     scratch_late_bid: float = 1.0
     reverse: bool = False
+    take_profit: float = 0.0
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
     core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
@@ -318,10 +319,22 @@ def default_params(s: dict | None = None) -> TwapParams:
         scratch_late_left=num("twap_scratch_late_left", 0.0),
         scratch_late_bid=num("twap_scratch_late_bid", 1.0),
         reverse=bool(d.get("twap_reverse")),
+        take_profit=num("twap_tp_bid", 0.87),
         assets=assets,
         horizons=horizons,
         core_assets=core,
     )
+
+
+def take_profit_px(params: TwapParams) -> float | None:
+    """None means take-profit is off. 0 or >=1 is off so Telegram 關 works."""
+    try:
+        tp = float(params.take_profit)
+    except (TypeError, ValueError):
+        return None
+    if tp <= 1e-12 or tp >= 1.0 - 1e-12:
+        return None
+    return tp
 
 
 def opposite_leg(leg: str | None) -> str | None:
@@ -459,6 +472,9 @@ def should_scratch(
         if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
             return True, "twap_scratch_wild"
         return False, "twap_hold"
+    tp = take_profit_px(params)
+    if tp is not None and bid is not None and float(bid) + 1e-12 >= tp:
+        return True, "twap_scratch_tp"
     if fair_p is None:
         return True, "twap_scratch_no_fair"
     proceeds = scratch_proceeds(shares, bid, fee_rate)

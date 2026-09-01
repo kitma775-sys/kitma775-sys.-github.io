@@ -6,7 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_log_ts, format_share_qty, format_signed_usd, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_trade_usd
+from app.config import LIVE_BLOCKER_ZH, SETTING_STEPS, TRADE_USD_STEPS, format_fill_headline, format_leg_prices, format_log_ts, format_share_qty, format_signed_usd, format_tp_bid, is_directional_inventory, is_favorite_inventory, live_keys_ready, live_switch_blockers, nudge_tp_bid, nudge_trade_usd
 from app.runtime import Runtime, arm_live_wallet, leftover_paper_inventory, mode_inventory, operator_board, refresh_live_usdc
 from app.twap import hunt_assets, hunt_horizons
 from app.universe import DEFAULT_ASSETS
@@ -29,6 +29,8 @@ def _rev_blurb(s: dict) -> str:
     return (
         f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，多幣種。"
         "45–55¢，全幣剩餘 120–280s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
+        "高階設定有「止賺 bid」：預設 87¢，Telegram 0/80/85/87/90/95。bid 全倉夠價先走，唔會用 87¢ 一檔 walk 落 40¢。"
+        "唔設價止蝕：8¢ stop 同一條回測把 PnL 由 +$845 削到 +$754；弱倉／反手 scratch 已經係資訊止蝕。"
         "高階設定有「逆向思維」掣：開咗就買 TWAP lead 嘅對家，持有到結算（BM scratch 會一入場就倒貨所以關掉）。預設關。"
         "Binance 18 日同一批入場 fade 全樣本 −EV；現場 8W/32L 係 scratch 剩低嘅持有倉，唔係全部信號都應該買對家。"
         "全幣各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死 ETH/SOL。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
@@ -292,7 +294,9 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton(f"{'✅' if on else '⬜️'} {label}", callback_data=f"tog:{key}")])
     for key, (_step, _lo, _hi) in SETTING_STEPS.items():
         val = s.get(key)
-        if isinstance(val, float):
+        if key == "twap_tp_bid":
+            shown = format_tp_bid(val)
+        elif isinstance(val, float):
             shown = f"{val:.3g}"
         else:
             shown = str(val)
@@ -349,6 +353,7 @@ def _label(key: str) -> str:
         "twap_max_left": "TWAP剩餘上限s",
         "twap_min_lead_bps": "TWAP最少lead bps",
         "clob_rtt_ms": "CLOB RTT ms",
+        "twap_tp_bid": "止賺 bid",
     }.get(key, key)
 
 
@@ -710,6 +715,12 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
                 await q.answer(note)
             else:
                 await q.answer()
+            await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
+            return
+        if key == "twap_tp_bid":
+            nxt = nudge_tp_bid(cur, up=data.startswith("inc:"))
+            rt.store.patch_settings(twap_tp_bid=round(float(nxt), 4))
+            await q.answer()
             await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
             return
         nxt = cur + step if data.startswith("inc:") else cur - step

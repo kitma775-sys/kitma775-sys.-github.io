@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 52,
+    "strategy_rev": 53,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -67,6 +67,8 @@ DEFAULT_SETTINGS = {
     "twap_scratch_late_left": 0.0,
     "twap_scratch_late_bid": 1.0,
     "twap_reverse": False,
+    # 0 = off. Default 87¢ locks a runner; 80/85/87/90/95 via Telegram.
+    "twap_tp_bid": 0.87,
     "twap_core_assets": ["btc", "eth"],
     "twap_assets": ["btc", "eth", "sol", "xrp", "bnb", "hype", "doge", "zec"],
     "twap_horizons": ["5m"],
@@ -80,6 +82,8 @@ DEFAULT_SETTINGS = {
 # 5m crypto up/down CLOB min is 5 shares. In the 45–55¢ TWAP band that is
 # ~$2.34–$2.84 after taker fee, so $2 cannot fill. Telegram steps start at $3.
 TRADE_USD_STEPS = (3.0, 5.0, 10.0, 15.0, 20.0, 25.0, 50.0, 100.0, 200.0, 500.0)
+# 0 = off. Mid of the 85–90 band is 87¢; 80/95 are the edges operators actually tap.
+TP_BID_STEPS = (0.0, 0.80, 0.85, 0.87, 0.90, 0.95)
 
 
 def nudge_trade_usd(cur, *, up: bool) -> float:
@@ -100,6 +104,34 @@ def nudge_trade_usd(cur, *, up: bool) -> float:
     return float(steps[0])
 
 
+def nudge_tp_bid(cur, *, up: bool) -> float:
+    """Move along TP_BID_STEPS. 0 turns take-profit off."""
+    try:
+        x = float(cur)
+    except (TypeError, ValueError):
+        x = float(DEFAULT_SETTINGS["twap_tp_bid"])
+    steps = TP_BID_STEPS
+    if up:
+        for n in steps:
+            if n > x + 1e-9:
+                return float(n)
+        return float(steps[-1])
+    for n in reversed(steps):
+        if n < x - 1e-9:
+            return float(n)
+    return float(steps[0])
+
+
+def format_tp_bid(v) -> str:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        x = 0.0
+    if x <= 1e-9:
+        return "關"
+    return f"{int(round(x * 100))}¢"
+
+
 SETTING_STEPS = {
     "max_usd_per_trade": (5.0, 3.0, 500.0),
     "min_shares": (1.0, 5.0, 50.0),
@@ -112,6 +144,7 @@ SETTING_STEPS = {
     "twap_max_left": (10.0, 60.0, 280.0),
     "twap_min_lead_bps": (1.0, 2.0, 20.0),
     "clob_rtt_ms": (50.0, 0.0, 500.0),
+    "twap_tp_bid": (0.01, 0.0, 0.95),
 }
 
 

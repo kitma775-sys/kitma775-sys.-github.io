@@ -13,7 +13,7 @@ from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
-from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, trade_leg, twap_entry_reason
+from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -103,6 +103,10 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         notes.append("⏸ Polymarket CLOB 全站暫停 · status.polymarket.com")
     if s.get("twap_reverse"):
         notes.append("🔄 逆向思維開緊：買 TWAP lead 對家，持有到結算")
+    else:
+        tp = setting_num(s, "twap_tp_bid", 0.87)
+        if tp > 1e-12:
+            notes.append(f"💰 止賺 {int(round(tp * 100))}¢：全倉 bid 夠價先走，弱倉 scratch 照舊")
     stake = float(s.get("max_usd_per_trade") or 5)
     open_cost = round(sum(float(r.get("cost") or 0) for r in inv), 2)
     perf = performance_today(rt)
@@ -1404,6 +1408,11 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         )
         if not go:
             continue
+        tp = take_profit_px(params)
+        if why == "twap_scratch_tp" and tp is not None:
+            filled_n, dump_vwap, floor = walk_dump(bids, shares, min_px=tp)
+            if filled_n + 1e-9 < shares:
+                continue
         dump_sh = shares if filled_n + 1e-9 >= shares else filled_n
         min_sh = float(s.get("min_shares") or 5)
         if dump_sh < 0.01:

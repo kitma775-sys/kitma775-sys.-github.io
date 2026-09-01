@@ -19,9 +19,17 @@ from app.hunter import Level, walk
 from app.paper_sim import seconds_left
 
 
-def walk_dump(bids: list[Level], shares: float) -> tuple[float, float, float]:
-    """Hit bids high-to-low. Returns (filled, vwap, floor_px of last level used)."""
-    ordered = sorted((lv for lv in bids if lv.size > 0 and lv.price > 0), key=lambda x: x.price, reverse=True)
+def walk_dump(bids: list[Level], shares: float, min_px: float = 0.0) -> tuple[float, float, float]:
+    """Hit bids high-to-low. Returns (filled, vwap, floor_px of last level used).
+
+    min_px keeps a take-profit from walking a 87¢ wick into a 40¢ book.
+    """
+    floor_need = float(min_px)
+    ordered = sorted(
+        (lv for lv in bids if lv.size > 0 and lv.price > 0 and lv.price + 1e-12 >= floor_need),
+        key=lambda x: x.price,
+        reverse=True,
+    )
     need = float(shares)
     filled = 0.0
     cost = 0.0
