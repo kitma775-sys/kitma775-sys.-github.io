@@ -301,6 +301,32 @@ class SecPx:
         return mx
 
 
+def download_zip_day(sym: str, day: str) -> int:
+    """Fetch one Binance vision daily 1s zip if missing. Returns bytes or 0."""
+    path = BN_ROOT / sym / f"{sym}-1s-{day}.zip"
+    if path.exists() and path.stat().st_size > 1000:
+        return path.stat().st_size
+    path.parent.mkdir(parents=True, exist_ok=True)
+    url = f"{VISION_ZIP}/{sym}/1s/{sym}-1s-{day}.zip"
+    req = urllib.request.Request(url, headers=BN_UA)
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            path.write_bytes(resp.read())
+        print(f"  zip {path.name} {path.stat().st_size}", flush=True)
+        return path.stat().st_size
+    except urllib.error.HTTPError as exc:
+        if path.exists():
+            path.unlink(missing_ok=True)
+        if exc.code != 404:
+            print(f"  zip fail {sym} {day} HTTP {exc.code}", flush=True)
+        return 0
+    except Exception as exc:
+        if path.exists():
+            path.unlink(missing_ok=True)
+        print(f"  zip fail {sym} {day} {type(exc).__name__}", flush=True)
+        return 0
+
+
 def load_zip_day(sym: str, day: str, series: SecPx) -> int:
     path = BN_ROOT / sym / f"{sym}-1s-{day}.zip"
     if not path.exists():
@@ -358,6 +384,9 @@ def load_series(asset: str, t0: int, t1: int) -> SecPx:
     while day <= d1:
         iso = day.isoformat()
         n = load_zip_day(sym, iso, series)
+        if n == 0:
+            download_zip_day(sym, iso)
+            n = load_zip_day(sym, iso, series)
         if n == 0:
             a = int(datetime(day.year, day.month, day.day, tzinfo=timezone.utc).timestamp())
             b = a + 86400 - 1
