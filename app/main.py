@@ -733,6 +733,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev49 pnl: alts dump in last 90s if a bid exists (no hold-to-settle). Keep 6bps, BTC/ETH 120s, alt 180s, clock lock, lead cap 40, stake.",
         )
+    if rev < 50:
+        store.patch_settings(strategy_rev=50)
+        store.add_event(
+            "info",
+            "rev50 rtds: recycle hung Chainlink sockets if age>20s. Keep 6bps, scratch, alt 90s dump, stake.",
+        )
     return n
 
 

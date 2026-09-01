@@ -30,7 +30,7 @@ def _rev_blurb(s: dict) -> str:
         f"Rev {rev}：Chainlink 60s TWAP vs 窗開價，只做 5 分鐘 up/down，多幣種。"
         "45–55¢，BTC/ETH 剩餘 120–280s，SOL/HYPE/XRP/DOGE/BNB 要 180s，lead 6–40 bps，弱倉 scratch。同一 5 分鐘 unix 只做一個幣，scratch 之後唔反手。"
         "剩餘少過 180s 唔買 45¢（要 ≥50¢）。反轉／弱倉可以低過 38¢ dump。山寨最後 90s 有買盤就 dump，唔持有到結算。"
-        "全幣各開一條 Chainlink socket。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
+        "全幣各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死 ETH/SOL。CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗；仙價未到預熱唔甩槽，避免 WS 狂重連；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
         "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"

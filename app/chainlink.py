@@ -33,6 +33,25 @@ CHAINLINK_TOPIC = "crypto_prices_chainlink"
 CHAINLINK_TOPICS = {"crypto_prices_chainlink", "crypto_prices", "prices.crypto.chainlink"}
 KEEP_SECONDS = 1800.0
 PING_EVERY = 5.0
+RTDS_STALE_MS = 20_000.0
+RTDS_NEVER_RECV_MS = 1e9
+RTDS_RECYCLE_COOLDOWN = 20.0
+
+
+def should_recycle_rtds(age_ms: float, stale_ms: float = RTDS_STALE_MS) -> bool:
+    """True when this symbol has received ticks, then gone silent.
+
+    ``age_ms()`` returns 9e9 when ``last_recv`` is missing. Leave that False so
+    the first handshake can finish. RTDS PING keeps a hung socket from erroring
+    out of ``async for``, so the supervisor must cancel once age exceeds stale.
+    """
+    try:
+        age = float(age_ms)
+    except (TypeError, ValueError):
+        return False
+    if age >= RTDS_NEVER_RECV_MS:
+        return False
+    return age > float(stale_ms)
 
 
 def _unix(ts) -> float:

@@ -12,7 +12,7 @@ from app.broker import FillResult, LiveBroker, PaperBroker, redeem_not_ready, se
 from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
-from app.chainlink import RTDS_URL, ChainlinkTape
+from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
 from app.twap import chainlink_symbols_for, default_params, future_listing, hunt_horizons, parse_window, should_scratch, slug_allowed, twap_entry_reason
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
@@ -748,6 +748,7 @@ class Runtime:
         self.chainlink_status = "off"
         self._twap_scored: dict[str, float] = {}
         self._last_rtds_error_ts = 0.0
+        self._last_rtds_recycle_ts = 0.0
         self.universe: list[dict] = []
         self.ws_status = "off"
         self._hunt_event = asyncio.Event()
@@ -1175,8 +1176,11 @@ async def _chainlink_loop(rt: Runtime) -> None:
 
     Seven compact subscribe frames on a single socket freeze every feed except
     one after a few minutes — the live 348s-stale BTC/ETH/SOL bug with all coins open.
+    PING also keeps a *per-symbol* socket from erroring after ticks stop; recycle
+    when ``age_ms`` is stale so ETH/SOL do not sit in ``chainlink_status=partial``.
     """
     workers: dict[str, asyncio.Task] = {}
+    last_recycle: dict[str, float] = {}
     try:
         while True:
             s = rt.settings()
@@ -1186,20 +1190,34 @@ async def _chainlink_loop(rt: Runtime) -> None:
                 for task in workers.values():
                     task.cancel()
                 workers.clear()
+                last_recycle.clear()
                 rt.chainlink.connected = False
                 rt.chainlink_status = "idle"
                 await asyncio.sleep(1.0)
                 continue
             wanted = chainlink_symbols_for(s, extra_assets=_holding_twap_assets(rt))
             rt.chainlink.symbols = wanted
+            now = time.time()
             for sym in wanted:
                 task = workers.get(sym)
+                if task is not None and not task.done():
+                    age = rt.chainlink.age_ms(sym)
+                    if should_recycle_rtds(age) and now - last_recycle.get(sym, 0) >= RTDS_RECYCLE_COOLDOWN:
+                        last_recycle[sym] = now
+                        rt.chainlink.last_error = f"recycle {sym} age_ms={age:.0f}"
+                        if now - rt._last_rtds_recycle_ts > 30:
+                            rt._last_rtds_recycle_ts = now
+                            rt.store.add_event("warn", f"rtds recycle {sym} age_ms={age:.0f}")
+                        task.cancel()
+                        workers.pop(sym, None)
+                        task = None
                 if task is None or task.done():
                     workers[sym] = asyncio.create_task(_chainlink_symbol_loop(rt, sym))
             for sym, task in list(workers.items()):
                 if sym not in set(wanted):
                     task.cancel()
                     workers.pop(sym, None)
+                    last_recycle.pop(sym, None)
             fresh = [sym for sym in wanted if rt.chainlink.age_ms(sym) < 8000]
             if fresh:
                 rt.chainlink.connected = True
@@ -1236,6 +1254,7 @@ async def _chainlink_symbol_loop(rt: Runtime, symbol: str) -> None:
                 backoff = 1.0
                 ping = asyncio.create_task(_rtds_ping(ws))
                 last_check = 0.0
+                connected_at = time.time()
                 try:
                     async for raw in ws:
                         if rt.chainlink.apply_message(raw):
@@ -1248,6 +1267,12 @@ async def _chainlink_symbol_loop(rt: Runtime, symbol: str) -> None:
                         nxt = chainlink_symbols_for(s2, extra_assets=_holding_twap_assets(rt))
                         if s2.get("killed") or not s2.get("engine_running") or symbol not in nxt:
                             return
+                        # PING/PONG keeps recv alive with no ticks. Drop this
+                        # socket once the connection itself has had time to print.
+                        if now - connected_at >= RTDS_RECYCLE_COOLDOWN and should_recycle_rtds(
+                            rt.chainlink.age_ms(symbol)
+                        ):
+                            break
                 finally:
                     ping.cancel()
         except asyncio.CancelledError:
