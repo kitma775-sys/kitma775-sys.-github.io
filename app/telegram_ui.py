@@ -24,6 +24,28 @@ def _strategy_label(s: dict) -> str:
     return f"TWAP 中間價 {lo:.2f}–{hi:.2f} {names} {hz}"
 
 
+def _hunt_pin(s: dict) -> set[str]:
+    raw = s.get("twap_assets")
+    if raw is None or raw == "":
+        return {"btc", "eth"}
+    if isinstance(raw, str):
+        items = [a.strip().lower() for a in raw.split(",") if a.strip()]
+    else:
+        items = [str(a).strip().lower() for a in raw if str(a).strip()]
+    return set(items) or {"btc", "eth"}
+
+
+def assets_help(s: dict) -> str:
+    hunted = [str(a).upper() for a in hunt_assets(s) if str(a).strip()]
+    names = "+".join(hunted) or "—"
+    return (
+        f"而家會買：{names}\n\n"
+        "幣種過濾係掃描開關；Rev 54 策略另外鎖定只買 BTC+ETH。\n"
+        "剔晒 SOL/XRP/BNB 都唔會入場。Dashboard 槽位只顯示會買嘅幣，所以得 BTC+ETH 係正確。\n"
+        "可以熄 BTC 或 ETH 再收窄。最少留一個會買嘅幣。"
+    )
+
+
 def _rev_blurb(s: dict) -> str:
     rev = int(s.get("strategy_rev") or 0)
     return (
@@ -310,7 +332,7 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("➕", callback_data=f"inc:{key}"),
             ]
         )
-    rows.append([InlineKeyboardButton("幣種過濾", callback_data="assets")])
+    rows.append([InlineKeyboardButton("幣種過濾（買盤鎖定 BTC+ETH）", callback_data="assets")])
     rows.append([InlineKeyboardButton("週期：5分鐘（鎖定）", callback_data="tags")])
     rows.append([InlineKeyboardButton("↩️ 返主頁", callback_data="home")])
     return InlineKeyboardMarkup(rows)
@@ -319,12 +341,17 @@ def settings_kb(rt: Runtime) -> InlineKeyboardMarkup:
 def assets_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     cur = set(s.get("assets") or [])
+    pin = _hunt_pin(s)
     coins = list(DEFAULT_ASSETS)
     rows = []
     row = []
     for c in coins:
-        mark = "✅" if c in cur else "⬜️"
-        row.append(InlineKeyboardButton(f"{mark} {c.upper()}", callback_data=f"asset:{c}"))
+        if c in pin:
+            mark = "✅" if c in cur else "⬜️"
+            btn = InlineKeyboardButton(f"{mark} {c.upper()} 會買", callback_data=f"asset:{c}")
+        else:
+            btn = InlineKeyboardButton(f"🔒 {c.upper()} 唔買", callback_data=f"assetlock:{c}")
+        row.append(btn)
         if len(row) == 3:
             rows.append(row)
             row = []
@@ -667,21 +694,27 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
         return
     if data == "assets":
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅幣。有 Chainlink TWAP-60 嘅 5 分鐘盤會入場。最少留一個。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, assets_help(s), reply_markup=assets_kb(rt))
+        return
+    if data.startswith("assetlock:"):
+        await q.answer("Rev 54 鎖定只買 BTC+ETH，剔呢個唔會入場", show_alert=True)
         return
     if data.startswith("asset:"):
         coin = data.split(":", 1)[1]
+        if coin not in _hunt_pin(s):
+            await q.answer("Rev 54 鎖定只買 BTC+ETH，剔呢個唔會入場", show_alert=True)
+            return
         cur = list(s.get("assets") or [])
         if coin in cur:
-            if len(cur) == 1:
-                await q.answer("至少留一種", show_alert=True)
+            if len([c for c in cur if c in _hunt_pin(s)]) <= 1:
+                await q.answer("至少留一種會買嘅幣", show_alert=True)
                 return
             cur.remove(coin)
         else:
             cur.append(coin)
         rt.store.patch_settings(assets=cur)
         await q.answer()
-        await _safe_edit(q, "揀要掃嘅幣。有 Chainlink TWAP-60 嘅 5 分鐘盤會入場。最少留一個。", reply_markup=assets_kb(rt))
+        await _safe_edit(q, assets_help(rt.settings()), reply_markup=assets_kb(rt))
         return
     if data == "tags" or data.startswith("tag:"):
         rt.store.patch_settings(tags=["5M"], tag="5M", twap_horizons=["5m"])

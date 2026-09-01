@@ -4888,13 +4888,22 @@ def test_strategy_mode_of_defaults_to_twap():
 def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     from app.config import Env, SETTING_STEPS
     from app.runtime import Runtime
-    from app.telegram_ui import TOGGLES, _rev_blurb, home_text, settings_kb, settings_text
+    from app.telegram_ui import TOGGLES, _rev_blurb, assets_help, assets_kb, home_text, settings_kb, settings_text
 
     st = Store(tmp_path / "tgset.sqlite")
     st.ensure_paper(500)
     rt = Runtime(st, Env())
     labels = " ".join(btn.text for row in settings_kb(rt).inline_keyboard for btn in row)
     assert "鎖定" in labels
+    assert "幣種過濾（買盤鎖定 BTC+ETH）" in labels
+    coins = " ".join(btn.text for row in assets_kb(rt).inline_keyboard for btn in row)
+    assert "✅ BTC 會買" in coins
+    assert "✅ ETH 會買" in coins
+    assert "🔒 SOL 唔買" in coins
+    assert "🔒 XRP 唔買" in coins
+    help_txt = assets_help(rt.settings())
+    assert "而家會買：BTC+ETH" in help_txt
+    assert "剔晒 SOL/XRP/BNB 都唔會入場" in help_txt
     assert "逆向思維" in labels
     assert "週期：5分鐘（鎖定）" in labels
     assert "週期 5M／15M／1H" not in labels
