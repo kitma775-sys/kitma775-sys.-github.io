@@ -4969,6 +4969,80 @@ def test_cheap_bounce_is_not_a_second_engine():
     assert data["findings"]["top_strategy"].startswith("No")
 
 
+def test_high_wr_research_is_not_a_live_patch():
+    """First-cross / book-confirm can lift held WR; do not ship while 暫時不動."""
+    import json
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "high_wr.py"
+    spec = importlib.util.spec_from_file_location("high_wr_research", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    full = [
+        {"ts": 1100, "px": 0.50, "outcome": "Up"},
+        {"ts": 1180, "px": 0.51, "outcome": "Up"},
+        {"ts": 1220, "px": 0.52, "outcome": "Up"},
+        {"ts": 1280, "px": 0.53, "outcome": "Up"},
+    ]
+    mid = mod.path_features(full, "Up", 1100, 1300)
+    assert mid["ever_62"] is False and mid["still_mid90"] is True and mid["still_in_band90"] is True
+    assert mid["ever_62_by90"] is False
+    conf = [
+        {"ts": 1100, "px": 0.50, "outcome": "Up"},
+        {"ts": 1180, "px": 0.70, "outcome": "Up"},
+        {"ts": 1220, "px": 0.88, "outcome": "Up"},
+    ]
+    hit = mod.path_features(conf, "Up", 1100, 1300)
+    assert hit["ever_62"] is True and hit["ever_85"] is True and hit["still_mid90"] is False
+
+    hold = {
+        "px": 0.50,
+        "won": False,
+        "scratched": False,
+        "exit_why": "settle",
+        "pnl": -5.0,
+        "ever_62": False,
+        "still_mid90": True,
+        "last_after": 0.49,
+        "px90": 0.48,
+        "left": 130,
+        "end": 1300,
+        "ts": 1170,
+        "side": "Up",
+    }
+    dumped = mod.overlay(hold, mode="dump_mid90", haircut=0.02)
+    assert dumped["scratched"] is True and dumped["exit_why"] == "late_still_mid"
+    assert dumped["pnl"] > hold["pnl"]
+    kept = dict(hold)
+    kept["ever_62"] = True
+    kept["still_mid90"] = False
+    kept["won"] = True
+    kept["pnl"] = 4.8
+    assert mod.overlay(kept, mode="dump_never_62")["scratched"] is False
+
+    data = json.loads(path.with_name("high_wr.json").read_text())
+    assert data["ship"] is False
+    assert data["do_not_default_on"] is True
+    assert "price_sl_8c" in data["findings"]["do_not"]
+    assert "cheap_bounce_20_30" in data["findings"]["do_not"]
+    live = data["live"]["holds"]
+    assert live["n"] >= 20
+    assert live["wr"] is not None and live["wr"] < 0.40
+    be = data["btc_eth"]
+    assert be["first_bm"]["n"] >= 100
+    assert be["last_bm"]["take_win_rate"] >= 0.70
+    names = {v["name"] for v in be["variants"]}
+    assert "first_bm" in names and "last_bm" in names
+    assert "last_dump_mid90_h2" in names
+    assert "first_dump_by90_h2" in names
+    assert data["recommendation"]["do_now"] == "nothing on live"
+    assert data["findings"]["top_strategy"].startswith("No live patch")
+    assert (data["btc_eth"]["last_bm"].get("hold_never_62") or {}).get("take_win_rate", 1) < 0.40
+    assert (data["btc_eth"]["last_bm"].get("hold_confirmed") or {}).get("take_win_rate", 0) >= 0.80
+
+
 def test_top_5m_follow_is_not_a_ship_signal():
     """Top 5m wallets are not 97¢ farmers; Binance-TWAP follow sign-flips train vs holdout."""
     import json
