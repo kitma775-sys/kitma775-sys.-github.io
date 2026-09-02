@@ -4211,7 +4211,7 @@ def test_live_leftover_paper_does_not_block_twap(tmp_path):
     assert snap["board"]["leftover_paper_n"] == 1
     assert snap["board"]["notes"] == [
         "💰 止賺 87¢：全倉 bid 夠價先走，弱倉 scratch 照舊",
-        "🔒 第一下 6bps 唔追平；90s 未印 62¢ dump",
+        "🔒 第一下 6bps 唔追平；90s 未印 62¢ dump；oracle <0.60 都 dump",
         "🎯 只hunt BTC+ETH",
     ]
 
@@ -4282,6 +4282,9 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "唔包入金" in html
     assert "Math.abs" in html
     assert "今日已實現 PnL" in html
+    assert "twap_confirm_fair" in html
+    assert "twap_confirm_px" in html
+    assert "oracle <" in html
 
 
 def test_format_log_ts_is_hong_kong():

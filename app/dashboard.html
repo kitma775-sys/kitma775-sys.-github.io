@@ -317,9 +317,16 @@
         ? ("命中 " + (b.hit_label||held) + (b.hit_rate!=null ? " · " + Math.round(Number(b.hit_rate)*100) + "%" : ""))
         : "命中 —";
       const scratch = Number(b.scratch_n||0);
+      const dumpChips = [];
+      const confirmPx = Number(s.twap_confirm_px || 0);
+      const confirmLeft = Number(s.twap_confirm_left || 0);
+      const confirmFair = Number(s.twap_confirm_fair || 0);
+      if (confirmPx > 0 && confirmLeft > 0) dumpChips.push(Math.round(confirmLeft) + "s 未印 " + Math.round(confirmPx * 100) + "¢ dump");
+      if (confirmFair > 0) dumpChips.push("oracle <" + confirmFair.toFixed(2));
       document.getElementById("chips").innerHTML =
         '<span class="chip '+(Number(b.hit_rate)>=0.5?"ok":(held?"bad":""))+'">'+esc(hitTxt)+'</span>'
         + (scratch ? '<span class="chip">scratch '+scratch+'</span>' : "")
+        + dumpChips.map(t => '<span class="chip">'+esc(t)+'</span>').join("")
         + '<span class="chip">'+(live?"已實現 redeem/dump · 唔包入金":"紙盤權益")+'</span>';
       document.getElementById("notes").textContent = (b.notes || []).join(" · ");
       const curve = w.curve || {};
