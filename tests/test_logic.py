@@ -5105,6 +5105,35 @@ def test_rev54_ship_json_is_plus_ev_btc_eth():
     assert DEFAULT_SETTINGS["strategy_rev"] == 59
 
 
+def test_freq_params_does_not_relax_six_bps_or_band():
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params
+
+    data = json.loads((Path(__file__).resolve().parents[1] / "research" / "freq_params.json").read_text())
+    ship = json.loads((Path(__file__).resolve().parents[1] / "research" / "freq_params_ship.json").read_text())
+    assert data["ship"] is False
+    assert data["pick"] is None
+    assert ship["ship"] is False
+    assert ship["pick"] is None
+    assert data["grid"]["max_left_300"]["delta_n"] == 0
+    assert data["grid"]["lead_5_5"]["delta_n"] >= 50
+    assert data["grid"]["lead_5"]["delta_n"] >= data["grid"]["lead_5_5"]["delta_n"]
+    assert data["grid"]["lead_4"]["forbidden"] is True
+    assert "lead_5_5bps" in data["do_not"]
+    assert "chase_leftover" in data["do_not"]
+    assert "min_left_below_120" in data["do_not"]
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert abs(p.min_left - 120.0) < 1e-9
+    assert abs(p.max_left - 280.0) < 1e-9
+    assert DEFAULT_SETTINGS["strategy_rev"] == 59
+
+
 def test_rev59_ship_json_oracle_fair_beats_dump90():
     import json
     from pathlib import Path
