@@ -4212,7 +4212,7 @@ def test_live_leftover_paper_does_not_block_twap(tmp_path):
     assert snap["board"]["leftover_paper_n"] == 1
     assert snap["board"]["notes"] == [
         "💰 止賺 87¢：全倉 bid 夠價先走，弱倉 scratch 照舊",
-        "🔒 第一下 6bps 唔追平；FOK 可加 1¢；90s 未印 62¢ dump；oracle <0.60 都 dump",
+        "🔒 第一下 6bps 唔追平；可加 1¢；90s 未印 62¢ dump；oracle <0.60 都 dump",
         "🎯 只hunt BTC+ETH",
     ]
 
@@ -4286,7 +4286,7 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "twap_confirm_fair" in html
     assert "twap_confirm_px" in html
     assert "oracle <" in html
-    assert "FOK 可加" in html
+    assert "可加 " in html
 
 
 def test_format_log_ts_is_hong_kong():
@@ -5678,9 +5678,8 @@ def test_confirm_twap_one_tick_up_fills_two_tick_and_leftover_still_kill(tmp_pat
         0.07,
         paper,
     )
-    assert mixed.ok is True
-    assert mixed.reason == "fok_up_tick"
-    assert abs(float(mixed.up_price) - 0.53) < 1e-9
+    assert mixed.ok is False
+    assert mixed.reason == "twap_no_cheaper"
     band = _confirm_twap(
         rt,
         ev,

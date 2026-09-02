@@ -113,7 +113,7 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         dump_bits = ["第一下 6bps 唔追平"]
         up_tick = setting_num(s, "twap_up_tick", 0.01)
         if up_tick > 1e-12:
-            dump_bits.append(f"FOK 可加 {int(round(up_tick * 100))}¢")
+            dump_bits.append(f"可加 {int(round(up_tick * 100))}¢")
         if confirm_px > 1e-12 and confirm_left > 1e-12:
             dump_bits.append(f"{int(round(confirm_left))}s 未印 {int(round(confirm_px * 100))}¢ dump")
         if confirm_fair > 1e-12:
