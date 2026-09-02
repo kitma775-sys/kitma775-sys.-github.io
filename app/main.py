@@ -806,6 +806,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev59 oracle dump: last 90s, dump if Chainlink BM fair < 0.60 even after CLOB printed 62¢. CLOB 拉盤 is not the 0/1. Keep first-cross, 6bps, 45–55, leftover kill, reverse off, stake.",
         )
+    if rev < 60:
+        store.patch_settings(strategy_rev=60, twap_up_tick=0.01)
+        store.add_event(
+            "info",
+            "rev60 FOK: after 250ms, allow 1-tick up requote still ≤55¢ (never leftover cheaper). Live unmatched FAK reconfirms delay=0 and sends one more same-sleeve FAK. Keep 6bps, 45–55, 120–280, no 2-tick, reverse off, stake.",
+        )
     return n
 
 

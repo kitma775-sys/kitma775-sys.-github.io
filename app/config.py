@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 59,
+    "strategy_rev": 60,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -79,6 +79,8 @@ DEFAULT_SETTINGS = {
     # CLOB 拉盤 ≠ settlement TWAP. 0 = off.
     "twap_confirm_fair": 0.60,
     "twap_no_cheaper": True,
+    # Rev 60: after 250ms FOK, lift at most +1¢ vs the locked first-cross, still ≤55¢.
+    "twap_up_tick": 0.01,
     "twap_core_assets": ["btc", "eth"],
     "twap_assets": ["btc", "eth"],
     "twap_horizons": ["5m"],

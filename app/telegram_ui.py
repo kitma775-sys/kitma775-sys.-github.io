@@ -53,6 +53,7 @@ def _rev_blurb(s: dict) -> str:
         "45–55¢，剩餘 120–280s，lead 6–40 bps，弱倉 scratch。BTC 同 ETH 可以同一 5 分鐘 unix 各做一注；同一幣 scratch 之後唔反手。"
         "第一下有效 6bps 就鎖價：FOK miss 重試同一限價，唔追遲嚟嘅 45¢ leftover。"
         "實盤 FOK：250ms 確認之後即刻 FAK，唔再等第二轉 RTT（嗰轉係 `clob_rtt_miss` 全殺單嘅原因）。"
+        "殺單改善：250ms 之後可以加 1¢ 仍然 ≤55¢（0.52→0.53），leftover 45¢ 照殺；實盤 unmatched 再確認一次 delay=0 先再 FAK。唔加 2¢（0.54→0.56 出帶）。"
         "90 秒剩餘時如果同邊 bid 從未印到 62¢，當未確認 dump（唔會因為而家 59¢ 就斬已印過 62 嘅贏家）。"
         "同一 90 秒窗，如果 Chainlink 公平價已經 <0.60，就算 CLOB 印過 62 都 dump：拉盤唔等於結算 TWAP。"
         "高階設定有「止賺 bid」：預設 87¢，Telegram 0/80/85/87/90/95。bid 全倉夠價先走，唔會用 87¢ 一檔 walk 落 40¢。"

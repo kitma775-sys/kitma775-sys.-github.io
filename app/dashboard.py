@@ -68,6 +68,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_confirm_left": s.get("twap_confirm_left"),
             "twap_confirm_fair": s.get("twap_confirm_fair"),
             "twap_no_cheaper": bool(True if s.get("twap_no_cheaper") is None else s.get("twap_no_cheaper")),
+            "twap_up_tick": s.get("twap_up_tick"),
             "twap_assets": s.get("twap_assets") or ["btc", "eth"],
             "twap_horizons": s.get("twap_horizons") or ["5m"],
             "chainlink_live": [

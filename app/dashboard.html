@@ -323,6 +323,8 @@
       const confirmFair = Number(s.twap_confirm_fair || 0);
       if (confirmPx > 0 && confirmLeft > 0) dumpChips.push(Math.round(confirmLeft) + "s 未印 " + Math.round(confirmPx * 100) + "¢ dump");
       if (confirmFair > 0) dumpChips.push("oracle <" + confirmFair.toFixed(2));
+      const upTick = Number(s.twap_up_tick || 0);
+      if (upTick > 0) dumpChips.push("FOK 可加 " + Math.round(upTick * 100) + "¢");
       document.getElementById("chips").innerHTML =
         '<span class="chip '+(Number(b.hit_rate)>=0.5?"ok":(held?"bad":""))+'">'+esc(hitTxt)+'</span>'
         + (scratch ? '<span class="chip">scratch '+scratch+'</span>' : "")

@@ -13,7 +13,7 @@ from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
-from app.twap import chainlink_symbols_for, cheaper_than_first, default_params, future_listing, hunt_assets, hunt_horizons, parse_window, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
+from app.twap import chainlink_symbols_for, cheaper_than_first, default_params, future_listing, hunt_assets, hunt_horizons, in_mid_band, parse_window, richer_than_up_tick, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -111,6 +111,9 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         confirm_left = setting_num(s, "twap_confirm_left", 90.0)
         confirm_fair = setting_num(s, "twap_confirm_fair", 0.60)
         dump_bits = ["第一下 6bps 唔追平"]
+        up_tick = setting_num(s, "twap_up_tick", 0.01)
+        if up_tick > 1e-12:
+            dump_bits.append(f"FOK 可加 {int(round(up_tick * 100))}¢")
         if confirm_px > 1e-12 and confirm_left > 1e-12:
             dump_bits.append(f"{int(round(confirm_left))}s 未印 {int(round(confirm_px * 100))}¢ dump")
         if confirm_fair > 1e-12:
@@ -1981,30 +1984,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                         f"確認後：{confirm.reason}",
                     )
                 continue
-            if confirm.shares > 0:
-                setup.shares = round(float(confirm.shares), 4)
-                setup.fillable = setup.shares
-            setup.up_price = confirm.up_price
-            setup.down_price = confirm.down_price
-            setup.fees = confirm.fees
-            setup.gross = round(1.0 - (confirm.up_price + confirm.down_price), 4)
-            if is_twap_setup(setup):
-                from app.twap import twap_post_fok_net
-
-                px = float(confirm.up_price or confirm.down_price)
-                extra = setup.extra or {}
-                setup.net = twap_post_fok_net(
-                    reverse=bool(extra.get("reverse")),
-                    shares=setup.shares,
-                    px=px,
-                    fair_p=extra.get("fair_p"),
-                    fee_rate=fee_rate,
-                )
-                setup.extra["cash_cost"] = confirm.cost
-                setup.extra["fill_px"] = px
-            else:
-                setup.net = confirm.net
-            setup.extra["fok"] = confirm.reason
+            _bind_fok_confirm(setup, confirm, fee_rate)
             payload["up"] = confirm.up_price
             payload["down"] = confirm.down_price
             payload["net"] = setup.net
@@ -2055,6 +2035,10 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 continue
             rt.store.add_scan(setup.slug, "taker", payload)
         result: FillResult = await broker.execute_pair(setup)
+        if is_twap_setup(setup) and setup.kind == "taker":
+            result = await _maybe_retry_unmatched_twap(
+                rt, ev, setup, result, broker=broker, s=s, fee_rate=fee_rate, paper_mode=paper_mode
+            )
         cool = setting_num(s, "quote_cooldown_seconds", 5.0)
         if is_favorite_setup(setup) and setup.kind == "maker":
             cool = min(cool, 0.4)
@@ -2304,7 +2288,85 @@ def _confirm_from_books(
     )
 
 
-async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
+def clob_unmatched(result: FillResult) -> bool:
+    """True when CLOB itode says the FAK found no resting asks to lift."""
+    text = str(getattr(result, "detail", "") or "").lower()
+    if "no orders found" in text:
+        return True
+    payload = result.payload if isinstance(getattr(result, "payload", None), dict) else {}
+    for leg in payload.get("legs") or []:
+        if isinstance(leg, dict) and "no orders found" in str(leg.get("message") or "").lower():
+            return True
+    return False
+
+
+def _bind_fok_confirm(setup, confirm: TakerSim, fee_rate: float) -> None:
+    """Write FOK confirm prices/shares onto the setup that execute_pair will send."""
+    extra = setup.extra
+    if extra is None:
+        setup.extra = {}
+        extra = setup.extra
+    if confirm.shares > 0:
+        setup.shares = round(float(confirm.shares), 4)
+        setup.fillable = setup.shares
+    setup.up_price = confirm.up_price
+    setup.down_price = confirm.down_price
+    setup.fees = confirm.fees
+    setup.gross = round(1.0 - (float(confirm.up_price) + float(confirm.down_price)), 4)
+    if is_twap_setup(setup):
+        from app.twap import twap_post_fok_net
+
+        px = float(confirm.up_price or confirm.down_price)
+        setup.net = twap_post_fok_net(
+            reverse=bool(extra.get("reverse")),
+            shares=setup.shares,
+            px=px,
+            fair_p=extra.get("fair_p"),
+            fee_rate=fee_rate,
+        )
+        extra["cash_cost"] = confirm.cost
+        extra["fill_px"] = px
+    else:
+        setup.net = confirm.net
+    extra["fok"] = confirm.reason
+
+
+async def _maybe_retry_unmatched_twap(
+    rt: Runtime,
+    ev: dict,
+    setup,
+    result: FillResult,
+    *,
+    broker,
+    s: dict,
+    fee_rate: float,
+    paper_mode: bool,
+) -> FillResult:
+    """Live unmatched FAK: reconfirm delay=0 (still no leftover chase) and send once more."""
+    if paper_mode or result.ok or not clob_unmatched(result):
+        return result
+    if not bool(s.get("taker_fok", True)):
+        return result
+    extra = setup.extra if isinstance(setup.extra, dict) else {}
+    if extra is not setup.extra:
+        setup.extra = extra
+    if extra.get("unmatched_retried"):
+        return result
+    extra["unmatched_retried"] = True
+    retry = await _fok_confirm(rt, ev, setup, delay_ms=0)
+    extra["unmatched_retry"] = retry.reason
+    if not retry.ok:
+        payload = dict(result.payload or {})
+        payload["unmatched_retry"] = retry.reason
+        return FillResult(result.ok, result.status, result.mode, result.detail, payload)
+    _bind_fok_confirm(setup, retry, fee_rate)
+    second = await broker.execute_pair(setup)
+    payload = dict(second.payload or {})
+    payload["unmatched_retry"] = retry.reason
+    return FillResult(second.ok, second.status, second.mode, second.detail, payload)
+
+
+async def _fok_confirm(rt: Runtime, ev: dict, setup, *, delay_ms: float | None = None) -> TakerSim:
     """Wait 250ms, FAK leftover at the locked limit or requote (no cheaper).
 
     Paper then waits CLOB RTT and re-walks with no requote so a miss is
@@ -2312,11 +2374,14 @@ async def _fok_confirm(rt: Runtime, ev: dict, setup) -> TakerSim:
     already forbade a second wait (requote+itode misses 300–400ms holes).
     First confirm already passed `twap_no_cheaper`; sending FAK is the same
     first-cross sleeve. Exchange itode still revalidates the live order.
+
+    Rev 60 unmatched retry passes delay_ms=0 so we do not stack a second 250ms
+    wait after the first confirm already slept.
     """
     s = rt.settings()
-    delay_ms = setting_num(s, "fok_delay_ms", 250.0)
-    if delay_ms > 0:
-        await asyncio.sleep(min(2.0, delay_ms / 1000.0))
+    wait = setting_num(s, "fok_delay_ms", 250.0) if delay_ms is None else float(delay_ms)
+    if wait > 0:
+        await asyncio.sleep(min(2.0, wait / 1000.0))
     books = await _fetch_fok_books(rt, ev)
     if books is None:
         reason = "fok_no_http" if rt.data is None else "fok_http"
@@ -2440,13 +2505,31 @@ def _confirm_favorite(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict
 
 
 def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s: dict, fee_rate: float, paper, *, allow_requote: bool = True) -> TakerSim:
-    """One-leg FAK in 45–55¢. First-cross: no leftover cheaper fill; flipping the leg is not."""
+    """One-leg FAK in 45–55¢. First-cross: no leftover cheaper fill; 1-tick up is ok."""
     params = default_params(s)
     leg = str((setup.extra or {}).get("leg") or "up")
     asks = (up_book.get("asks") or []) if leg == "up" else (dn_book.get("asks") or [])
     limit = setup.up_price if leg == "up" else setup.down_price
     first_px = _twap_first_px_of(rt, str(ev.get("slug") or setup.slug or "")) or float(limit)
     min_shares = max(float(s["min_shares"]), float(ev.get("min_size") or 5))
+
+    def _pack(fill: TakerSim, reason: str | None = None) -> TakerSim:
+        px = fill.up_price
+        if params.no_cheaper and cheaper_than_first(px, first_px):
+            return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
+        why = reason or fill.reason
+        return TakerSim(
+            True,
+            px if leg == "up" else 0.0,
+            px if leg == "down" else 0.0,
+            fill.net,
+            fill.cost,
+            fill.fees,
+            False,
+            why,
+            fill.shares,
+        )
+
     fill = fak_one(
         asks=asks,
         shares=setup.shares,
@@ -2457,25 +2540,39 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
         fee_rate=fee_rate,
     )
     if fill.ok:
-        px = fill.up_price
-        if params.no_cheaper and cheaper_than_first(px, first_px):
-            return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
-        return TakerSim(
-            True,
-            px if leg == "up" else 0.0,
-            px if leg == "down" else 0.0,
-            fill.net,
-            fill.cost,
-            fill.fees,
-            False,
-            fill.reason,
-            fill.shares,
-        )
+        return _pack(fill)
     if not allow_requote:
         return fill
     top = _top(asks, asks=True)
     if params.no_cheaper and cheaper_than_first(top, first_px):
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
+    if richer_than_up_tick(top, first_px, params.up_tick):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_up_requote")
+    if top is not None and float(top) - 1e-12 > float(params.max_price):
+        return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_up_requote")
+    up_limit = round(min(float(params.max_price), float(first_px) + max(0.0, float(params.up_tick))), 4)
+    if (
+        fill.reason == "fok_short"
+        and up_limit > float(limit) + 1e-12
+        and in_mid_band(up_limit, params.min_price, params.max_price)
+        and not richer_than_up_tick(up_limit, first_px, params.up_tick)
+    ):
+        walk_asks = [
+            lv
+            for lv in asks
+            if not (params.no_cheaper and cheaper_than_first(float(getattr(lv, "price", 0) or 0), first_px))
+        ]
+        fill2 = fak_one(
+            asks=walk_asks,
+            shares=setup.shares,
+            limit=up_limit,
+            min_shares=min_shares,
+            min_px=params.min_price,
+            max_px=params.max_price,
+            fee_rate=fee_rate,
+        )
+        if fill2.ok:
+            return _pack(fill2, "fok_up_tick")
     snap = rt.chainlink.snapshot(
         str(ev.get("slug") or setup.slug),
         lookback=int(params.lookback),
@@ -2515,8 +2612,9 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
     new_px = float((hunted.extra or {}).get("fill_px") or hunted.up_price or hunted.down_price)
     if params.no_cheaper and cheaper_than_first(new_px, first_px):
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_cheaper")
-    if new_px - 1e-12 > float(limit):
+    if richer_than_up_tick(new_px, first_px, params.up_tick) or new_px - 1e-12 > float(params.max_price):
         return TakerSim(False, setup.up_price, setup.down_price, 0.0, 0.0, 0.0, False, "twap_no_up_requote")
+    why = "fok_up_tick" if new_px - 1e-12 > float(limit) else "fok_requote"
     return TakerSim(
         True,
         hunted.up_price,
@@ -2525,7 +2623,7 @@ def _confirm_twap(rt: Runtime, ev: dict, setup, up_book: dict, dn_book: dict, s:
         hunted.cost,
         hunted.fees,
         False,
-        "fok_requote",
+        why,
         hunted.shares,
     )
 

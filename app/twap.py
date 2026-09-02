@@ -276,6 +276,8 @@ class TwapParams:
     confirm_left: float = 90.0
     confirm_fair: float = 0.0
     no_cheaper: bool = True
+    # Rev 60: FOK may lift first_px + this tick, still inside max_price. 0 = off.
+    up_tick: float = 0.01
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
     core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
@@ -331,6 +333,7 @@ def default_params(s: dict | None = None) -> TwapParams:
         confirm_left=num("twap_confirm_left", 90.0),
         confirm_fair=num("twap_confirm_fair", 0.60),
         no_cheaper=bool(True if d.get("twap_no_cheaper") is None else d.get("twap_no_cheaper")),
+        up_tick=num("twap_up_tick", 0.01),
         assets=assets,
         horizons=horizons,
         core_assets=core,
@@ -342,6 +345,20 @@ def cheaper_than_first(ask: float | None, first_px: float | None, eps: float = C
     if ask is None or first_px is None:
         return False
     return float(ask) + 1e-12 < float(first_px) - float(eps)
+
+
+def richer_than_up_tick(
+    ask: float | None, first_px: float | None, up_tick: float = 0.01
+) -> bool:
+    """True when ask is more than one tick richer than the locked first print.
+
+    0.52 → 0.53 is one tick (allowed). 0.52 → 0.54 is two (kill). 0.55 → 0.56
+    leaves the 45–55 band at the caller via max_price, not this helper.
+    """
+    if ask is None or first_px is None:
+        return False
+    tick = max(0.0, float(up_tick))
+    return float(ask) > float(first_px) + tick + 1e-12
 
 
 def take_profit_px(params: TwapParams) -> float | None:
