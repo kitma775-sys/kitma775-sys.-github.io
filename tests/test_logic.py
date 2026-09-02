@@ -660,13 +660,16 @@ def test_home_text_is_short_operator_board(tmp_path):
 def test_telegram_dashboard_url_button(tmp_path):
     from app.config import Env
     from app.runtime import Runtime
-    from app.telegram_ui import dashboard_open_url, home_kb, home_text
+    from app.telegram_ui import CLOB_STATUS_URL, dashboard_open_url, home_kb, home_text
 
     st = Store(tmp_path / "dashbtn.sqlite")
     st.ensure_paper(500)
     rt = Runtime(st, Env())
     assert dashboard_open_url(rt) is None
-    assert all(not getattr(btn, "url", None) for row in home_kb(rt).inline_keyboard for btn in row)
+    naked = [btn for row in home_kb(rt).inline_keyboard for btn in row]
+    clob = next(b for b in naked if b.text == "📡 CLOB 狀態")
+    assert clob.url == CLOB_STATUS_URL
+    assert all(getattr(btn, "url", None) in (None, CLOB_STATUS_URL) for btn in naked)
 
     rt = Runtime(
         st,
@@ -676,9 +679,12 @@ def test_telegram_dashboard_url_button(tmp_path):
     assert url == "https://surf-arb.zeabur.app/?t=tok%2B%2F%3Dx"
     buttons = [btn for row in home_kb(rt).inline_keyboard for btn in row]
     dash = next(b for b in buttons if b.text == "🖥 開 Dashboard")
+    clob = next(b for b in buttons if b.text == "📡 CLOB 狀態")
     assert dash.url == url
+    assert clob.url == CLOB_STATUS_URL
     assert "tok+/=x" not in home_text(rt)
     assert "開 Dashboard" not in home_text(rt)
+    assert "CLOB 狀態" not in home_text(rt)
 
 
 def test_asks_cross_bid_requires_size_through():
@@ -4116,6 +4122,7 @@ def test_home_text_shows_clob_halt(tmp_path):
     rt.trip_clob_halt("trading is disabled", seconds=90)
     text = home_text(rt)
     assert "全站暫停" in text
+    assert "https://status.polymarket.com" in text
     assert "status.polymarket.com" in text
     assert "可用 USDC" in text
     assert "本金 $" not in text
@@ -4230,6 +4237,7 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "單筆 $3" in home
     labels = " ".join(btn.text for row in home_kb(rt).inline_keyboard for btn in row)
     assert "紙盤本金" in labels
+    assert "CLOB 狀態" in labels
     assert "下次重置本金 $500" in mode_text(rt)
 
     st.patch_settings(live_trading=True)

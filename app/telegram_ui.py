@@ -156,14 +156,20 @@ def dashboard_open_url(rt: Runtime) -> str | None:
     return f"{base}/?t={quote(token, safe='')}"
 
 
+CLOB_STATUS_URL = "https://status.polymarket.com"
+
+
 def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
     s = rt.settings()
     run = "⏸ 暫停" if s.get("engine_running") else "▶️ 繼續跑"
     run_cb = "pause" if s.get("engine_running") else "resume"
     rows: list[list[InlineKeyboardButton]] = []
+    links: list[InlineKeyboardButton] = []
     dash = dashboard_open_url(rt)
     if dash:
-        rows.append([InlineKeyboardButton("🖥 開 Dashboard", url=dash)])
+        links.append(InlineKeyboardButton("🖥 開 Dashboard", url=dash))
+    links.append(InlineKeyboardButton("📡 CLOB 狀態", url=CLOB_STATUS_URL))
+    rows.append(links)
     rows.extend(
         [
             [InlineKeyboardButton("📊 而家狀況", callback_data="status"), InlineKeyboardButton("📦 倉位", callback_data="pos")],
@@ -182,7 +188,7 @@ def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
     )
     if rt.circuit_tripped():
         rows.insert(
-            1 if dash else 0,
+            1,
             [InlineKeyboardButton("🧊 解除今日熔斷（今日PnL重新計）", callback_data="circuit1")],
         )
     return InlineKeyboardMarkup(rows)

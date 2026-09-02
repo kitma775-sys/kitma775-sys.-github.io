@@ -100,7 +100,7 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
     notes: list[str] = []
     halted = bool(live and rt.clob_halted())
     if halted:
-        notes.append("⏸ Polymarket CLOB 全站暫停 · status.polymarket.com")
+        notes.append("⏸ Polymarket CLOB 全站暫停 · https://status.polymarket.com")
     if s.get("twap_reverse"):
         notes.append("🔄 逆向思維開緊：買 TWAP lead 對家，持有到結算")
     else:
@@ -798,7 +798,7 @@ def clob_halt_seconds(detail: str, *, retry_after=None) -> float:
 CLOB_HALT_ZH = (
     "⏸ Polymarket CLOB 而家全站暫停（官方 503 trading is disabled），"
     "唔係錢包／USDC／匙問題。"
-    "官方狀態：status.polymarket.com"
+    "官方狀態：https://status.polymarket.com"
     "Bot 實盤已開，掃描繼續；交易所開返會自動再試。"
     "網站 redeem 仍然用得。"
 )
