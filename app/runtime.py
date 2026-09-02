@@ -103,19 +103,19 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
         notes.append("⏸ Polymarket CLOB 全站暫停 · https://status.polymarket.com")
     if s.get("twap_reverse"):
         notes.append("🔄 逆向思維開緊：買 TWAP lead 對家，持有到結算")
-        else:
-            tp = setting_num(s, "twap_tp_bid", 0.87)
-            if tp > 1e-12:
-                notes.append(f"💰 止賺 {int(round(tp * 100))}¢：全倉 bid 夠價先走，弱倉 scratch 照舊")
-            confirm_px = setting_num(s, "twap_confirm_px", 0.62)
-            confirm_left = setting_num(s, "twap_confirm_left", 90.0)
-            confirm_fair = setting_num(s, "twap_confirm_fair", 0.60)
-            dump_bits = ["第一下 6bps 唔追平"]
-            if confirm_px > 1e-12 and confirm_left > 1e-12:
-                dump_bits.append(f"{int(round(confirm_left))}s 未印 {int(round(confirm_px * 100))}¢ dump")
-            if confirm_fair > 1e-12:
-                dump_bits.append(f"oracle <{confirm_fair:.2f} 都 dump")
-            notes.append("🔒 " + "；".join(dump_bits))
+    else:
+        tp = setting_num(s, "twap_tp_bid", 0.87)
+        if tp > 1e-12:
+            notes.append(f"💰 止賺 {int(round(tp * 100))}¢：全倉 bid 夠價先走，弱倉 scratch 照舊")
+        confirm_px = setting_num(s, "twap_confirm_px", 0.62)
+        confirm_left = setting_num(s, "twap_confirm_left", 90.0)
+        confirm_fair = setting_num(s, "twap_confirm_fair", 0.60)
+        dump_bits = ["第一下 6bps 唔追平"]
+        if confirm_px > 1e-12 and confirm_left > 1e-12:
+            dump_bits.append(f"{int(round(confirm_left))}s 未印 {int(round(confirm_px * 100))}¢ dump")
+        if confirm_fair > 1e-12:
+            dump_bits.append(f"oracle <{confirm_fair:.2f} 都 dump")
+        notes.append("🔒 " + "；".join(dump_bits))
     hunted = [str(a).upper() for a in hunt_assets(s) if str(a).strip()]
     if hunted and set(a.lower() for a in hunted) <= {"btc", "eth"}:
         notes.append("🎯 只hunt BTC+ETH")
