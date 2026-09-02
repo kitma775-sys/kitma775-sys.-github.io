@@ -800,6 +800,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev58 CLOB halt: trading-is-disabled backoff 5→10→20→30m, log the first 503 only. Stop FAK every 5m during a multi-hour matching pause. Sleeve, FOK leftover, live flag unchanged.",
         )
+    if rev < 59:
+        store.patch_settings(strategy_rev=59, twap_confirm_fair=0.60)
+        store.add_event(
+            "info",
+            "rev59 oracle dump: last 90s, dump if Chainlink BM fair < 0.60 even after CLOB printed 62¢. CLOB 拉盤 is not the 0/1. Keep first-cross, 6bps, 45–55, leftover kill, reverse off, stake.",
+        )
     return n
 
 

@@ -274,6 +274,7 @@ class TwapParams:
     take_profit: float = 0.0
     confirm_px: float = 0.0
     confirm_left: float = 90.0
+    confirm_fair: float = 0.0
     no_cheaper: bool = True
     assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
     horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
@@ -328,6 +329,7 @@ def default_params(s: dict | None = None) -> TwapParams:
         take_profit=num("twap_tp_bid", 0.87),
         confirm_px=num("twap_confirm_px", 0.62),
         confirm_left=num("twap_confirm_left", 90.0),
+        confirm_fair=num("twap_confirm_fair", 0.60),
         no_cheaper=bool(True if d.get("twap_no_cheaper") is None else d.get("twap_no_cheaper")),
         assets=assets,
         horizons=horizons,
@@ -505,6 +507,14 @@ def should_scratch(
         return True, "twap_scratch_unconfirmed"
     if fair_p is None:
         return True, "twap_scratch_no_fair"
+    if (
+        params.confirm_fair > 1e-12
+        and params.confirm_left > params.scratch_left_min
+        and left is not None
+        and float(left) < params.confirm_left
+        and float(fair_p) + 1e-12 < params.confirm_fair
+    ):
+        return True, "twap_scratch_oracle"
     proceeds = scratch_proceeds(shares, bid, fee_rate)
     held = hold_value(shares, fair_p)
     if proceeds + 1e-9 >= held and float(bid) + 1e-12 >= params.scratch_min_bid:

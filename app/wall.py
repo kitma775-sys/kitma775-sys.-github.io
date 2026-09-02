@@ -33,6 +33,7 @@ SKIP_ZH = {
     "twap_no_cheaper": "唔追平",
     "twap_no_cheaper_requote": "唔追平",
     "twap_scratch_unconfirmed": "90s未確認",
+    "twap_scratch_oracle": "90s oracle扁",
     "twap_no_bid": "無 bid",
     "twap_crossed": "交叉盤",
     "twap_wide": "spread 闊",

@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 58,
+    "strategy_rev": 59,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -75,6 +75,9 @@ DEFAULT_SETTINGS = {
     # Rev 57: CLOB prewarm subscribe/unsubscribe in place (no reconnect).
     "twap_confirm_px": 0.62,
     "twap_confirm_left": 90.0,
+    # Rev 59: last 90s dump if BM fair < 0.60 even after CLOB printed 62.
+    # CLOB 拉盤 ≠ settlement TWAP. 0 = off.
+    "twap_confirm_fair": 0.60,
     "twap_no_cheaper": True,
     "twap_core_assets": ["btc", "eth"],
     "twap_assets": ["btc", "eth"],
