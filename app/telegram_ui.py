@@ -62,7 +62,7 @@ def _rev_blurb(s: dict) -> str:
         "CLOB 兩條 socket 各最多 8 token，開盤前 45 秒預熱下一窗用 subscribe/unsubscribe 唔斷線；仙價未到預熱唔甩槽；唔做 initial_dump。"
         "15 分鐘同 5 分鐘搶槽，已砍。1 小時 Binance 收線盤永遠唔入場。唔做 YES+NO 互補，唔做大熱 97–98。"
         "FORCE_PAPER／兩步確認仍然鎖真錢。開實盤前要 Zeabur 填 POLYMARKET_PRIVATE_KEY、關 FORCE_PAPER，再撳兩次。"
-        "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，交易所開返先再試。"
+        "CLOB 503／trading is disabled 係 Polymarket 全站暫停，唔係錢包問題；只通知一次，halt 5→10→20→30 分鐘倍增，停市期間唔再每 5 分鐘真 FAK。"
         "實盤唔再彈轉倉前嘅紙盤 redeem；舊紙單完場靜默入紙盤帳。"
         "主頁／而家狀況／Dashboard 跟盤口模式：實盤只睇可用 USDC 同實盤倉，紙盤只睇紙盤帳。"
         "Dashboard 頭位係今日已實現 PnL 曲線（唔包入金）同命中率，掃描日誌同運行日誌留低；手機先錢同圖再下滑。"

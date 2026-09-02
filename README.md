@@ -60,6 +60,7 @@ FORCE_PAPER=true
 ## 邏輯（同研究一致）
 
 - 用 ask/bid 深度，唔用 mid
+- **Rev 58**：CLOB `trading is disabled` halt 5→10→20→30 分鐘倍增，只記第一單 503。停市期間唔再每 5 分鐘真 FAK。袖仍然 45–55¢ / 6bps / leftover 殺單。
 - **Rev 57**：開盤前 45 秒預熱下一窗用 CLOB `subscribe`/`unsubscribe`，**唔斷線**。舊做法一換 token 就 reconnect，`initial_dump=false` 會清空而家 BTC/ETH 簿，45–55 flash 未見到就只剩 leftover 被 first-cross 殺。規則仍然 45–55¢ / 6bps / 250ms FOK / scratch。
 - **Rev 36**：Rev 35 一鎖仙價就即刻甩 WS，socket 成個 5 分鐘窗狂重連（`initial_dump` 關咗，簿會空）。而家 **仙價仍然掛住**，直到開盤前 45 秒預熱需要 14 槽先讓位。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。
 - **Rev 35**：5m-only 之後，下一 5 分鐘窗喺開盤前已係 45–55¢，但 14 個 CLOB 槽仍掛住而家啲 0.99 仙價（`future_listing` 喺 buffer 之前就 skip，PTB 要等到 T0）。而家 **開盤前 45 秒預熱下一窗**（唔要 PTB）、**鎖死仙價唔佔槽**（持倉除外）、清走 sqlite 剩低嘅 15m PTB。Hunt 仍然 skip `future_listing` / `twap_no_ptb`。規則仍然 45–55¢ / 6bps / scratch / $5。紙盤未重置、未開實盤。

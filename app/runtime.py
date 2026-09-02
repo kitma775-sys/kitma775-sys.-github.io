@@ -804,15 +804,17 @@ CLOB_HALT_ZH = (
 )
 
 
-async def _maybe_halt_clob(rt: Runtime, detail: str, payload: dict | None) -> bool:
+async def _maybe_halt_clob(rt: Runtime, detail: str, payload: dict | None) -> str:
+    """'' if not a CLOB outage, 'first' for the opening halt, 'repeat' after that."""
     row = payload if isinstance(payload, dict) else {}
     if not is_clob_unavailable(detail, http_status=row.get("http_status")):
-        return False
+        return ""
     first = rt.trip_clob_halt(detail, seconds=clob_halt_seconds(detail, retry_after=row.get("retry_after")))
     if first:
         rt.store.add_event("warn", f"clob halt: {detail}"[:220])
         await rt.notify(CLOB_HALT_ZH, important=True)
-    return True
+        return "first"
+    return "repeat"
 
 
 def _holding_twap_assets(rt: Runtime) -> tuple[str, ...]:
@@ -924,6 +926,7 @@ class Runtime:
         self._clob_halt_until = 0.0
         self._clob_halt_reason = ""
         self._clob_halt_announced = False
+        self._clob_halt_backoff = 0.0
         self.wall_tape: list[dict] = []
         self._redeem_wait_logged: set[str] = set()
         self._dump_fail_logged: set[str] = set()
@@ -938,9 +941,21 @@ class Runtime:
         return time.time() < float(self._clob_halt_until or 0)
 
     def trip_clob_halt(self, reason: str, *, seconds: float = 90.0) -> bool:
-        """Pause live CLOB posts. True only for the first Telegram of this outage."""
+        """Pause live CLOB posts. True only for the first Telegram of this outage.
+
+        Re-trips after the pause expires double the wait (cap 30m) so a
+        multi-hour `trading is disabled` does not FAK every 5 minutes.
+        """
         now = time.time()
-        self._clob_halt_until = now + max(15.0, float(seconds))
+        if self.clob_halted():
+            self._clob_halt_reason = str(reason or "")[:180]
+            return False
+        wait = max(15.0, float(seconds))
+        if self._clob_halt_announced:
+            prev = float(self._clob_halt_backoff or wait)
+            wait = min(1800.0, max(wait, prev * 2.0))
+        self._clob_halt_backoff = wait
+        self._clob_halt_until = now + wait
         self._clob_halt_reason = str(reason or "")[:180]
         if self._clob_halt_announced:
             return False
@@ -951,6 +966,7 @@ class Runtime:
         self._clob_halt_until = 0.0
         self._clob_halt_reason = ""
         self._clob_halt_announced = False
+        self._clob_halt_backoff = 0.0
 
     def settings(self) -> dict:
         return self.store.settings()
@@ -2044,6 +2060,11 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                 fill_payload["fair_p"] = extra.get("fair_p")
             if extra.get("lead_bps") is not None:
                 fill_payload["lead_bps"] = extra.get("lead_bps")
+        halt_kind = ""
+        if not paper_mode and not result.ok:
+            halt_kind = await _maybe_halt_clob(rt, result.detail, result.payload if isinstance(result.payload, dict) else {})
+            if halt_kind == "repeat":
+                continue
         rt.store.add_trade(
             slug=setup.slug,
             kind=setup.kind,
@@ -2155,8 +2176,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     f"\n未碰到盤口唔入帳{lock}"
                 )
         else:
-            payload = result.payload if isinstance(result.payload, dict) else {}
-            if not paper_mode and await _maybe_halt_clob(rt, result.detail, payload):
+            if halt_kind:
                 continue
             if not paper_mode:
                 rt.clear_clob_halt()

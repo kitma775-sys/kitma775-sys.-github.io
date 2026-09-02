@@ -794,6 +794,12 @@ def apply_strategy_rev(store: Store) -> int:
             "info",
             "rev57 CLOB WS: prewarm next 5m with subscribe/unsubscribe in place. Reconnect + initial_dump=false blanks current books and misses the 45–55 flash. Keep 250ms FOK, no leftover cheaper, first-cross 6bps 45–55, BTC+ETH, 90s confirm, reverse off, stake.",
         )
+    if rev < 58:
+        store.patch_settings(strategy_rev=58)
+        store.add_event(
+            "info",
+            "rev58 CLOB halt: trading-is-disabled backoff 5→10→20→30m, log the first 503 only. Stop FAK every 5m during a multi-hour matching pause. Sleeve, FOK leftover, live flag unchanged.",
+        )
     return n
 
 
