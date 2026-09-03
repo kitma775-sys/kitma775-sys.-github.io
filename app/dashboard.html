@@ -325,6 +325,8 @@
       if (confirmFair > 0) dumpChips.push("oracle <" + confirmFair.toFixed(2));
       const upTick = Number(s.twap_up_tick || 0);
       if (upTick > 0) dumpChips.push("可加 " + Math.round(upTick * 100) + "¢");
+      const hotMs = Number(s.twap_scratch_hot_ms || 0);
+      if (hotMs > 0 && confirmLeft > 0) dumpChips.push("最後" + Math.round(confirmLeft) + "s新鮮盤");
       document.getElementById("chips").innerHTML =
         '<span class="chip '+(Number(b.hit_rate)>=0.5?"ok":(held?"bad":""))+'">'+esc(hitTxt)+'</span>'
         + (scratch ? '<span class="chip">scratch '+scratch+'</span>' : "")

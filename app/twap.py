@@ -563,6 +563,54 @@ def should_scratch(
     return False, "twap_hold"
 
 
+MUST_DUMP_WHY = frozenset(
+    {
+        "twap_scratch_unconfirmed",
+        "twap_scratch_oracle",
+        "twap_scratch_no_fair",
+        "twap_scratch_flip",
+        "twap_scratch_weak",
+        "twap_scratch_wild",
+    }
+)
+
+
+def scratch_hot_window(left: float | None, confirm_left: float) -> bool:
+    """True in the last confirm_left seconds — dump must see a fresh book."""
+    try:
+        return left is not None and float(confirm_left) > 0 and float(left) < float(confirm_left)
+    except (TypeError, ValueError):
+        return False
+
+
+def scratch_book_max_age_ms(
+    left: float | None,
+    *,
+    confirm_left: float = 90.0,
+    hot_ms: float = 2000.0,
+    cold_ms: float = 60_000.0,
+) -> float:
+    """Hunt can use a 60s WS cache. Scratch in the last 90s cannot: a crash
+    leaves a 50¢ bid in cache while the live bid is already 10¢, and the FAK
+    min_price misses. Force HTTP when the cache is older than hot_ms.
+    """
+    if scratch_hot_window(left, confirm_left):
+        return float(hot_ms)
+    return float(cold_ms)
+
+
+def scratch_rescore_seconds(
+    left: float | None,
+    *,
+    confirm_left: float = 90.0,
+    hot_s: float = 3.0,
+    cold_s: float = 15.0,
+) -> float:
+    if scratch_hot_window(left, confirm_left):
+        return float(hot_s)
+    return float(cold_s)
+
+
 def time_weighted_twap(ticks: list[tuple[float, float]], end_ts: float, lookback: float) -> float | None:
     """ticks are (unix_seconds, price) sorted ascending, last tick may be after end_ts."""
     if not ticks or lookback <= 0:

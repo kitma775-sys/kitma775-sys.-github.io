@@ -86,6 +86,11 @@ DEFAULT_SETTINGS = {
     "twap_horizons": ["5m"],
     "twap_lookback": 60.0,
     "twap_rescore_seconds": 15.0,
+    # Last 90s dump must see a live book. 60s WS cache during a crash leaves a
+    # 50¢ bid while the tape is 22¢; FAK min_price then misses. Tape: lowering
+    # the 22¢ floor is −EV vs hold. Keep floor + last-8s; HTTP if cache >2s.
+    "twap_rescore_hot_seconds": 3.0,
+    "twap_scratch_hot_ms": 2000.0,
     # Extra wait after FOK confirm, then re-walk the book (order RTT).
     "clob_rtt_ms": 150.0,
 }

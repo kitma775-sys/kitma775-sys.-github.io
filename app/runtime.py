@@ -13,7 +13,7 @@ from app.fees import taker_cash, taker_fee
 from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
-from app.twap import chainlink_symbols_for, cheaper_than_first, default_params, future_listing, hunt_assets, hunt_horizons, in_mid_band, parse_window, richer_than_up_tick, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
+from app.twap import MUST_DUMP_WHY, chainlink_symbols_for, cheaper_than_first, default_params, future_listing, hunt_assets, hunt_horizons, in_mid_band, parse_window, richer_than_up_tick, scratch_book_max_age_ms, scratch_rescore_seconds, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
 from app.wall import note_wall_gate, operator_wall, performance_today
 from app.markets import MarketData
 from app.paper_sim import TakerSim, asks_cross_bid, confirm_pair, fak_one, market_expired, seconds_left
@@ -118,6 +118,9 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
             dump_bits.append(f"{int(round(confirm_left))}s 未印 {int(round(confirm_px * 100))}¢ dump")
         if confirm_fair > 1e-12:
             dump_bits.append(f"oracle <{confirm_fair:.2f} 都 dump")
+        hot_ms = setting_num(s, "twap_scratch_hot_ms", 2000.0)
+        if hot_ms > 1e-12 and confirm_left > 1e-12:
+            dump_bits.append(f"最後{int(round(confirm_left))}s新鮮盤")
         notes.append("🔒 " + "；".join(dump_bits))
     hunted = [str(a).upper() for a in hunt_assets(s) if str(a).strip()]
     if hunted and set(a.lower() for a in hunted) <= {"btc", "eth"}:
@@ -946,6 +949,8 @@ class Runtime:
         self._twap_first_px: dict[str, tuple[float, float]] = {}
         self._twap_first_hydrated = False
         self._twap_high_bid: dict[str, float] = {}
+        self._twap_ev: dict[str, dict] = {}
+        self._last_scratch_skip_ts = 0.0
         load_live_usdc(self)
 
     def clob_halted(self) -> bool:
@@ -1548,8 +1553,15 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
     if rt.mode() == "live" and rt.clob_halted():
         return 0
     params = default_params(s)
-    rescore = setting_num(s, "twap_rescore_seconds", 15.0)
+    cold_rescore = setting_num(s, "twap_rescore_seconds", 15.0)
+    hot_rescore = setting_num(s, "twap_rescore_hot_seconds", 3.0)
+    cold_book_ms = setting_num(s, "max_book_age_ms", 60000.0)
+    hot_book_ms = setting_num(s, "twap_scratch_hot_ms", 2000.0)
     by_cid = {ev["condition_id"]: ev for ev in events if ev.get("condition_id")}
+    for ev in events:
+        cid = str(ev.get("condition_id") or "")
+        if cid:
+            rt._twap_ev[cid] = ev
     n = 0
     now = time.time()
     for inv in list(mode_inventory(rt)):
@@ -1557,11 +1569,24 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         if not kind.startswith("twap"):
             continue
         cid = str(inv.get("condition_id") or "")
+        ev = by_cid.get(cid) or rt._twap_ev.get(cid)
+        left_guess = seconds_left((ev or {}).get("end"))
+        if left_guess is None:
+            held = parse_window(str(inv.get("slug") or ""))
+            if held is not None:
+                left_guess = held.start + held.window_seconds - now
+        rescore = scratch_rescore_seconds(
+            left_guess,
+            confirm_left=params.confirm_left,
+            hot_s=hot_rescore,
+            cold_s=cold_rescore,
+        )
         if now - rt._twap_scored.get(cid, 0.0) < rescore:
             continue
-        rt._twap_scored[cid] = now
-        ev = by_cid.get(cid)
         if ev is None:
+            if now - rt._last_scratch_skip_ts > 30:
+                rt._last_scratch_skip_ts = now
+                rt.store.add_event("warn", f"twap scratch skip no_ev {inv.get('slug')}")
             continue
         up, down = float(inv.get("up") or 0), float(inv.get("down") or 0)
         if up > 0.01 and down > 0.01:
@@ -1582,12 +1607,22 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         signed = None
         if snap is not None:
             signed = snap.lead_bps if leg == "up" else -snap.lead_bps
-        up_book, dn_book, _src = await _pair_books(rt, ev, max_age_ms=setting_num(s, "max_book_age_ms", 60000.0))
+        left = seconds_left(ev.get("end"))
+        book_age = scratch_book_max_age_ms(
+            left,
+            confirm_left=params.confirm_left,
+            hot_ms=hot_book_ms,
+            cold_ms=cold_book_ms,
+        )
+        up_book, dn_book, _src = await _pair_books(rt, ev, max_age_ms=book_age)
         if up_book is None or dn_book is None:
+            if now - rt._last_scratch_skip_ts > 30:
+                rt._last_scratch_skip_ts = now
+                rt.store.add_event("warn", f"twap scratch skip no_book {ev.get('slug')}")
             continue
+        rt._twap_scored[cid] = now
         book = up_book if leg == "up" else dn_book
         fee_rate = float(ev.get("fee_rate") or s.get("fee_rate") or 0.07)
-        left = seconds_left(ev.get("end"))
         bids = book.get("bids") or []
         filled_n, dump_vwap, floor = walk_dump(bids, shares)
         top_bid = _top(bids, asks=False)
@@ -1618,7 +1653,7 @@ async def _scratch_twap(rt: Runtime, events: list[dict]) -> int:
         min_sh = float(s.get("min_shares") or 5)
         if dump_sh < 0.01:
             continue
-        if dump_sh + 1e-9 < shares and dump_sh + 1e-9 < min_sh:
+        if dump_sh + 1e-9 < shares and dump_sh + 1e-9 < min_sh and why not in MUST_DUMP_WHY:
             continue
         if dump_vwap <= 0:
             continue

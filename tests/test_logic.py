@@ -2457,6 +2457,8 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert abs(float(body.get("twap_confirm_fair") or 0) - 0.60) < 1e-9
     assert body.get("twap_no_cheaper") is True
     assert abs(float(body.get("twap_up_tick") or 0) - 0.01) < 1e-9
+    assert abs(float(body.get("twap_scratch_hot_ms") or 0) - 2000.0) < 1e-9
+    assert abs(float(body.get("twap_rescore_hot_seconds") or 0) - 3.0) < 1e-9
     assert body.get("twap_assets") == ["btc", "eth"]
     assert body.get("twap_horizons") == ["5m"]
     assert float(body.get("clob_rtt_ms") or 0) == 150.0
@@ -4065,7 +4067,98 @@ def test_scratch_twap_skips_when_clob_halted(tmp_path):
     assert abs(float(st.inventory_one("cid-btc")["down"]) - 10.0) < 1e-9
 
 
-def test_scan_skips_live_execute_when_clob_halted(tmp_path):
+def test_scratch_twap_hot_books_http_over_stale_ws(tmp_path):
+    import asyncio
+    import time
+
+    from app.config import Env
+    from app.hunter import Level
+    from app.runtime import Runtime, _scratch_twap
+
+    class Http22:
+        n = 0
+
+        async def book(self, token):
+            Http22.n += 1
+            return {"asks": _L((0.23, 40)), "bids": _L((0.22, 40))}
+
+    st = Store(tmp_path / "scratch-hot.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(5.0)
+    st.add_inventory("cid-btc", "btc-updown-5m-1000", 0.0, 10.0, kind="twap", cost=5.0)
+    rt = Runtime(st, Env(force_paper=True))
+    rt.data = Http22()
+    now_ms = time.time() * 1000.0
+    stale = [Level(0.50, 40.0)]
+    asks = [Level(0.51, 40.0)]
+    rt.books.put("u", asks, stale, ts_ms=now_ms - 50_000, source="ws")
+    rt.books.put("d", asks, stale, ts_ms=now_ms - 50_000, source="ws")
+    ev = _scratch_event()
+    ev["end"] = _late_end(80)
+    rt._twap_ev[ev["condition_id"]] = ev
+    n = asyncio.run(_scratch_twap(rt, []))
+    assert n == 1
+    assert Http22.n >= 2
+    trade = st.recent_trades(1)[0]
+    assert trade["status"] == "paper_dumped"
+    assert abs(float(trade["payload"]["floor_px"]) - 0.22) < 1e-9
+    assert st.inventory_open() == []
+
+
+def test_scratch_twap_keeps_22c_floor_on_fresh_http(tmp_path):
+    import asyncio
+    import time
+
+    from app.config import Env
+    from app.hunter import Level
+    from app.runtime import Runtime, _scratch_twap
+
+    class Http10:
+        async def book(self, token):
+            return {"asks": _L((0.11, 40)), "bids": _L((0.10, 40))}
+
+    st = Store(tmp_path / "scratch-floor.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(5.0)
+    st.add_inventory("cid-btc", "btc-updown-5m-1000", 0.0, 10.0, kind="twap", cost=5.0)
+    rt = Runtime(st, Env(force_paper=True))
+    rt.data = Http10()
+    now_ms = time.time() * 1000.0
+    stale = [Level(0.50, 40.0)]
+    asks = [Level(0.51, 40.0)]
+    rt.books.put("u", asks, stale, ts_ms=now_ms - 50_000, source="ws")
+    rt.books.put("d", asks, stale, ts_ms=now_ms - 50_000, source="ws")
+    ev = _scratch_event()
+    ev["end"] = _late_end(80)
+    n = asyncio.run(_scratch_twap(rt, [ev]))
+    assert n == 0
+    assert abs(float(st.inventory_one("cid-btc")["down"]) - 10.0) < 1e-9
+
+
+def test_scratch_twap_must_dump_allows_partial_below_min_shares(tmp_path):
+    import asyncio
+
+    from app.config import Env
+    from app.hunter import Level
+    from app.runtime import Runtime, _scratch_twap
+
+    st = Store(tmp_path / "scratch-partial.sqlite")
+    st.ensure_paper(500)
+    st.paper_apply_buy(5.0)
+    st.add_inventory("cid-btc", "btc-updown-5m-1000", 0.0, 10.0, kind="twap", cost=5.0)
+    rt = Runtime(st, Env(force_paper=True))
+    now_ms = __import__("time").time() * 1000.0
+    bids = [Level(0.50, 3.0)]
+    asks = [Level(0.51, 40.0)]
+    rt.books.put("u", asks, bids, ts_ms=now_ms, source="test")
+    rt.books.put("d", asks, bids, ts_ms=now_ms, source="test")
+    ev = _scratch_event()
+    ev["end"] = _late_end(80)
+    n = asyncio.run(_scratch_twap(rt, [ev]))
+    assert n == 1
+    left = float(st.inventory_one("cid-btc")["down"])
+    assert abs(left - 7.0) < 1e-9
+    assert abs(float(st.recent_trades(1)[0]["shares"]) - 3.0) < 1e-9
     import asyncio
 
     from app.config import Env
@@ -4212,7 +4305,7 @@ def test_live_leftover_paper_does_not_block_twap(tmp_path):
     assert snap["board"]["leftover_paper_n"] == 1
     assert snap["board"]["notes"] == [
         "💰 止賺 87¢：全倉 bid 夠價先走，弱倉 scratch 照舊",
-        "🔒 第一下 6bps 唔追平；可加 1¢；90s 未印 62¢ dump；oracle <0.60 都 dump",
+        "🔒 第一下 6bps 唔追平；可加 1¢；90s 未印 62¢ dump；oracle <0.60 都 dump；最後90s新鮮盤",
         "🎯 只hunt BTC+ETH",
     ]
 
@@ -4287,6 +4380,7 @@ def test_operator_board_splits_live_and_paper(tmp_path):
     assert "twap_confirm_px" in html
     assert "oracle <" in html
     assert "可加 " in html
+    assert "新鮮盤" in html
 
 
 def test_format_log_ts_is_hong_kong():
@@ -4945,6 +5039,8 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "90 秒剩餘" in essay
     assert "實盤 FOK：250ms 確認之後即刻 FAK" in essay
     assert "可以加 1¢" in essay
+    assert "新鮮盤 dump" in essay
+    assert "22¢ floor 唔減" in essay
     assert "subscribe/unsubscribe 唔斷線" in essay
     assert "BTC 同 ETH 可以同一 5 分鐘 unix 各做一注" in essay
     assert "scratch 之後唔反手" in essay
@@ -5490,6 +5586,18 @@ def test_rev54_first_cross_and_unconfirmed_dump():
     )
     assert go is True and why == "twap_scratch_unconfirmed"
     go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.10, shares=10, fee_rate=0.07, left=80.0, params=params, high_water=0.50
+    )
+    assert go is False and why == "twap_scratch_no_bid"
+    go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.22, shares=10, fee_rate=0.07, left=80.0, params=params, high_water=0.50
+    )
+    assert go is True and why == "twap_scratch_unconfirmed"
+    go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.50, shares=10, fee_rate=0.07, left=5.0, params=params, high_water=0.50
+    )
+    assert go is False and why == "twap_scratch_late"
+    go, why = should_scratch(
         fair_p=0.60, lead_bps_signed=8.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=params, high_water=0.70
     )
     assert go is False and why == "twap_hold"
@@ -5543,6 +5651,15 @@ def test_rev54_first_cross_and_unconfirmed_dump():
     assert leftover is None
     first = hunt(**kw, up_asks=_L((0.53, 40)), down_asks=_L((0.52, 40)), first_px=0.53)
     assert first is not None and is_twap_setup(first)
+    from app.twap import MUST_DUMP_WHY, scratch_book_max_age_ms, scratch_rescore_seconds
+
+    assert scratch_book_max_age_ms(80, confirm_left=90) == 2000.0
+    assert scratch_book_max_age_ms(120, confirm_left=90) == 60000.0
+    assert scratch_rescore_seconds(80, confirm_left=90) == 3.0
+    assert scratch_rescore_seconds(120, confirm_left=90) == 15.0
+    assert "twap_scratch_unconfirmed" in MUST_DUMP_WHY
+    assert "twap_scratch_oracle" in MUST_DUMP_WHY
+    assert "twap_scratch_tp" not in MUST_DUMP_WHY
 
 
 def test_confirm_twap_rejects_leftover_cheaper_fill(tmp_path):
@@ -7985,6 +8102,46 @@ def test_trend_side_ship_json_htf_does_not_beat_t0():
     p = default_params(DEFAULT_SETTINGS)
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
     assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
+def test_dump_exec_ship_json_hot_books_not_lower_floor():
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "dump_exec.json").read_text())
+    ship = json.loads((root / "research" / "dump_exec_ship.json").read_text())
+    assert data["ship"] is True
+    assert data["pick"] == "hot_books_last90"
+    assert ship["ship"] is True
+    assert ship["pick"] == "hot_books_last90"
+    assert ship["strategy_rev"] == 60
+    assert data["floor"]["ship"] is False
+    assert ship["floor"]["ship"] is False
+    assert data["floor"]["pick"] == "must_dump_floor_01"
+    assert data["delta"]["train"] < 0
+    assert data["unconfirmed"]["blocked22_n"] == 96
+    assert data["unconfirmed"]["blocked22_orig_wr"] < 0.15
+    assert abs(float(data["params"]["twap_scratch_dump_floor"]) - 0.22) < 1e-9
+    assert abs(float(data["params"]["twap_scratch_hot_ms"]) - 2000.0) < 1e-9
+    assert abs(float(data["params"]["twap_rescore_hot_seconds"]) - 3.0) < 1e-9
+    assert data["live_fingerprint"]["blocked_by_floor"] is False
+    assert "lower_soft_dump_floor_22" in ship["do_not"]
+    assert "dump_mid90" in ship["do_not"]
+    assert "skip_scratch_left_min_8" in ship["do_not"]
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert abs(float(DEFAULT_SETTINGS["twap_scratch_hot_ms"]) - 2000.0) < 1e-9
+    assert abs(float(DEFAULT_SETTINGS["twap_rescore_hot_seconds"]) - 3.0) < 1e-9
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.scratch_dump_floor - 0.22) < 1e-9
+    assert abs(p.scratch_left_min - 8.0) < 1e-9
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
 
 
