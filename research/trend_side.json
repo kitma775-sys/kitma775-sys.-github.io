@@ -1,0 +1,898 @@
+{
+  "researched_at_utc": "2026-09-03T17:42:29Z",
+  "elapsed_s": 5.3,
+  "question": "Look at higher-TF \u8d70\u52e2 before choosing 5m Up vs Down?",
+  "n_joined": 599,
+  "n_prev_lead": 599,
+  "holdout_days": 7,
+  "shipped": {
+    "n": 599,
+    "pnl5": 236.2568,
+    "pnl3": 141.75408,
+    "take_wr": 0.9837,
+    "held": 184,
+    "scratch_n": 415,
+    "train": {
+      "n": 400,
+      "pnl5": 118.2383,
+      "take_wr": 0.975,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 199,
+      "pnl5": 118.0185,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "robust": true
+  },
+  "anatomy": {
+    "bounce": {
+      "n": 241,
+      "frac": 0.4023,
+      "shipped": {
+        "n": 241,
+        "pnl5": 72.3543,
+        "pnl3": 43.41258,
+        "win": 71,
+        "lose": 2,
+        "held": 73,
+        "scratch_n": 168,
+        "take_wr": 0.9726,
+        "ev_ok": true
+      },
+      "complement": {
+        "n": 358,
+        "pnl5": 163.9025,
+        "pnl3": 98.3415,
+        "win": 110,
+        "lose": 1,
+        "held": 111,
+        "scratch_n": 247,
+        "take_wr": 0.991,
+        "ev_ok": true
+      },
+      "held_n": 73,
+      "held_wr": 0.9726,
+      "orig_wr": 0.5394,
+      "orig_wr_rest": 0.5838
+    },
+    "crash10": {
+      "n": 162,
+      "frac": 0.2705,
+      "shipped": {
+        "n": 162,
+        "pnl5": 33.6054,
+        "pnl3": 20.16324,
+        "win": 46,
+        "lose": 2,
+        "held": 48,
+        "scratch_n": 114,
+        "take_wr": 0.9583,
+        "ev_ok": true
+      },
+      "complement": {
+        "n": 437,
+        "pnl5": 202.6514,
+        "pnl3": 121.59084,
+        "win": 135,
+        "lose": 1,
+        "held": 136,
+        "scratch_n": 301,
+        "take_wr": 0.9926,
+        "ev_ok": true
+      },
+      "held_n": 48,
+      "held_wr": 0.9583,
+      "orig_wr": 0.5309,
+      "orig_wr_rest": 0.5789
+    },
+    "crash15": {
+      "n": 131,
+      "frac": 0.2187,
+      "shipped": {
+        "n": 131,
+        "pnl5": 10.7807,
+        "pnl3": 6.46842,
+        "win": 33,
+        "lose": 1,
+        "held": 34,
+        "scratch_n": 97,
+        "take_wr": 0.9706,
+        "ev_ok": true
+      },
+      "complement": {
+        "n": 468,
+        "pnl5": 225.4762,
+        "pnl3": 135.28572,
+        "win": 148,
+        "lose": 2,
+        "held": 150,
+        "scratch_n": 318,
+        "take_wr": 0.9867,
+        "ev_ok": true
+      },
+      "held_n": 34,
+      "held_wr": 0.9706,
+      "orig_wr": 0.5267,
+      "orig_wr_rest": 0.5769
+    },
+    "crash20": {
+      "n": 100,
+      "frac": 0.1669,
+      "shipped": {
+        "n": 100,
+        "pnl5": -1.7525,
+        "pnl3": -1.0515,
+        "win": 24,
+        "lose": 1,
+        "held": 25,
+        "scratch_n": 75,
+        "take_wr": 0.96,
+        "ev_ok": false
+      },
+      "complement": {
+        "n": 499,
+        "pnl5": 238.0094,
+        "pnl3": 142.80564,
+        "win": 157,
+        "lose": 2,
+        "held": 159,
+        "scratch_n": 340,
+        "take_wr": 0.9874,
+        "ev_ok": true
+      },
+      "held_n": 25,
+      "held_wr": 0.96,
+      "orig_wr": 0.56,
+      "orig_wr_rest": 0.5671
+    },
+    "crash26": {
+      "n": 68,
+      "frac": 0.1135,
+      "shipped": {
+        "n": 68,
+        "pnl5": -32.9195,
+        "pnl3": -19.7517,
+        "win": 11,
+        "lose": 1,
+        "held": 12,
+        "scratch_n": 56,
+        "take_wr": 0.9167,
+        "ev_ok": false
+      },
+      "complement": {
+        "n": 531,
+        "pnl5": 269.1763,
+        "pnl3": 161.50578,
+        "win": 170,
+        "lose": 2,
+        "held": 172,
+        "scratch_n": 359,
+        "take_wr": 0.9884,
+        "ev_ok": true
+      },
+      "held_n": 12,
+      "held_wr": 0.9167,
+      "orig_wr": 0.5147,
+      "orig_wr_rest": 0.5725
+    },
+    "cont": {
+      "n": 358,
+      "frac": 0.5977,
+      "shipped": {
+        "n": 358,
+        "pnl5": 163.9025,
+        "pnl3": 98.3415,
+        "win": 110,
+        "lose": 1,
+        "held": 111,
+        "scratch_n": 247,
+        "take_wr": 0.991,
+        "ev_ok": true
+      },
+      "complement": {
+        "n": 241,
+        "pnl5": 72.3543,
+        "pnl3": 43.41258,
+        "win": 71,
+        "lose": 2,
+        "held": 73,
+        "scratch_n": 168,
+        "take_wr": 0.9726,
+        "ev_ok": true
+      },
+      "held_n": 111,
+      "held_wr": 0.991,
+      "orig_wr": 0.5838,
+      "orig_wr_rest": 0.5394
+    },
+    "disagree15": {
+      "n": 237,
+      "pnl5": 76.7694,
+      "pnl3": 46.06164,
+      "win": 69,
+      "lose": 2,
+      "held": 71,
+      "scratch_n": 166,
+      "take_wr": 0.9718,
+      "ev_ok": true
+    },
+    "disagree180": {
+      "n": 68,
+      "pnl5": 2.9919,
+      "pnl3": 1.79514,
+      "win": 15,
+      "lose": 0,
+      "held": 15,
+      "scratch_n": 53,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "disagree_spot_tw": {
+      "n": 532,
+      "pnl5": 95.5035,
+      "pnl3": 57.3021,
+      "win": 140,
+      "lose": 3,
+      "held": 143,
+      "scratch_n": 389,
+      "take_wr": 0.979,
+      "ev_ok": true
+    }
+  },
+  "grid": {
+    "frozen": {
+      "n": 599,
+      "pnl5": 236.2568,
+      "pnl3": 141.75408,
+      "take_wr": 0.9837,
+      "held": 184,
+      "scratch_n": 415,
+      "train": {
+        "n": 400,
+        "pnl5": 118.2383,
+        "take_wr": 0.975,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "first-cross 60s vs T0 + dump90 + oracle fair<0.60",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0,
+      "skipped": 0
+    },
+    "skip_bounce": {
+      "n": 358,
+      "pnl5": 163.9025,
+      "pnl3": 98.3415,
+      "take_wr": 0.991,
+      "held": 111,
+      "scratch_n": 247,
+      "train": {
+        "n": 228,
+        "pnl5": 87.5906,
+        "take_wr": 0.9855,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 130,
+        "pnl5": 76.312,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip first-cross tagged bounce",
+      "beats": false,
+      "d_ho": -41.71,
+      "d_tr": -30.65,
+      "skipped": 241
+    },
+    "skip_crash10": {
+      "n": 437,
+      "pnl5": 202.6514,
+      "pnl3": 121.59084,
+      "take_wr": 0.9926,
+      "held": 136,
+      "scratch_n": 301,
+      "train": {
+        "n": 290,
+        "pnl5": 116.0477,
+        "take_wr": 0.9888,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 147,
+        "pnl5": 86.6038,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip first-cross tagged crash10",
+      "beats": false,
+      "d_ho": -31.41,
+      "d_tr": -2.19,
+      "skipped": 162
+    },
+    "skip_crash15": {
+      "n": 468,
+      "pnl5": 225.4762,
+      "pnl3": 135.28572,
+      "take_wr": 0.9867,
+      "held": 150,
+      "scratch_n": 318,
+      "train": {
+        "n": 311,
+        "pnl5": 123.7687,
+        "take_wr": 0.9796,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 157,
+        "pnl5": 101.7075,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip first-cross tagged crash15",
+      "beats": false,
+      "d_ho": -16.31,
+      "d_tr": 5.53,
+      "skipped": 131
+    },
+    "skip_crash20": {
+      "n": 499,
+      "pnl5": 238.0094,
+      "pnl3": 142.80564,
+      "take_wr": 0.9874,
+      "held": 159,
+      "scratch_n": 340,
+      "train": {
+        "n": 330,
+        "pnl5": 125.4942,
+        "take_wr": 0.9806,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 169,
+        "pnl5": 112.5152,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip first-cross tagged crash20",
+      "beats": false,
+      "d_ho": -5.5,
+      "d_tr": 7.26,
+      "skipped": 100
+    },
+    "skip_crash26": {
+      "n": 531,
+      "pnl5": 269.1763,
+      "pnl3": 161.50578,
+      "take_wr": 0.9884,
+      "held": 172,
+      "scratch_n": 359,
+      "train": {
+        "n": 350,
+        "pnl5": 146.7837,
+        "take_wr": 0.982,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 181,
+        "pnl5": 122.3926,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip first-cross tagged crash26",
+      "beats": false,
+      "d_ho": 4.37,
+      "d_tr": 28.55,
+      "skipped": 68
+    },
+    "skip_cont": {
+      "n": 241,
+      "pnl5": 72.3543,
+      "pnl3": 43.41258,
+      "take_wr": 0.9726,
+      "held": 73,
+      "scratch_n": 168,
+      "train": {
+        "n": 169,
+        "pnl5": 21.0199,
+        "take_wr": 0.9592,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 72,
+        "pnl5": 51.3344,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip first-cross tagged cont",
+      "beats": false,
+      "d_ho": -66.68,
+      "d_tr": -97.22,
+      "skipped": 358
+    },
+    "skip_disagree_15m": {
+      "n": 362,
+      "pnl5": 159.4874,
+      "pnl3": 95.69244,
+      "take_wr": 0.9912,
+      "held": 113,
+      "scratch_n": 249,
+      "train": {
+        "n": 239,
+        "pnl5": 71.5549,
+        "take_wr": 0.9857,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 123,
+        "pnl5": 87.9325,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip if 15m spot return opposes 5m side",
+      "beats": false,
+      "d_ho": -30.09,
+      "d_tr": -46.68,
+      "skipped": 237
+    },
+    "skip_disagree_30m": {
+      "n": 333,
+      "pnl5": 163.8656,
+      "pnl3": 98.31936,
+      "take_wr": 0.9907,
+      "held": 107,
+      "scratch_n": 226,
+      "train": {
+        "n": 220,
+        "pnl5": 108.8923,
+        "take_wr": 0.9857,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 113,
+        "pnl5": 54.9733,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip if 30m spot return opposes 5m side",
+      "beats": false,
+      "d_ho": -63.05,
+      "d_tr": -9.35,
+      "skipped": 266
+    },
+    "skip_disagree_180tw": {
+      "n": 531,
+      "pnl5": 233.2649,
+      "pnl3": 139.95894,
+      "take_wr": 0.9822,
+      "held": 169,
+      "scratch_n": 362,
+      "train": {
+        "n": 350,
+        "pnl5": 127.9007,
+        "take_wr": 0.9727,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 181,
+        "pnl5": 105.3642,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip if 180s TWAP vs T0 opposes 60s side",
+      "beats": false,
+      "d_ho": -12.65,
+      "d_tr": 9.66,
+      "skipped": 68
+    },
+    "skip_disagree_300tw": {
+      "n": 403,
+      "pnl5": 163.5198,
+      "pnl3": 98.11188,
+      "take_wr": 0.9764,
+      "held": 127,
+      "scratch_n": 276,
+      "train": {
+        "n": 267,
+        "pnl5": 109.4543,
+        "take_wr": 0.9651,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 136,
+        "pnl5": 54.0655,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip if 300s TWAP vs T0 opposes 60s side",
+      "beats": false,
+      "d_ho": -63.95,
+      "d_tr": -8.78,
+      "skipped": 196
+    },
+    "skip_spot_against_twap": {
+      "n": 67,
+      "pnl5": 140.7533,
+      "pnl3": 84.45198,
+      "take_wr": 1.0,
+      "held": 41,
+      "scratch_n": 26,
+      "train": {
+        "n": 43,
+        "pnl5": 67.8981,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 24,
+        "pnl5": 72.8551,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "note": "skip if spot is already through the 60s TWAP against the side",
+      "beats": false,
+      "d_ho": -45.16,
+      "d_tr": -50.34,
+      "skipped": 532
+    },
+    "require_15m_agree": {
+      "n": 362,
+      "pnl5": 159.4874,
+      "pnl3": 95.69244,
+      "take_wr": 0.9912,
+      "held": 113,
+      "scratch_n": 249,
+      "train": {
+        "n": 239,
+        "pnl5": 71.5549,
+        "take_wr": 0.9857,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 123,
+        "pnl5": 87.9325,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "only take when 15m and 5m agree",
+      "beats": false,
+      "d_ho": -30.09,
+      "d_tr": -46.68,
+      "skipped": 237
+    },
+    "require_180_agree": {
+      "n": 531,
+      "pnl5": 233.2649,
+      "pnl3": 139.95894,
+      "take_wr": 0.9822,
+      "held": 169,
+      "scratch_n": 362,
+      "train": {
+        "n": 350,
+        "pnl5": 127.9007,
+        "take_wr": 0.9727,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 181,
+        "pnl5": 105.3642,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "only take when 180s TWAP agrees with 60s",
+      "beats": false,
+      "d_ho": -12.65,
+      "d_tr": 9.66,
+      "skipped": 68
+    },
+    "skip_agree_15m": {
+      "n": 237,
+      "pnl5": 76.7694,
+      "pnl3": 46.06164,
+      "take_wr": 0.9718,
+      "held": 71,
+      "scratch_n": 166,
+      "train": {
+        "n": 158,
+        "pnl5": 40.7878,
+        "take_wr": 0.9592,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 79,
+        "pnl5": 35.9816,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "control: skip when 15m AGREES (should hurt)",
+      "beats": false,
+      "d_ho": -82.04,
+      "d_tr": -77.45,
+      "skipped": 362
+    },
+    "skip_knife_bounce": {
+      "n": 548,
+      "pnl5": 235.8101,
+      "pnl3": 141.48606,
+      "take_wr": 0.994,
+      "held": 167,
+      "scratch_n": 381,
+      "train": {
+        "n": 362,
+        "pnl5": 114.8614,
+        "take_wr": 0.9905,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 186,
+        "pnl5": 120.9487,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip |lead|<6.5 that bounce the prior 5m",
+      "beats": false,
+      "d_ho": 2.93,
+      "d_tr": -3.38,
+      "skipped": 51
+    },
+    "skip_crash15_or_knife_bounce": {
+      "n": 441,
+      "pnl5": 209.6292,
+      "pnl3": 125.77752,
+      "take_wr": 0.9928,
+      "held": 138,
+      "scratch_n": 303,
+      "train": {
+        "n": 291,
+        "pnl5": 110.0516,
+        "take_wr": 0.9886,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 150,
+        "pnl5": 99.5776,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip 15bps crash-bounce or knife bounce",
+      "beats": false,
+      "d_ho": -18.44,
+      "d_tr": -8.19,
+      "skipped": 158
+    },
+    "fade_bounce": {
+      "n": 599,
+      "pnl5": 68.653,
+      "pnl3": 41.1918,
+      "take_wr": 0.6278,
+      "held": 352,
+      "scratch_n": 247,
+      "train": {
+        "n": 400,
+        "pnl5": 36.2452,
+        "take_wr": 0.6183,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 32.4078,
+        "take_wr": 0.6486,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "buy the other 5m leg on bounce; keep follow elsewhere",
+      "beats": false,
+      "d_ho": -85.61,
+      "d_tr": -81.99,
+      "skipped": 0
+    },
+    "fade_crash10": {
+      "n": 599,
+      "pnl5": 151.3371,
+      "pnl3": 90.80226,
+      "take_wr": 0.7081,
+      "held": 298,
+      "scratch_n": 301,
+      "train": {
+        "n": 400,
+        "pnl5": 72.6849,
+        "take_wr": 0.6985,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 78.6522,
+        "take_wr": 0.7273,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "buy the other 5m leg on crash10; keep follow elsewhere",
+      "beats": false,
+      "d_ho": -39.37,
+      "d_tr": -45.55,
+      "skipped": 0
+    },
+    "fade_crash15": {
+      "n": 599,
+      "pnl5": 189.9755,
+      "pnl3": 113.9853,
+      "take_wr": 0.7473,
+      "held": 281,
+      "scratch_n": 318,
+      "train": {
+        "n": 400,
+        "pnl5": 84.1023,
+        "take_wr": 0.7326,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 105.8731,
+        "take_wr": 0.7766,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "buy the other 5m leg on crash15; keep follow elsewhere",
+      "beats": false,
+      "d_ho": -12.15,
+      "d_tr": -34.14,
+      "skipped": 0
+    },
+    "fade_crash20": {
+      "n": 599,
+      "pnl5": 175.5729,
+      "pnl3": 105.34374,
+      "take_wr": 0.7761,
+      "held": 259,
+      "scratch_n": 340,
+      "train": {
+        "n": 400,
+        "pnl5": 49.8616,
+        "take_wr": 0.7457,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 125.7113,
+        "take_wr": 0.8372,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "buy the other 5m leg on crash20; keep follow elsewhere",
+      "beats": false,
+      "d_ho": 7.69,
+      "d_tr": -68.38,
+      "skipped": 0
+    },
+    "fade_disagree_15m": {
+      "n": 599,
+      "pnl5": -17.6475,
+      "pnl3": -10.5885,
+      "take_wr": 0.6086,
+      "held": 350,
+      "scratch_n": 249,
+      "train": {
+        "n": 400,
+        "pnl5": -3.1114,
+        "take_wr": 0.6157,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": -14.536,
+        "take_wr": 0.595,
+        "ev_ok": false
+      },
+      "robust": false,
+      "note": "if 15m opposes 5m, fade the 5m first-cross",
+      "beats": false,
+      "d_ho": -132.55,
+      "d_tr": -121.35,
+      "skipped": 0
+    },
+    "train_skip_crash15_if_red": {
+      "n": 468,
+      "pnl5": 225.4762,
+      "pnl3": 135.28572,
+      "take_wr": 0.9867,
+      "held": 150,
+      "scratch_n": 318,
+      "train": {
+        "n": 311,
+        "pnl5": 123.7687,
+        "take_wr": 0.9796,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 157,
+        "pnl5": 101.7075,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "train crash15 pnl5=-5.53; skip on all iff train red",
+      "beats": false,
+      "d_ho": -16.31,
+      "d_tr": 5.53,
+      "skipped": 131
+    }
+  },
+  "winners": [],
+  "pick": null,
+  "ship": false,
+  "why": "5m Up/Down is vs this window's T0, not the 15m chart. After a dump the next T0 is already low, so a +6bps bounce is a legal Up. Bounce first-cross hold-to-settle orig WR is ~54% (coin-flip); dump90+oracle is what makes that family +EV. Skip/fade HTF \u8d70\u52e2 cuts n or is reverse. skip_crash26 is the closest miss (+$4.37 holdout, under $5). Keep 60s vs T0.",
+  "live_fingerprint": {
+    "note": "ETH 00:20 HKT Sep 4: prev 5m \u221226bps, this window +7bps Up bounce, settle Down",
+    "crash26_n": 68,
+    "crash26_shipped": {
+      "n": 68,
+      "pnl5": -32.9195,
+      "pnl3": -19.7517,
+      "win": 11,
+      "lose": 1,
+      "held": 12,
+      "scratch_n": 56,
+      "take_wr": 0.9167,
+      "ev_ok": false
+    },
+    "crash20_n": 100,
+    "crash20_shipped": {
+      "n": 100,
+      "pnl5": -1.7525,
+      "pnl3": -1.0515,
+      "win": 24,
+      "lose": 1,
+      "held": 25,
+      "scratch_n": 75,
+      "take_wr": 0.96,
+      "ev_ok": false
+    }
+  },
+  "do_not": [
+    "htf_pick_side",
+    "fade_bounce_after_crash",
+    "skip_all_15m_disagree",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "chase_leftover",
+    "lead_4bps",
+    "band_40_60",
+    "autodial_from_live_n3"
+  ],
+  "findings": {
+    "headline": "5m Up/Down is vs this window's T0, not the 15m chart. After a dump the next T0 is already low, so a +6bps bounce is a legal Up. Bounce first-cross hold-to-settle orig WR is ~54% (coin-flip); dump90+oracle is what makes that family +EV. Skip/fade HTF \u8d70\u52e2 cuts n or is reverse. skip_crash26 is the closest miss (+$4.37 holdout, under $5). Keep 60s vs T0.",
+    "best_nonbeat": "skip_crash26",
+    "best_d_ho": 4.37,
+    "fade_crash20_holdout_only": {
+      "d_ho": 7.69,
+      "d_tr": -68.38,
+      "holdout_wr": 0.8372,
+      "note": "holdout-only luck; train -$68; forbidden reverse family"
+    }
+  }
+}

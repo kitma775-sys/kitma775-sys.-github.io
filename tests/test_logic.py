@@ -7949,6 +7949,45 @@ def test_learn_fail_ship_json_online_does_not_beat_frozen():
     assert lf.last_fail_end(hist[:1], asset="btc", kind="hold_loss") == 100
 
 
+def test_trend_side_ship_json_htf_does_not_beat_t0():
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "trend_side.json").read_text())
+    ship = json.loads((root / "research" / "trend_side_ship.json").read_text())
+    assert data["ship"] is False
+    assert data["pick"] is None
+    assert ship["ship"] is False
+    assert ship["pick"] is None
+    assert data["winners"] == []
+    assert data["n_joined"] == 599
+    assert data["n_prev_lead"] == 599
+    bounce = data["anatomy"]["bounce"]
+    assert bounce["orig_wr"] < 0.60
+    assert bounce["shipped"]["ev_ok"] is True
+    assert bounce["shipped"]["take_wr"] >= 0.95
+    crash26 = data["grid"]["skip_crash26"]
+    assert crash26["beats"] is False
+    assert crash26["d_ho"] < 5.0
+    assert data["findings"]["best_nonbeat"] == "skip_crash26"
+    fade = data["grid"]["fade_crash20"]
+    assert fade["beats"] is False
+    assert fade["d_tr"] < 0
+    assert fade["holdout"]["take_wr"] < 0.85
+    assert data["grid"]["fade_disagree_15m"]["holdout"]["pnl5"] < 0
+    assert data["grid"]["skip_disagree_15m"]["d_ho"] < 0
+    assert "htf_pick_side" in ship["do_not"]
+    assert "fade_bounce_after_crash" in data["do_not"]
+    p = default_params(DEFAULT_SETTINGS)
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
 def test_rev60_apply_keeps_live_and_does_not_chase_leftover(tmp_path):
     from app.config import DEFAULT_SETTINGS
     from app.main import apply_strategy_rev
