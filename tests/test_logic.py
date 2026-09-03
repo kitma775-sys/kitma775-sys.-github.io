@@ -7897,6 +7897,58 @@ def test_rev60_ship_json_one_tick_not_leftover():
     assert abs(float(DEFAULT_SETTINGS["fok_delay_ms"]) - 250.0) < 1e-9
 
 
+def test_learn_fail_ship_json_online_does_not_beat_frozen():
+    import json
+    import sys
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "learn_fail.json").read_text())
+    ship = json.loads((root / "research" / "learn_fail_ship.json").read_text())
+    assert data["ship"] is False
+    assert data["pick"] is None
+    assert ship["ship"] is False
+    assert ship["pick"] is None
+    assert data["winners"] == []
+    assert data["iid"]["clustered"] is False
+    assert data["iid"]["hold_loss_n"] == 3
+    assert data["iid"]["p_loss_given_loss"] == 0.0
+    assert (data["shipped"]["holdout"]["take_wr"] or 0) >= 0.99
+    dump = data["grid"]["pause_asset_1w_after_dump"]
+    assert dump["beats"] is False
+    assert dump["d_ho"] < 5.0
+    neg = data["grid"]["pause_asset_1w_after_neg_pnl"]
+    assert neg["beats"] is False
+    ewma = data["grid"]["ewma10_skip_sum_pnl_neg"]
+    assert ewma["skipped"] >= 500
+    hour = data["grid"]["train_skip_toxic_hour"]
+    assert hour["d_ho"] < 0
+    assert "autodial_from_live_n9" in data["do_not"]
+    assert "online_bandit_min_lead" in ship["do_not"]
+    p = default_params(DEFAULT_SETTINGS)
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+    sys.path.insert(0, str(root / "research"))
+    import learn_fail as lf
+
+    assert lf.cooldown_active(1000, None, 1) is False
+    assert lf.cooldown_active(1000, 800, 1) is True
+    assert lf.cooldown_active(1100, 800, 1) is False
+    hist = [
+        {"asset": "btc", "end": 100, "scratched": False, "won": False, "pnl": -1},
+        {"asset": "btc", "end": 400, "scratched": False, "won": True, "pnl": 1},
+    ]
+    assert lf.last_fail_end(hist, asset="btc", kind="hold_loss") is None
+    assert lf.last_fail_end(hist[:1], asset="btc", kind="hold_loss") == 100
+
+
 def test_rev60_apply_keeps_live_and_does_not_chase_leftover(tmp_path):
     from app.config import DEFAULT_SETTINGS
     from app.main import apply_strategy_rev
