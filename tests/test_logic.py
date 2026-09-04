@@ -8293,3 +8293,55 @@ def test_clob_unmatched_and_retry_skips_leftover(tmp_path):
     )
     assert paper.ok is False
     assert fill_broker.n == 1
+
+
+def test_two_alts_research_does_not_pin():
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "two_alts.json").read_text())
+    ship = json.loads((root / "research" / "two_alts_ship.json").read_text())
+    assert data["ship"] is False
+    assert data["pick"] is None
+    assert data["recommend"] is None
+    assert data["recommend_plus_one"] is None
+    assert ship["ship"] is False
+    assert ship["pick"] is None
+    assert ship["recommend"] is None
+    assert ship["recommend_plus_one"] is None
+    assert ship["passing_alts"] == []
+    assert ship["strategy_rev"] == 60
+    assert DEFAULT_SETTINGS["twap_assets"] == ["btc", "eth"]
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert "sol" not in DEFAULT_SETTINGS["twap_assets"]
+    assert "pin_twap_assets_without_owner" in ship["do_not"]
+    assert "15m" in ship["do_not"]
+    assert "hype_no_prints" in ship["do_not"]
+    assert "skip_dump90_on_alts_to_chase_print_hold_wr" in ship["do_not"]
+    assert ship["ws_plus_two_fits"] is False
+    assert ship["ws_plus_one_fits"] is True
+    assert ship["hype_prints"] == 0
+    assert ship["closest_pair"]["d_holdout"] < 0
+    assert ship["closest_plus_one"]["d_holdout"] < 0
+    assert ship["alt_dump_share"]["sol"] >= 0.9
+    assert ship["alt_dump_share"]["xrp"] >= 0.9
+    assert ship["alt_confirm_62"]["sol"] < 0.2
+    assert data["core"]["holdout"]["ev_ok"] is True
+    assert data["per_asset"]["sol"]["holdout"]["pnl5"] < 0
+    assert data["per_asset"]["xrp"]["holdout"]["pnl5"] < 0
+    assert data["overlay_cf"]["sol"]["bm_only"]["holdout"]["pnl5"] > 0
+    assert data["overlay_cf"]["sol"]["dump90_oracle"]["holdout"]["pnl5"] < 0
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert abs(p.min_left - 120.0) < 1e-9
+    assert abs(p.max_left - 280.0) < 1e-9
+    assert abs(p.confirm_px - 0.62) < 1e-9
+    assert abs(p.confirm_fair - 0.60) < 1e-9
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
