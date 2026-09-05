@@ -8345,3 +8345,40 @@ def test_two_alts_research_does_not_pin():
     assert abs(p.confirm_px - 0.62) < 1e-9
     assert abs(p.confirm_fair - 0.60) < 1e-9
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
+def test_freq_live_does_not_relax_six_bps_or_chase_leftover():
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "freq_live.json").read_text())
+    ship = json.loads((root / "research" / "freq_live_ship.json").read_text())
+    assert data["ship"] is False
+    assert data["pick"] is None
+    assert ship["ship"] is False
+    assert ship["pick"] is None
+    assert ship["strategy_rev"] == 60
+    assert data["live_ok"]["engine_running"] is True
+    assert data["live_ok"]["clob_halted"] is False
+    assert data["current_skip"]["reason"] == "twap_band"
+    assert data["btc_eth_unique_slug_funnel"]["last_36h"]["fill_rate"] < 0.5
+    assert data["btc_eth_unique_slug_funnel"]["by_hkt_day"]["2026-09-04"]["filled"] == 10
+    assert "chase_leftover" in ship["do_not"]
+    assert "lead_5_5bps" in ship["do_not"]
+    assert "up_requote_2ticks" in ship["do_not"]
+    assert "alts" in ship["do_not"]
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert DEFAULT_SETTINGS["twap_assets"] == ["btc", "eth"]
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert abs(p.min_left - 120.0) < 1e-9
+    assert abs(p.max_left - 280.0) < 1e-9
+    assert abs(p.up_tick - 0.01) < 1e-9
+    assert p.no_cheaper is True
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
