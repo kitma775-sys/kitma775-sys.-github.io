@@ -8382,3 +8382,70 @@ def test_freq_live_does_not_relax_six_bps_or_chase_leftover():
     assert abs(p.up_tick - 0.01) < 1e-9
     assert p.no_cheaper is True
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
+def test_easy_entry_does_not_autodial_six_bps() -> None:
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "easy_entry.json").read_text())
+    ship = json.loads((root / "research" / "easy_entry_ship.json").read_text())
+    assert data["ship"] is False
+    assert ship["ship"] is False
+    assert data["pick"] == "lead_5_5"
+    assert ship["pick"] == "lead_5_5"
+    assert DEFAULT_SETTINGS["twap_min_lead_bps"] == 6.0
+    assert DEFAULT_SETTINGS["twap_min_price"] == 0.45
+    assert DEFAULT_SETTINGS["twap_max_price"] == 0.55
+    assert DEFAULT_SETTINGS["twap_assets"] == ["btc", "eth"]
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert ship["params_kept"]["twap_min_lead_bps"] == 6.0
+    assert ship["params_kept"]["band"] == [0.45, 0.55]
+    assert ship["live_today_skip_is_band"] is True
+    assert ship["live_drought_is_band_not_lead"] is True
+    assert ship["live_skip"]["reason"] == "twap_band"
+    assert float(ship["live_skip"]["ask"]) >= 0.68
+    assert ship["live_last_fill_hours"] >= 12
+    assert ship["leftover_not_the_fix"] is True
+    assert ship["persist_fair_did_not_beat_holdout_pnl"] is True
+    assert ship["lead_4_beats"] is False
+    assert ship["band_40_60_beats"] is False
+    assert data["grid"]["lead_4"]["forbidden"] is True
+    assert data["grid"]["band_40_60"]["forbidden"] is True
+    assert data["grid"]["lead_4"]["beats"] is False
+    assert data["grid"]["band_40_60"]["beats"] is False
+    assert data["grid"]["lead_5_5_persist8"]["d_holdout"] < 0
+    assert "lead_4" in ship["do_not"]
+    assert "band_40_60" in ship["do_not"]
+    assert "chase_leftover" in ship["do_not"]
+    assert "favorite_97_98" in ship["do_not"]
+    assert "autodial_live_without_owner" in ship["do_not"]
+    assert "autodial_bps_without_extra_orig_hold" in ship["do_not"]
+    g = data["grid"]["lead_5_5"]
+    extra = g["extra"]
+    assert g["beats"] is True
+    assert g["delta_n"] >= 50
+    assert g["d_holdout"] >= 5.0
+    assert g["d_train"] > 0
+    assert extra["orig_hold_wr_holdout"] >= 0.85
+    assert extra["orig_hold_n_holdout"] >= 15
+    assert extra["cheap_1s"] <= data["baseline"]["cheap_1s"] + 0.15
+    assert ship["lead_5_5"]["d_holdout"] >= 5.0
+    assert ship["lead_5_5"]["extra_orig_hold_wr_holdout"] >= 0.85
+    assert ship["lead_5_5"]["extra_orig_hold_n_holdout"] >= 15
+    assert ship["lead_5_5"]["extra_cheap_1s"] <= ship["lead_5_5"]["core_cheap_1s"]
+    assert ship["core"]["min_lead_bps"] == 6.0
+    assert ship["core"]["orig_hold_wr_holdout"] >= 0.70
+    assert ship["core"]["n_holdout"] >= 150
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert abs(p.min_left - 120.0) < 1e-9
+    assert abs(p.max_left - 280.0) < 1e-9
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
