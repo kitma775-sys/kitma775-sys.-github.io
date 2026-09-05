@@ -1,0 +1,80 @@
+{
+  "strategy_rev": 60,
+  "ship": true,
+  "researched_at_utc": "2026-09-02T14:08:35Z",
+  "elapsed_s": 0.79,
+  "question": "Convert FOK \u6bba\u55ae without cutting first-cross take WR.",
+  "answer": "Allow 1-tick UP requote and size-walk (still \u226455\u00a2, never cheaper than first-cross). On live unmatched FAK, re-confirm the book with delay=0 and send one more same-sleeve FAK. Tape: 13% of first-cross prints reprint 1\u00a2 richer within 1s before leftover; 35% print leftover within 1s so keep 250ms + no_cheaper. Held WR is the side, not the cent \u2014 +1 tick does not flip Up/Down. Worst-case fill every take 1\u00a2 worse still +EV. Do not 2-tick (0.54\u21920.56 leaves the band).",
+  "tape": {
+    "n": 599,
+    "take_win_rate": 0.8455,
+    "held_wr_side": 0.8455,
+    "train_wr": 0.844,
+    "holdout_wr": 0.8481,
+    "robust": true,
+    "pnl_fill_at_first": 175.41,
+    "pnl_fill_at_plus_1tick": 124.81,
+    "delta_pnl_all_plus1": -50.6,
+    "holdout_n": 199
+  },
+  "delay_path": {
+    "n": 599,
+    "up1_within_1s_before_cheap": 0.1252,
+    "same_px_within_1s": 0.1202,
+    "cheap_within_1s": 0.3506,
+    "walk_out_within_1s": 0.2821,
+    "up2_first": 0.1052,
+    "convertible_n": 75,
+    "convertible_train": 52,
+    "convertible_holdout": 23,
+    "dt_up1_hist": {
+      "0": 46,
+      "4": 9,
+      "8": 131,
+      "5": 3,
+      "3": 12,
+      "7": 9,
+      "2": 15,
+      "1": 33,
+      "6": 1
+    }
+  },
+  "live_btc_eth_since_rev56": {
+    "n": 133,
+    "slugs": 62,
+    "filled": 18,
+    "fok_killed": 57,
+    "fok_reasons": {
+      "clob_rtt_miss": 1,
+      "twap_no_cheaper": 31,
+      "twap_no_up_requote": 5,
+      "fok_short": 20
+    },
+    "error_kinds": {
+      "unmatched": 24,
+      "other": 1,
+      "disabled": 15
+    },
+    "slugs_fok_short_dead": 9,
+    "slugs_fok_short_later_fill": 4,
+    "slugs_up_requote_dead": 1,
+    "slugs_up_requote_later_fill": 3,
+    "slugs_unmatched_dead": 13,
+    "slugs_unmatched_later_fill": 6,
+    "slugs_no_cheaper_dead": 18,
+    "note": "1-tick up + same-limit reconfirm targets short/up/unmatched. no_cheaper stays dead."
+  },
+  "do_not": [
+    "chase_cheaper_leftover",
+    "skip_fok_delay",
+    "up_requote_2ticks",
+    "bps_4",
+    "band_40_60",
+    "min_left_below_120",
+    "dump_mid90",
+    "twap_reverse_on",
+    "price_sl_8c",
+    "turn_taker_fok_off",
+    "flip_live_trading"
+  ]
+}

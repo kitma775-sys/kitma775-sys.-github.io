@@ -1,0 +1,653 @@
+"""Chainlink 60s TWAP vs window-open PTB — mid-band directional engine.
+
+Live ticks must be the same Chainlink USD stream the market settles on.
+Never subtract a Binance/USDT print from Gamma priceToBeat (≈9 bps basis).
+PTB is the first same-source tick at/after the window open.
+
+Settlement (5m up/down): last `lookback` seconds of Chainlink TWAP >= PTB → Up.
+15m uses the same oracle but collides with 5m for 14 CLOB slots and has no tape grid.
+Hourly `*-up-or-down-*` and `*-above-*` settle on Binance candles — never this engine.
+"""
+
+from __future__ import annotations
+
+import math
+import re
+from dataclasses import dataclass
+
+from app.fees import taker_fee
+
+TWAP_LOOKBACK = 60
+MID_LO = 0.45
+MID_HI = 0.55
+BTC_5M_RE = re.compile(r"^btc-updown-5m-(\d+)$")
+UPDOWN_RE = re.compile(r"^([a-z0-9]+)-updown-(5m|15m)-(\d+)$")
+HORIZON_SECONDS = {"5m": 300, "15m": 900}
+WINDOW_SECONDS = 300
+TAG_TO_HORIZON = {"5M": "5m", "15M": "15m"}
+CHAINLINK_SYMBOL = {
+    "btc": "btc/usd",
+    "eth": "eth/usd",
+    "sol": "sol/usd",
+    "xrp": "xrp/usd",
+    "doge": "doge/usd",
+    "bnb": "bnb/usd",
+    "hype": "hype/usd",
+    "zec": "zec/usd",
+}
+CHAINLINK_ASSETS = tuple(CHAINLINK_SYMBOL)
+CHEAPER_EPS = 0.005
+CONFIRM_PX = 0.62
+CONFIRM_LEFT = 90.0
+DEFAULT_TWAP_ASSETS = ("btc", "eth")
+DEFAULT_TWAP_CORE = ("btc", "eth")
+DEFAULT_TWAP_HORIZONS = ("5m",)
+
+
+def phi(z: float) -> float:
+    return 0.5 * (1.0 + math.erf(float(z) / math.sqrt(2.0)))
+
+
+def settlement_tau(left_s: float, lookback: int = TWAP_LOOKBACK) -> float | None:
+    """Seconds of Brownian uncertainty for the remaining settlement TWAP."""
+    if left_s is None or float(left_s) <= 0:
+        return None
+    lb = max(int(lookback), 1)
+    left = float(left_s)
+    if left <= lb:
+        return max(left, 1.0)
+    tau = (left - lb) + 0.5 * lb
+    return min(max(tau, 8.0), 180.0)
+
+
+def lead_z(
+    lead_bps: float,
+    vol_bps_sqrt_s: float | None,
+    left_s: float,
+    *,
+    lookback: int = TWAP_LOOKBACK,
+) -> float | None:
+    """Signed z of current TWAP lead vs remaining settlement noise."""
+    if vol_bps_sqrt_s is None or float(vol_bps_sqrt_s) <= 1e-9:
+        return None
+    tau = settlement_tau(left_s, lookback)
+    if tau is None:
+        return None
+    return float(lead_bps) / (float(vol_bps_sqrt_s) * math.sqrt(tau))
+
+
+def fair_p_up(lead_bps: float, vol_bps_sqrt_s: float | None, left_s: float, *, lookback: int = TWAP_LOOKBACK) -> float | None:
+    """P(settlement TWAP stays on the current side of PTB) under a BM approx.
+
+    After the settlement window starts (left <= lookback) the remaining average
+    is shorter. Before that, uncertainty is the walk until the TWAP window plus
+    the window itself — cap tau so a 2 bps lead at t+20s is not treated as 87%.
+    """
+    z = lead_z(lead_bps, vol_bps_sqrt_s, left_s, lookback=lookback)
+    if z is None:
+        return None
+    return round(phi(float(z)), 6)
+
+
+def lead_bps(twap: float, ptb: float) -> float | None:
+    if ptb is None or twap is None or float(ptb) <= 0 or float(twap) <= 0:
+        return None
+    return (float(twap) - float(ptb)) / float(ptb) * 10000.0
+
+
+def fee_per_share(px: float, fee_rate: float) -> float:
+    p = min(max(float(px), 0.0), 1.0)
+    return float(fee_rate) * p * (1.0 - p)
+
+
+@dataclass(frozen=True)
+class TwapWindow:
+    asset: str
+    horizon: str
+    start: int
+
+    @property
+    def window_seconds(self) -> int:
+        return int(HORIZON_SECONDS[self.horizon])
+
+    @property
+    def symbol(self) -> str | None:
+        return CHAINLINK_SYMBOL.get(self.asset)
+
+    @property
+    def slug(self) -> str:
+        return f"{self.asset}-updown-{self.horizon}-{self.start}"
+
+
+def parse_window(slug: str) -> TwapWindow | None:
+    """Only 5m/15m `{asset}-updown-{horizon}-{start}` with a live Chainlink feed.
+
+    Hourly `bitcoin-up-or-down-…` / `*-above-*` return None (Binance candle).
+    """
+    m = UPDOWN_RE.match(str(slug or "").strip().lower())
+    if not m:
+        return None
+    asset, horizon, start_s = m.group(1), m.group(2), m.group(3)
+    if asset not in CHAINLINK_SYMBOL or horizon not in HORIZON_SECONDS:
+        return None
+    return TwapWindow(asset=asset, horizon=horizon, start=int(start_s))
+
+
+def parse_5m(slug: str) -> tuple[str, int] | None:
+    parsed = parse_window(slug)
+    if not parsed or parsed.horizon != "5m":
+        return None
+    return parsed.asset, parsed.start
+
+
+def is_btc_5m(slug: str) -> bool:
+    return bool(BTC_5M_RE.match(str(slug or "")))
+
+
+def is_hourly_updown(slug: str) -> bool:
+    text = str(slug or "").lower()
+    return "up-or-down" in text and "-updown-" not in text
+
+
+def asset_from_symbol(symbol: str) -> str | None:
+    key = str(symbol or "").strip().lower()
+    for asset, sym in CHAINLINK_SYMBOL.items():
+        if key == sym:
+            return asset
+    return None
+
+
+def _token_tuple(raw, fallback: tuple[str, ...]) -> tuple[str, ...]:
+    if raw is None or raw == "":
+        return fallback
+    if isinstance(raw, str):
+        items = [a.strip().lower() for a in raw.split(",") if a.strip()]
+    else:
+        items = [str(a).lower().strip() for a in raw if str(a).strip()]
+    return tuple(items) or fallback
+
+
+def hunt_assets(s: dict | None = None) -> tuple[str, ...]:
+    """Telegram scan coins ∩ Chainlink TWAP-60 allowlist.
+
+    `twap_assets` is the capability pin (what the engine may trade).
+    `assets` is what Telegram opened. Opening SOL only hunts SOL if both match.
+    """
+    d = s or {}
+    pinned = set(_token_tuple(d.get("twap_assets"), DEFAULT_TWAP_ASSETS))
+    scan_raw = d.get("assets")
+    scan = _token_tuple(scan_raw, tuple(pinned)) if scan_raw not in (None, "") else tuple(pinned)
+    return tuple(a for a in scan if a in CHAINLINK_SYMBOL and a in pinned)
+
+
+def hunt_horizons(s: dict | None = None) -> tuple[str, ...]:
+    """5M tag ∩ pinned TWAP horizons. Rev 34+ pins 5m-only. 1H never hunts."""
+    d = s or {}
+    pinned = set(_token_tuple(d.get("twap_horizons"), DEFAULT_TWAP_HORIZONS))
+    tags = d.get("tags")
+    if tags is None or tags == "":
+        tag_list = [d.get("tag") or "5M"]
+    elif isinstance(tags, str):
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    else:
+        tag_list = [str(t).strip() for t in tags if str(t).strip()]
+    out: list[str] = []
+    for tag in tag_list:
+        horizon = TAG_TO_HORIZON.get(str(tag).upper())
+        if horizon and horizon in pinned and horizon in HORIZON_SECONDS and horizon not in out:
+            out.append(horizon)
+    return tuple(out)
+
+
+def chainlink_symbols_for(s: dict | None = None, extra_assets: tuple[str, ...] = ()) -> tuple[str, ...]:
+    assets = list(hunt_assets(s))
+    for raw in extra_assets:
+        a = str(raw or "").lower()
+        if a in CHAINLINK_SYMBOL and a not in assets:
+            assets.append(a)
+    return tuple(CHAINLINK_SYMBOL[a] for a in assets if a in CHAINLINK_SYMBOL) or ("btc/usd",)
+
+
+def future_listing(left: float | None, window_seconds: int) -> bool:
+    """Skip books listed for the next window, not the live clock."""
+    if left is None:
+        return False
+    return float(left) > float(window_seconds) + 5.0
+
+
+def in_mid_band(px: float, lo: float = MID_LO, hi: float = MID_HI) -> bool:
+    return float(lo) - 1e-12 <= float(px) <= float(hi) + 1e-12
+
+
+@dataclass(frozen=True)
+class TwapSnap:
+    symbol: str
+    slug: str
+    asset: str
+    start: int
+    ptb: float
+    twap: float
+    spot: float
+    lead_bps: float
+    vol_bps_sqrt_s: float | None
+    fair_p_up: float | None
+    lookback: int
+    age_ms: float
+    tick_n: int
+    connected: bool
+
+    @property
+    def side(self) -> str:
+        return "up" if self.lead_bps >= 0 else "down"
+
+    @property
+    def fair_p_side(self) -> float | None:
+        if self.fair_p_up is None:
+            return None
+        return self.fair_p_up if self.side == "up" else round(1.0 - self.fair_p_up, 6)
+
+
+@dataclass(frozen=True)
+class TwapParams:
+    min_price: float = MID_LO
+    max_price: float = MID_HI
+    min_lead_bps: float = 6.0
+    min_edge: float = 0.04
+    min_left: float = 120.0
+    max_left: float = 280.0
+    max_spread: float = 0.04
+    max_age_ms: float = 3000.0
+    min_ticks: int = 20
+    lookback: int = TWAP_LOOKBACK
+    scratch_p: float = 0.48
+    scratch_min_bid: float = 0.38
+    scratch_dump_floor: float = 0.22
+    scratch_adverse: float = 0.0
+    scratch_left_min: float = 8.0
+    late_left: float = 0.0
+    late_min_price: float = MID_LO
+    alt_min_left: float = 120.0
+    max_lead_bps: float = 40.0
+    scratch_late_left: float = 0.0
+    scratch_late_bid: float = 1.0
+    reverse: bool = False
+    take_profit: float = 0.0
+    confirm_px: float = 0.0
+    confirm_left: float = 90.0
+    confirm_fair: float = 0.0
+    no_cheaper: bool = True
+    # Rev 60: FOK may lift first_px + this tick, still inside max_price. 0 = off.
+    up_tick: float = 0.01
+    assets: tuple[str, ...] = DEFAULT_TWAP_ASSETS
+    horizons: tuple[str, ...] = DEFAULT_TWAP_HORIZONS
+    core_assets: tuple[str, ...] = DEFAULT_TWAP_CORE
+
+
+def default_params(s: dict | None = None) -> TwapParams:
+    d = s or {}
+
+    def num(key: str, fallback: float) -> float:
+        v = d.get(key)
+        if v is None or v == "":
+            return float(fallback)
+        return float(v)
+
+    assets = hunt_assets(d) or DEFAULT_TWAP_ASSETS
+    horizons = hunt_horizons(d)
+    if not horizons and d.get("twap_horizons") is None and d.get("tags") is None:
+        horizons = DEFAULT_TWAP_HORIZONS
+    raw_core = d.get("twap_core_assets")
+    if isinstance(raw_core, str):
+        core = tuple(a.strip().lower() for a in raw_core.split(",") if a.strip())
+    elif isinstance(raw_core, (list, tuple)):
+        core = tuple(str(a).strip().lower() for a in raw_core if str(a).strip())
+    else:
+        core = DEFAULT_TWAP_CORE
+    if not core:
+        core = DEFAULT_TWAP_CORE
+    return TwapParams(
+        min_price=num("twap_min_price", MID_LO),
+        max_price=num("twap_max_price", MID_HI),
+        min_lead_bps=num("twap_min_lead_bps", 6.0),
+        min_edge=num("twap_min_edge", 0.04),
+        min_left=num("twap_min_left", 120.0),
+        max_left=num("twap_max_left", 280.0),
+        max_spread=num("twap_max_spread", 0.04),
+        max_age_ms=num("twap_max_age_ms", 3000.0),
+        min_ticks=int(num("twap_min_ticks", 20)),
+        lookback=int(num("twap_lookback", TWAP_LOOKBACK)),
+        scratch_p=num("twap_scratch_p", 0.48),
+        scratch_min_bid=num("twap_scratch_min_bid", 0.38),
+        scratch_dump_floor=num("twap_scratch_dump_floor", 0.22),
+        scratch_adverse=num("twap_scratch_adverse", 0.0),
+        scratch_left_min=num("twap_scratch_left_min", 8.0),
+        late_left=num("twap_late_left", 0.0),
+        late_min_price=num("twap_late_min_price", MID_LO),
+        alt_min_left=num("twap_alt_min_left", 120.0),
+        max_lead_bps=num("twap_max_lead_bps", 40.0),
+        scratch_late_left=num("twap_scratch_late_left", 0.0),
+        scratch_late_bid=num("twap_scratch_late_bid", 1.0),
+        reverse=bool(d.get("twap_reverse")),
+        take_profit=num("twap_tp_bid", 0.87),
+        confirm_px=num("twap_confirm_px", 0.62),
+        confirm_left=num("twap_confirm_left", 90.0),
+        confirm_fair=num("twap_confirm_fair", 0.60),
+        no_cheaper=bool(True if d.get("twap_no_cheaper") is None else d.get("twap_no_cheaper")),
+        up_tick=num("twap_up_tick", 0.01),
+        assets=assets,
+        horizons=horizons,
+        core_assets=core,
+    )
+
+
+def cheaper_than_first(ask: float | None, first_px: float | None, eps: float = CHEAPER_EPS) -> bool:
+    """True when this ask is a leftover hunt vs the first 6bps print."""
+    if ask is None or first_px is None:
+        return False
+    return float(ask) + 1e-12 < float(first_px) - float(eps)
+
+
+def richer_than_up_tick(
+    ask: float | None, first_px: float | None, up_tick: float = 0.01
+) -> bool:
+    """True when ask is more than one tick richer than the locked first print.
+
+    0.52 → 0.53 is one tick (allowed). 0.52 → 0.54 is two (kill). 0.55 → 0.56
+    leaves the 45–55 band at the caller via max_price, not this helper.
+    """
+    if ask is None or first_px is None:
+        return False
+    tick = max(0.0, float(up_tick))
+    return float(ask) > float(first_px) + tick + 1e-12
+
+
+def take_profit_px(params: TwapParams) -> float | None:
+    """None means take-profit is off. 0 or >=1 is off so Telegram 關 works."""
+    try:
+        tp = float(params.take_profit)
+    except (TypeError, ValueError):
+        return None
+    if tp <= 1e-12 or tp >= 1.0 - 1e-12:
+        return None
+    return tp
+
+
+def opposite_leg(leg: str | None) -> str | None:
+    if leg == "up":
+        return "down"
+    if leg == "down":
+        return "up"
+    return None
+
+
+def trade_leg(snap: TwapSnap | None, params: TwapParams) -> str | None:
+    """Book to lift. Reverse thinking fades the Chainlink lead."""
+    if snap is None:
+        return None
+    side = snap.side
+    return opposite_leg(side) if params.reverse else side
+
+
+def entry_min_left(asset: str, params: TwapParams) -> float:
+    if str(asset or "") in set(params.core_assets):
+        return float(params.min_left)
+    return float(params.alt_min_left)
+
+
+def slug_allowed(slug: str, params: TwapParams) -> bool:
+    parsed = parse_window(slug)
+    if not parsed:
+        return False
+    if parsed.asset not in set(params.assets):
+        return False
+    return parsed.horizon in set(params.horizons)
+
+
+def entry_edge(fair_p: float, px: float, fee_rate: float) -> float:
+    return float(fair_p) - float(px) - fee_per_share(px, fee_rate)
+
+
+def reverse_placeholder_net(shares: float) -> float:
+    """Risk/FOK reject net<=0. Fade EV vs BM fair is usually negative by design."""
+    return round(max(float(shares) * 0.02, 0.01), 5)
+
+
+def twap_post_fok_net(*, reverse: bool, shares: float, px: float, fair_p, fee_rate: float) -> float:
+    """After FOK confirm, follow still marks BM edge; fade must not."""
+    if reverse:
+        return reverse_placeholder_net(shares)
+    try:
+        fair = float(fair_p or 0)
+    except (TypeError, ValueError):
+        fair = 0.0
+    return round(float(shares) * entry_edge(fair, float(px), fee_rate), 5)
+
+
+def twap_entry_reason(
+    *,
+    slug: str,
+    snap: TwapSnap | None,
+    ask: float | None,
+    bid: float | None,
+    left: float | None,
+    fee_rate: float,
+    params: TwapParams,
+    first_px: float | None = None,
+) -> str | None:
+    """None means enter. Otherwise a stable skip reason."""
+    if snap is None or not snap.connected:
+        return "twap_no_feed"
+    parsed = parse_window(slug)
+    if parsed is None or not slug_allowed(slug, params):
+        if parsed is None:
+            return "twap_oracle"
+        if parsed.horizon not in set(params.horizons):
+            return "twap_horizon"
+        return "twap_asset"
+    if snap.age_ms > params.max_age_ms:
+        return "twap_stale"
+    if snap.tick_n < params.min_ticks:
+        return "twap_thin"
+    if snap.ptb <= 0 or snap.twap <= 0:
+        return "twap_no_ptb"
+    need_left = entry_min_left(parsed.asset, params)
+    if left is None or left < need_left or left > params.max_left:
+        return "twap_window"
+    if ask is None or not in_mid_band(ask, params.min_price, params.max_price):
+        return "twap_band"
+    if params.no_cheaper and cheaper_than_first(ask, first_px):
+        return "twap_no_cheaper"
+    if left < params.late_left and float(ask) + 1e-12 < params.late_min_price:
+        return "twap_late_cheap"
+    if bid is None:
+        return "twap_no_bid"
+    if ask + 1e-12 < bid:
+        return "twap_crossed"
+    if (ask - bid) > params.max_spread + 1e-12:
+        return "twap_wide"
+    if abs(snap.lead_bps) < params.min_lead_bps - 1e-12:
+        return "twap_lead"
+    if params.max_lead_bps > params.min_lead_bps and abs(snap.lead_bps) > params.max_lead_bps + 1e-12:
+        return "twap_lead_wild"
+    if params.reverse:
+        # Fade skips BM fair/edge: that filter is calibrated to the lead side.
+        return None
+    fair = snap.fair_p_side
+    if fair is None:
+        return "twap_no_fair"
+    if entry_edge(fair, ask, fee_rate) + 1e-12 < params.min_edge:
+        return "twap_edge"
+    return None
+
+
+def hold_value(shares: float, fair_p: float) -> float:
+    return float(shares) * float(fair_p)
+
+
+def scratch_proceeds(shares: float, bid: float, fee_rate: float) -> float:
+    return max(0.0, float(shares) * float(bid) - taker_fee(shares, bid, fee_rate))
+
+
+def should_scratch(
+    *,
+    fair_p: float | None,
+    lead_bps_signed: float | None,
+    bid: float | None,
+    shares: float,
+    fee_rate: float,
+    left: float | None,
+    params: TwapParams,
+    fill_px: float | None = None,
+    adverse: float | None = None,
+    asset: str | None = None,
+    high_water: float | None = None,
+) -> tuple[bool, str]:
+    if left is None or left < params.scratch_left_min:
+        return False, "twap_scratch_late"
+    if bid is None or float(bid) + 1e-12 < params.scratch_dump_floor:
+        return False, "twap_scratch_no_bid"
+    if params.reverse:
+        # Fade holds the dog. BM weak/flip/better would dump on the same tick as entry.
+        if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
+            return True, "twap_scratch_wild"
+        return False, "twap_hold"
+    tp = take_profit_px(params)
+    if tp is not None and bid is not None and float(bid) + 1e-12 >= tp:
+        return True, "twap_scratch_tp"
+    if (
+        params.confirm_px > 1e-12
+        and params.confirm_left > params.scratch_left_min
+        and left is not None
+        and float(left) < params.confirm_left
+        and (high_water is None or float(high_water) + 1e-12 < params.confirm_px)
+    ):
+        return True, "twap_scratch_unconfirmed"
+    if fair_p is None:
+        return True, "twap_scratch_no_fair"
+    if (
+        params.confirm_fair > 1e-12
+        and params.confirm_left > params.scratch_left_min
+        and left is not None
+        and float(left) < params.confirm_left
+        and float(fair_p) + 1e-12 < params.confirm_fair
+    ):
+        return True, "twap_scratch_oracle"
+    proceeds = scratch_proceeds(shares, bid, fee_rate)
+    held = hold_value(shares, fair_p)
+    if proceeds + 1e-9 >= held and float(bid) + 1e-12 >= params.scratch_min_bid:
+        return True, "twap_scratch_better"
+    stop = float(params.scratch_adverse if adverse is None else adverse)
+    if (
+        stop > 1e-12
+        and fill_px is not None
+        and float(fill_px) > 0
+        and float(bid) + 1e-12 <= float(fill_px) - stop
+    ):
+        return True, "twap_scratch_stop"
+    if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
+        return True, "twap_scratch_wild"
+    # Alts do not take binary settlement. Live held-alt tape is 5W/24L; books
+    # that stayed 45–55¢ skipped the old bid<40 last-90s dump then paid $0.
+    # BTC/ETH research+live stay hold-to-settle. Bid still needs dump_floor.
+    is_alt = asset is not None and str(asset).lower() not in set(params.core_assets)
+    if (
+        is_alt
+        and params.scratch_late_left > params.scratch_left_min
+        and float(left) < params.scratch_late_left
+    ):
+        return True, "twap_scratch_book"
+    if float(fair_p) < params.scratch_p:
+        return True, "twap_scratch_weak"
+    if lead_bps_signed is not None and float(lead_bps_signed) < 0:
+        return True, "twap_scratch_flip"
+    return False, "twap_hold"
+
+
+MUST_DUMP_WHY = frozenset(
+    {
+        "twap_scratch_unconfirmed",
+        "twap_scratch_oracle",
+        "twap_scratch_no_fair",
+        "twap_scratch_flip",
+        "twap_scratch_weak",
+        "twap_scratch_wild",
+    }
+)
+
+
+def scratch_hot_window(left: float | None, confirm_left: float) -> bool:
+    """True in the last confirm_left seconds — dump must see a fresh book."""
+    try:
+        return left is not None and float(confirm_left) > 0 and float(left) < float(confirm_left)
+    except (TypeError, ValueError):
+        return False
+
+
+def scratch_book_max_age_ms(
+    left: float | None,
+    *,
+    confirm_left: float = 90.0,
+    hot_ms: float = 2000.0,
+    cold_ms: float = 60_000.0,
+) -> float:
+    """Hunt can use a 60s WS cache. Scratch in the last 90s cannot: a crash
+    leaves a 50¢ bid in cache while the live bid is already 10¢, and the FAK
+    min_price misses. Force HTTP when the cache is older than hot_ms.
+    """
+    if scratch_hot_window(left, confirm_left):
+        return float(hot_ms)
+    return float(cold_ms)
+
+
+def scratch_rescore_seconds(
+    left: float | None,
+    *,
+    confirm_left: float = 90.0,
+    hot_s: float = 3.0,
+    cold_s: float = 15.0,
+) -> float:
+    if scratch_hot_window(left, confirm_left):
+        return float(hot_s)
+    return float(cold_s)
+
+
+def time_weighted_twap(ticks: list[tuple[float, float]], end_ts: float, lookback: float) -> float | None:
+    """ticks are (unix_seconds, price) sorted ascending, last tick may be after end_ts."""
+    if not ticks or lookback <= 0:
+        return None
+    start = float(end_ts) - float(lookback)
+    # Build a step path: price held until the next tick.
+    xs = [(float(t), float(p)) for t, p in ticks if p > 0]
+    if not xs:
+        return None
+    # Seed with last price at or before start.
+    seed = None
+    for t, p in xs:
+        if t <= start:
+            seed = p
+        else:
+            break
+    if seed is None:
+        # first tick inside window — weight from first tick only
+        inside = [(t, p) for t, p in xs if start < t <= end_ts + 1e-9]
+        if not inside:
+            return None
+        area = 0.0
+        t_prev, p_prev = inside[0]
+        for t, p in inside[1:]:
+            area += p_prev * (t - t_prev)
+            t_prev, p_prev = t, p
+        area += p_prev * max(0.0, float(end_ts) - t_prev)
+        dur = max(1e-9, float(end_ts) - inside[0][0])
+        return area / dur
+    points = [(start, seed)]
+    for t, p in xs:
+        if start < t <= end_ts + 1e-9:
+            points.append((t, p))
+    if points[-1][0] < end_ts:
+        points.append((end_ts, points[-1][1]))
+    area = 0.0
+    for (t0, p0), (t1, _p1) in zip(points, points[1:]):
+        area += p0 * max(0.0, t1 - t0)
+    dur = max(1e-9, float(end_ts) - start)
+    return area / dur

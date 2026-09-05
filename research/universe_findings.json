@@ -1,0 +1,65 @@
+{
+  "researched_at_utc": "2026-08-26T07:02:00Z",
+  "question": "If the bot scanned all Polymarket markets, would profitable complement arb show up much more often?",
+  "answer": "No. At rest, YES+NO taker complement is empty across the liquid universe. More names on a 2s HTTP poll does not create edge. The only theoretically takeable 1-tick race is fee-free geopolitics, and that race is a websocket/MM game, not a wider poll.",
+  "universe": {
+    "gamma_open_markets_by_24h_volume": 2098,
+    "live_binaries_with_books": 1970,
+    "events_by_24h_volume": 2050,
+    "full_multi_outcome_events_scored": 1346,
+    "neg_risk_events_scored": 696,
+    "note": "Gamma offset caps at 2100. Volume-sorted top 2100 still has ~$1k/day at the tail, so this is the economically relevant set."
+  },
+  "binary_yes_no_taker": {
+    "ask_sum_min": 1.001,
+    "ask_sum_p50": 1.01,
+    "ask_sum_lt_1": 0,
+    "taker_net_positive": 0,
+    "taker_net_max_per_share": -0.001,
+    "same_in_every_fee_bucket": true,
+    "fee_free_bucket_also_min_ask_sum": 1.001,
+    "fifteen_m_crypto_ask_sums": [1.001, 1.01, 1.02, 1.97, 1.98, 2.0],
+    "fifteen_m_taker_positive": 0
+  },
+  "complete_set_neg_risk": {
+    "trap": "Summing YES asks across a few legs of a big event looks like 50-90c 'arb'. Those samples are incomplete (3 of 30 candidates, 7 of 30 MLB teams) or not a partition (nested 'by date?', independent country YES/NO).",
+    "full_neg_risk_sets_with_ask_sum_under_1": 0,
+    "full_neg_risk_sets_sit_at": "0.99 to 1.00+",
+    "example_full_sets_taker_net_after_fees": [
+      {"title": "Emmys 2026: Outstanding variety series", "n": "5/5", "yes_ask_sum": 0.99, "fee_rate": 0.05, "taker_net": -0.0077},
+      {"title": "When will the next Google Gemini Pro model be released?", "n": "11/11", "yes_ask_sum": 0.991, "fee_rate": 0.04, "taker_net": -0.0231},
+      {"title": "How many seats will United Russia win in the next Russian legislative election?", "n": "7/7", "yes_ask_sum": 1.003, "fee_rate": 0.0, "taker_net": -0.003}
+    ]
+  },
+  "fee_vs_tick_at_the_money": {
+    "formula": "pair taker fee at 50/50 ≈ feeRate / 2 per share. Need ask_sum < 1 - feeRate/2.",
+    "rows": [
+      {"fee_rate": 0.0, "tick": 0.001, "ticks_of_underround_needed": 0, "note": "Any ask_sum < 1 is +EV. Rest-state still quotes 1.001."},
+      {"fee_rate": 0.04, "tick": 0.001, "ticks_of_underround_needed": 20, "ask_sum_must_be_below": 0.98},
+      {"fee_rate": 0.04, "tick": 0.01, "ticks_of_underround_needed": 2, "ask_sum_must_be_below": 0.98},
+      {"fee_rate": 0.05, "tick": 0.01, "ticks_of_underround_needed": 2.5, "ask_sum_must_be_below": 0.975},
+      {"fee_rate": 0.07, "tick": 0.01, "ticks_of_underround_needed": 3.5, "ask_sum_must_be_below": 0.965}
+    ]
+  },
+  "why_more_markets_does_not_help_this_bot": [
+    "Every liquid binary is already quoted to 1 tick of overround. Scanning 12 vs 2000 names does not change ask_sum from 1.01 to 0.97.",
+    "2s HTTP of 2000 binaries is ~4000 CLOB reads/loop. The current loop already spends seconds on 10 books. A full HTTP poll cannot win a 80-200ms requote race.",
+    "Wide sports books (asks 1.00+1.00, bids empty) look like huge maker gross and are how paper bled: one-sided, no size, adverse selection.",
+    "Independent multi-YES (countries / price ladders / nested dates) are directional baskets, not a $1 complete set."
+  ],
+  "what_would_actually_increase_plus_ev_rate": [
+    "Websocket on a curated liquid set (not more HTTP names). Edge is being inside the MM requote window when one leg is lifted.",
+    "Only fee-free geopolitics can take a 1-tick underround. Politics/sports/crypto need several ticks at the money.",
+    "True neg-risk bundles require the FULL outcome list (n listed == n live) plus per-leg fees. Rest-state those also sit at par.",
+    "Maker 1-tick remains the only rest-state complement, and only in a short window with balanced legs and rescue. Expanding that to long-dated geopolitics increases toxic time."
+  ],
+  "recommendation_for_surf_arb": "Do not HTTP-scan the top-volume universe. Point the engine at 15M+1H crypto windows, all liquid assets, soonest expiry first. See research/target_markets.json.",
+  "official_taker_fee_rates": {
+    "crypto": 0.07,
+    "sports_economics_culture_weather_other": 0.05,
+    "politics_finance_tech_mentions": 0.04,
+    "geopolitics": 0.0,
+    "makers": 0.0,
+    "source": "https://docs.polymarket.com/trading/fees"
+  }
+}

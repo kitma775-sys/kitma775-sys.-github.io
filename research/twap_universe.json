@@ -1,0 +1,60 @@
+{
+  "researched_at_utc": "2026-08-31T03:40:00Z",
+  "question": "Can the Chainlink TWAP mid-band engine run on every coin and 5m/15m/1H without mixing settlement rules?",
+  "live_gamma_exact_slug": {
+    "5m": {
+      "pattern": "{asset}-updown-5m-{unix}",
+      "resolutionSource": "https://data.chain.link/streams/{asset}-usd-twap-60s-streams",
+      "assets_seen": ["btc", "eth", "sol", "xrp", "doge", "bnb", "hype", "zec"],
+      "engine": "same as live BTC/ETH 5m: Chainlink 60s TWAP vs window-open PTB"
+    },
+    "15m": {
+      "pattern": "{asset}-updown-15m-{unix}",
+      "resolutionSource": "https://data.chain.link/streams/{asset}-usd-twap-60s-streams",
+      "assets_seen": ["btc", "eth", "sol", "xrp", "doge", "bnb", "hype", "zec"],
+      "engine": "same oracle; window_seconds=900; keep last-280s entry (not a 5m clock copy of 280/300)"
+    },
+    "1h": {
+      "pattern": "{name}-up-or-down-{date}-{hour}-et",
+      "resolutionSource": "Binance spot/futures candle close vs open",
+      "twapEnabled": null,
+      "engine": "NEVER this TWAP hunter. Chainlink-vs-PTB on a Binance-candle market is the ~9 bps basis hole."
+    }
+  },
+  "holes_if_telegram_opens_all_coins_and_5m_15m_1h_on_rev27": [
+    "parse_5m only matched btc|eth 5m, so 15m/SOL/XRP scanned but never entered — silent no-trade, not a wrong-oracle fill",
+    "WINDOW_SECONDS and left>305 were 5m-only; a naive 15m hunt would mis-time PTB and leftover seconds",
+    "tag=1H leaks 5m/15m slugs plus true hourly Binance books; scan_limit=24 can crowd BTC/ETH 5m off the WS set",
+    "favorite_same_window_open locked same 5m timestamp across coins, not same asset across 5m vs 15m",
+    "KEEP_SECONDS=900 equals one 15m window, so pre-T0 ticks can fall out before a late 15m PTB reread",
+    "opening 1H and applying TWAP vs PTB would trade the wrong settlement source"
+  ],
+  "top_logic": {
+    "source_of_truth": "settlement URL / slug grammar, not Telegram tags",
+    "scan": "Telegram tags + assets (user volume knob)",
+    "hunt": "parse_window 5m/15m AND asset has Chainlink RTDS symbol AND tag 5M/15M is on",
+    "never": "1H Binance candle, *-above-*, sports leftovers",
+    "params_kept": {
+      "band": "45-55c",
+      "min_lead_bps": 6,
+      "min_left": 12,
+      "max_left": 280,
+      "scratch": true,
+      "max_usd": 5,
+      "note": "280s on 15m is the last 4.7m of a 900s clock — late window, not early-window 15m spam"
+    },
+    "crowding": "pick_markets ranks twap_ok ahead of hourly two-ask books",
+    "inventory": "one TWAP book per asset; one asset per same-horizon clock",
+    "do_not_patch": "live sqlite tags/assets stay 5M + btc/eth unless the owner taps Telegram"
+  },
+  "rtds_symbols": {
+    "btc": "btc/usd",
+    "eth": "eth/usd",
+    "sol": "sol/usd",
+    "xrp": "xrp/usd",
+    "doge": "doge/usd",
+    "bnb": "bnb/usd",
+    "hype": "hype/usd",
+    "zec": "zec/usd"
+  }
+}

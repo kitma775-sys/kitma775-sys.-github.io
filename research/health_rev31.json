@@ -1,0 +1,51 @@
+{
+  "researched_at_utc": "2026-08-31T04:44:30Z",
+  "live_rev": 30,
+  "ship_rev": 31,
+  "mode": "paper",
+  "force_paper": true,
+  "live_trading": false,
+  "paper": {
+    "equity": 516.279743,
+    "cash": 506.279717,
+    "starting": 500.0,
+    "total_pnl": 16.279743,
+    "today_pnl": 7.114252,
+    "open": [
+      {"slug": "btc-updown-5m-1788151200", "leg": "down", "shares": 10.6992, "cost": 5.0, "px": 0.45},
+      {"slug": "sol-updown-5m-1788151200", "leg": "down", "shares": 9.8524, "cost": 5.000026, "px": 0.49}
+    ]
+  },
+  "rev30_timeline": {
+    "boot_tokens": 14,
+    "then_15m_entered_hunt": 28,
+    "then_1013_after_s": 146,
+    "reconnect_tokens": 28,
+    "note": "14 tokens did not 1013; 28 tokens (7x5m + 7x15m no-PTB) did"
+  },
+  "holes": {
+    "clob_ws_28_still_1013": {
+      "why": "15m without PTB still subscribed once left<=325; 7+7 books = 28 tokens floods JP CLOB socket",
+      "fix": "require locked PTB; prefer 5m; cap 16 tokens; inventory always"
+    },
+    "http_next_window": {
+      "why": "hunt still HTTP-paired 21 future listings every cycle (Rev 12 slow-consumer lesson)",
+      "fix": "skip pair/HTTP for future_listing unless inventory"
+    },
+    "last_ws_error_sticky": {
+      "why": "/health kept showing 1013 after reconnect succeeded",
+      "fix": "clear last_ws_error on successful subscribe"
+    }
+  },
+  "engine_alive": {
+    "fills_this_5m": ["btc down 0.45 ws", "sol down 0.49 ws"],
+    "prior_sol_0600": "settled +4.40",
+    "gate_after_fills": "remaining 5m locked 1.00 / 0.06 twap_band; ETH same-clock blocked by BTC hold; 15m still no_ptb"
+  },
+  "do_not": [
+    "raise 15m max_left without a 15m tape grid",
+    "copy pair-lock as $5 taker",
+    "drop 6bps / widen 45-55 / raise $5",
+    "enable live or reset paper"
+  ]
+}

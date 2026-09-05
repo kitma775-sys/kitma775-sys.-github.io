@@ -1,0 +1,42 @@
+{
+  "strategy_rev": 60,
+  "ship": false,
+  "pick": null,
+  "researched_at_utc": "2026-09-03T13:09:25Z",
+  "source": "research/learn_fail.json",
+  "question": "Learn from failures online so the bot slowly improves?",
+  "why": "Shipped dump overlay already clips residual hold losses (3 of 184 holds). Online cooldowns therefore almost never fire, or they skip +EV windows after a dump/scratch. Train-only hour/bucket skips fail holdout. Live FOK unmatched is an execution gap (Rev 60), not a direction error to autodial 6bps from. Keep frozen sleeve; keep learning offline on tape.",
+  "shipped_holdout": {
+    "n": 199,
+    "pnl5": 118.0185,
+    "take_wr": 1.0,
+    "ev_ok": true
+  },
+  "iid": {
+    "held_n": 184,
+    "hold_loss_n": 3,
+    "p_loss": 0.0163,
+    "p_loss_given_loss": 0.0,
+    "pairs_after_loss": 3,
+    "loss_loss_pairs": 0,
+    "runs": 7,
+    "runs_expected": 6.902,
+    "runs_z": 0.246,
+    "clustered": false
+  },
+  "winners": [],
+  "do_not": [
+    "online_bandit_min_lead",
+    "skip_after_loss_cooldown",
+    "pause_asset_after_dump",
+    "ewma_wr_gate",
+    "train_hour_filter",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "chase_leftover",
+    "lead_4bps",
+    "band_40_60",
+    "autodial_from_live_n9"
+  ]
+}

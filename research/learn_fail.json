@@ -1,0 +1,811 @@
+{
+  "researched_at_utc": "2026-09-03T13:09:25Z",
+  "elapsed_s": 5.87,
+  "question": "Learn from failures online so the bot slowly improves?",
+  "n_joined": 599,
+  "holdout_days": 7,
+  "shipped": {
+    "n": 599,
+    "pnl5": 236.2568,
+    "pnl3": 141.75408,
+    "take_wr": 0.9837,
+    "held": 184,
+    "scratch_n": 415,
+    "train": {
+      "n": 400,
+      "pnl5": 118.2383,
+      "take_wr": 0.975,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 199,
+      "pnl5": 118.0185,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "robust": true
+  },
+  "labels": {
+    "dump_90": {
+      "n": 18,
+      "pnl5": -9.49
+    },
+    "dump_oracle": {
+      "n": 18,
+      "pnl5": -9.47
+    },
+    "hold_lose": {
+      "n": 3,
+      "pnl5": -15.48
+    },
+    "hold_win": {
+      "n": 181,
+      "pnl5": 795.02
+    },
+    "scratch_bm": {
+      "n": 379,
+      "pnl5": -524.32
+    }
+  },
+  "iid": {
+    "held_n": 184,
+    "hold_loss_n": 3,
+    "p_loss": 0.0163,
+    "p_loss_given_loss": 0.0,
+    "pairs_after_loss": 3,
+    "loss_loss_pairs": 0,
+    "runs": 7,
+    "runs_expected": 6.902,
+    "runs_z": 0.246,
+    "clustered": false
+  },
+  "toxic_train": {
+    "px": [
+      "45-49"
+    ],
+    "lead": [],
+    "left": [
+      "240-280"
+    ],
+    "hour": [
+      "00",
+      "03",
+      "05",
+      "09",
+      "15",
+      "17",
+      "20"
+    ],
+    "asset": [],
+    "px_lead": [
+      "45-49|12-40",
+      "45-49|6-8",
+      "45-49|8-12"
+    ]
+  },
+  "grid": {
+    "frozen": {
+      "n": 599,
+      "pnl5": 236.2568,
+      "pnl3": 141.75408,
+      "take_wr": 0.9837,
+      "held": 184,
+      "scratch_n": 415,
+      "train": {
+        "n": 400,
+        "pnl5": 118.2383,
+        "take_wr": 0.975,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "shipped first-cross + dump90 + oracle fair<0.60",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0,
+      "skipped": 0
+    },
+    "skip_1w_after_hold_loss": {
+      "n": 597,
+      "pnl5": 231.1039,
+      "pnl3": 138.66234,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 414,
+      "train": {
+        "n": 398,
+        "pnl5": 113.0854,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "calendar cooldown after a residual hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -5.15,
+      "skipped": 2,
+      "taken": 597,
+      "universe": 599
+    },
+    "pause_asset_1w_after_hold_loss": {
+      "n": 598,
+      "pnl5": 231.573,
+      "pnl3": 138.9438,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 415,
+      "train": {
+        "n": 399,
+        "pnl5": 113.5545,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "per-asset calendar cooldown after hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -4.68,
+      "skipped": 1,
+      "taken": 598,
+      "universe": 599
+    },
+    "pause_asset_1w_after_neg_pnl": {
+      "n": 543,
+      "pnl5": 258.5311,
+      "pnl3": 155.11866,
+      "take_wr": 0.9827,
+      "held": 173,
+      "scratch_n": 370,
+      "train": {
+        "n": 360,
+        "pnl5": 138.2906,
+        "take_wr": 0.9732,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 183,
+        "pnl5": 120.2405,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "treat dump/scratch red PnL as a fail",
+      "beats": false,
+      "d_ho": 2.22,
+      "d_tr": 20.05,
+      "skipped": 56,
+      "taken": 543,
+      "universe": 599
+    },
+    "skip_2w_after_hold_loss": {
+      "n": 597,
+      "pnl5": 231.1039,
+      "pnl3": 138.66234,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 414,
+      "train": {
+        "n": 398,
+        "pnl5": 113.0854,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "calendar cooldown after a residual hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -5.15,
+      "skipped": 2,
+      "taken": 597,
+      "universe": 599
+    },
+    "pause_asset_2w_after_hold_loss": {
+      "n": 598,
+      "pnl5": 231.573,
+      "pnl3": 138.9438,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 415,
+      "train": {
+        "n": 399,
+        "pnl5": 113.5545,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "per-asset calendar cooldown after hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -4.68,
+      "skipped": 1,
+      "taken": 598,
+      "universe": 599
+    },
+    "pause_asset_2w_after_neg_pnl": {
+      "n": 498,
+      "pnl5": 231.2387,
+      "pnl3": 138.74322,
+      "take_wr": 0.9936,
+      "held": 156,
+      "scratch_n": 342,
+      "train": {
+        "n": 325,
+        "pnl5": 120.6198,
+        "take_wr": 0.9898,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 173,
+        "pnl5": 110.6189,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "treat dump/scratch red PnL as a fail",
+      "beats": false,
+      "d_ho": -7.4,
+      "d_tr": 2.38,
+      "skipped": 101,
+      "taken": 498,
+      "universe": 599
+    },
+    "skip_3w_after_hold_loss": {
+      "n": 596,
+      "pnl5": 233.123,
+      "pnl3": 139.8738,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 413,
+      "train": {
+        "n": 397,
+        "pnl5": 115.1044,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "calendar cooldown after a residual hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -3.13,
+      "skipped": 3,
+      "taken": 596,
+      "universe": 599
+    },
+    "pause_asset_3w_after_hold_loss": {
+      "n": 598,
+      "pnl5": 231.573,
+      "pnl3": 138.9438,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 415,
+      "train": {
+        "n": 399,
+        "pnl5": 113.5545,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "per-asset calendar cooldown after hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -4.68,
+      "skipped": 1,
+      "taken": 598,
+      "universe": 599
+    },
+    "pause_asset_3w_after_neg_pnl": {
+      "n": 464,
+      "pnl5": 221.8765,
+      "pnl3": 133.1259,
+      "take_wr": 1.0,
+      "held": 145,
+      "scratch_n": 319,
+      "train": {
+        "n": 300,
+        "pnl5": 104.8404,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 164,
+        "pnl5": 117.0361,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "treat dump/scratch red PnL as a fail",
+      "beats": false,
+      "d_ho": -0.98,
+      "d_tr": -13.4,
+      "skipped": 135,
+      "taken": 464,
+      "universe": 599
+    },
+    "skip_6w_after_hold_loss": {
+      "n": 595,
+      "pnl5": 229.1895,
+      "pnl3": 137.5137,
+      "take_wr": 0.9835,
+      "held": 182,
+      "scratch_n": 413,
+      "train": {
+        "n": 396,
+        "pnl5": 111.171,
+        "take_wr": 0.9746,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "calendar cooldown after a residual hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -7.07,
+      "skipped": 4,
+      "taken": 595,
+      "universe": 599
+    },
+    "pause_asset_6w_after_hold_loss": {
+      "n": 598,
+      "pnl5": 231.573,
+      "pnl3": 138.9438,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 415,
+      "train": {
+        "n": 399,
+        "pnl5": 113.5545,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "per-asset calendar cooldown after hold loss",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -4.68,
+      "skipped": 1,
+      "taken": 598,
+      "universe": 599
+    },
+    "pause_asset_6w_after_neg_pnl": {
+      "n": 398,
+      "pnl5": 217.0845,
+      "pnl3": 130.2507,
+      "take_wr": 1.0,
+      "held": 127,
+      "scratch_n": 271,
+      "train": {
+        "n": 254,
+        "pnl5": 110.6589,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 144,
+        "pnl5": 106.4256,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "treat dump/scratch red PnL as a fail",
+      "beats": false,
+      "d_ho": -11.59,
+      "d_tr": -7.58,
+      "skipped": 201,
+      "taken": 398,
+      "universe": 599
+    },
+    "adaptive_lead_8_after_asset_loss": {
+      "n": 582,
+      "pnl5": 219.234,
+      "pnl3": 131.5404,
+      "take_wr": 0.9831,
+      "held": 177,
+      "scratch_n": 405,
+      "train": {
+        "n": 383,
+        "pnl5": 101.2155,
+        "take_wr": 0.9735,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "raise 6\u21928bps on that coin until a held win",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": -17.02,
+      "skipped": 17,
+      "taken": 582,
+      "universe": 599
+    },
+    "ewma10_skip_wr_below_80": {
+      "n": 599,
+      "pnl5": 236.2568,
+      "pnl3": 141.75408,
+      "take_wr": 0.9837,
+      "held": 184,
+      "scratch_n": 415,
+      "train": {
+        "n": 400,
+        "pnl5": 118.2383,
+        "take_wr": 0.975,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip while last 10 taken held-WR < 80%",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0,
+      "skipped": 0,
+      "taken": 599,
+      "universe": 599
+    },
+    "ewma10_skip_sum_pnl_neg": {
+      "n": 13,
+      "pnl5": 7.0755,
+      "pnl3": 4.2453,
+      "take_wr": 1.0,
+      "held": 5,
+      "scratch_n": 8,
+      "train": {
+        "n": 0,
+        "pnl5": 0.0,
+        "take_wr": null,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 13,
+        "pnl5": 7.0755,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "note": "skip while last 10 taken PnL sum < 0",
+      "beats": false,
+      "d_ho": -110.94,
+      "d_tr": -118.24,
+      "skipped": 586,
+      "taken": 13,
+      "universe": 599
+    },
+    "pause_asset_1w_after_dump": {
+      "n": 590,
+      "pnl5": 244.8759,
+      "pnl3": 146.92554,
+      "take_wr": 0.9836,
+      "held": 183,
+      "scratch_n": 407,
+      "train": {
+        "n": 395,
+        "pnl5": 121.9509,
+        "take_wr": 0.9748,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 195,
+        "pnl5": 122.925,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip next window of that coin after a dump",
+      "beats": false,
+      "d_ho": 4.91,
+      "d_tr": 3.71,
+      "skipped": 9,
+      "taken": 590,
+      "universe": 599
+    },
+    "train_skip_toxic_hour": {
+      "n": 427,
+      "pnl5": 327.0683,
+      "pnl3": 196.24098,
+      "take_wr": 0.9869,
+      "held": 153,
+      "scratch_n": 274,
+      "train": {
+        "n": 273,
+        "pnl5": 225.4717,
+        "take_wr": 0.9802,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 154,
+        "pnl5": 101.5966,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip UTC hours whose train PnL < 0: ['00', '03', '05', '09', '15', '17', '20']",
+      "beats": false,
+      "d_ho": -16.42,
+      "d_tr": 107.23,
+      "skipped": 172,
+      "toxic": [
+        "00",
+        "03",
+        "05",
+        "09",
+        "15",
+        "17",
+        "20"
+      ]
+    },
+    "train_skip_toxic_px_lead": {
+      "n": 479,
+      "pnl5": 249.7373,
+      "pnl3": 149.84238,
+      "take_wr": 0.9815,
+      "held": 162,
+      "scratch_n": 317,
+      "train": {
+        "n": 318,
+        "pnl5": 139.9095,
+        "take_wr": 0.972,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 161,
+        "pnl5": 109.8278,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip px|lead buckets with train PnL < 0: ['45-49|12-40', '45-49|6-8', '45-49|8-12']",
+      "beats": false,
+      "d_ho": -8.19,
+      "d_tr": 21.67,
+      "skipped": 120,
+      "toxic": [
+        "45-49|12-40",
+        "45-49|6-8",
+        "45-49|8-12"
+      ]
+    },
+    "train_skip_toxic_left": {
+      "n": 483,
+      "pnl5": 208.5667,
+      "pnl3": 125.14002,
+      "take_wr": 0.9808,
+      "held": 156,
+      "scratch_n": 327,
+      "train": {
+        "n": 320,
+        "pnl5": 118.2469,
+        "take_wr": 0.9709,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 163,
+        "pnl5": 90.3197,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip left buckets with train PnL < 0: ['240-280']",
+      "beats": false,
+      "d_ho": -27.7,
+      "d_tr": 0.01,
+      "skipped": 116,
+      "toxic": [
+        "240-280"
+      ]
+    },
+    "static_skip_px55": {
+      "n": 494,
+      "pnl5": 149.8363,
+      "pnl3": 89.90178,
+      "take_wr": 0.9857,
+      "held": 140,
+      "scratch_n": 354,
+      "train": {
+        "n": 321,
+        "pnl5": 56.3019,
+        "take_wr": 0.977,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 173,
+        "pnl5": 93.5344,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "never lift a 55\u00a2 first-cross (FOK cannot +1\u00a2)",
+      "beats": false,
+      "d_ho": -24.48,
+      "d_tr": -61.94,
+      "skipped": 105
+    },
+    "static_skip_knife_6_5": {
+      "n": 478,
+      "pnl5": 188.5948,
+      "pnl3": 113.15688,
+      "take_wr": 1.0,
+      "held": 142,
+      "scratch_n": 336,
+      "train": {
+        "n": 317,
+        "pnl5": 89.5661,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 161,
+        "pnl5": 99.0287,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip |lead|<6.5 (rev59 already rejected)",
+      "beats": false,
+      "d_ho": -18.99,
+      "d_tr": -28.67,
+      "skipped": 121
+    },
+    "btc_only": {
+      "n": 238,
+      "pnl5": 109.8103,
+      "pnl3": 65.88618,
+      "take_wr": 0.9634,
+      "held": 82,
+      "scratch_n": 156,
+      "train": {
+        "n": 158,
+        "pnl5": 35.2363,
+        "take_wr": 0.9423,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 80,
+        "pnl5": 74.5739,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "",
+      "beats": false,
+      "d_ho": -43.44,
+      "d_tr": -83.0,
+      "skipped": 361
+    },
+    "eth_only": {
+      "n": 361,
+      "pnl5": 126.4466,
+      "pnl3": 75.86796,
+      "take_wr": 1.0,
+      "held": 102,
+      "scratch_n": 259,
+      "train": {
+        "n": 239,
+        "pnl5": 73.9191,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 122,
+        "pnl5": 52.5275,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "",
+      "beats": false,
+      "d_ho": -65.49,
+      "d_tr": -44.32,
+      "skipped": 238
+    }
+  },
+  "winners": [],
+  "pick": null,
+  "ship": false,
+  "live_sanity": {
+    "n": 15,
+    "taker_status": {
+      "error": 4,
+      "twap_live": 1,
+      "filled": 2,
+      "fok_killed": 3,
+      "settle": 5
+    },
+    "fok_reasons": {
+      "twap_no_up_requote": 4,
+      "fok_filled": 1,
+      "twap_no_cheaper": 1
+    },
+    "taker_negative_lead": 2,
+    "hit": "3/9",
+    "today_pnl": -3.6,
+    "open_n": 0,
+    "rev": 60,
+    "note": "live takers mix reverse-on hours with follow; do not autodial from this n"
+  },
+  "why": "Shipped dump overlay already clips residual hold losses (3 of 184 holds). Online cooldowns therefore almost never fire, or they skip +EV windows after a dump/scratch. Train-only hour/bucket skips fail holdout. Live FOK unmatched is an execution gap (Rev 60), not a direction error to autodial 6bps from. Keep frozen sleeve; keep learning offline on tape.",
+  "correct_loop": [
+    "offline tape research (this file, rev59, rev60)",
+    "freeze params that pass train+holdout",
+    "log live FOK/dump fingerprints for the next research pass",
+    "do not autodial min_lead / band / dump from the last 10 fills"
+  ],
+  "do_not": [
+    "online_bandit_min_lead",
+    "skip_after_loss_cooldown",
+    "pause_asset_after_dump",
+    "ewma_wr_gate",
+    "train_hour_filter",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "chase_leftover",
+    "lead_4bps",
+    "band_40_60",
+    "autodial_from_live_n9"
+  ],
+  "findings": {
+    "headline": "Shipped dump overlay already clips residual hold losses (3 of 184 holds). Online cooldowns therefore almost never fire, or they skip +EV windows after a dump/scratch. Train-only hour/bucket skips fail holdout. Live FOK unmatched is an execution gap (Rev 60), not a direction error to autodial 6bps from. Keep frozen sleeve; keep learning offline on tape.",
+    "best_nonbeat": "pause_asset_1w_after_dump",
+    "best_d_ho": 4.91
+  }
+}

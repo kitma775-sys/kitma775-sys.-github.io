@@ -1,0 +1,52 @@
+{
+  "researched_at_utc": "2026-08-31T06:28:00Z",
+  "live_rev": 36,
+  "before": {
+    "rev": 35,
+    "wanted_n": 0,
+    "ws": "idle",
+    "gate": "future_listing lie",
+    "reconnect": "8/6/4/2 storm"
+  },
+  "after": {
+    "strategy_rev": 36,
+    "paper_equity": 474.172396,
+    "force_paper": true,
+    "live_trading": false,
+    "no_1013": true,
+    "scan_leaks": [],
+    "boot_cash": 474.17,
+    "mid_window": {
+      "left": 78,
+      "wanted_n": 12,
+      "ws": "connected 8+4",
+      "pennies_on_ws": 6,
+      "btc_no_ptb": true,
+      "gate": "xrp 1.00 twap_band"
+    },
+    "prewarm_Tminus8s": {
+      "wanted_n": 14,
+      "next_window": "1788157800 all 7 on WS",
+      "current_pennies_dropped": true
+    },
+    "open_left_241s": {
+      "wanted_n": 14,
+      "ws_pairs": 7,
+      "http_pairs": 0,
+      "empty_ask_legs": 0,
+      "inband_off_ws": [],
+      "gate": "sol 0.52 twap_wide lead -3.9bps",
+      "reconnect": "one 8+6 swap after boot 8+4, not a storm"
+    },
+    "second_prewarm_Tminus36s": {
+      "wanted_n": 14,
+      "next_window": "1788158100 all 7 on WS; BTC 0.50 ETH 0.45 SOL 0.51",
+      "current_pennies_off_ws": true,
+      "gate": "btc 0.095 twap_ws_slot",
+      "paper_equity": 474.172396,
+      "ptb_n": 7,
+      "inband_off_ws": []
+    }
+  },
+  "keep": ["45-55c", "min_lead_bps=6", "scratch", "max_usd=5", "paper", "no live", "no 15m/1H"]
+}

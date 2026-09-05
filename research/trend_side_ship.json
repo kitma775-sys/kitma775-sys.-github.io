@@ -1,0 +1,55 @@
+{
+  "strategy_rev": 60,
+  "ship": false,
+  "pick": null,
+  "researched_at_utc": "2026-09-03T17:42:29Z",
+  "source": "research/trend_side.json",
+  "question": "Look at higher-TF \u8d70\u52e2 before choosing 5m Up vs Down?",
+  "why": "5m Up/Down is vs this window's T0, not the 15m chart. After a dump the next T0 is already low, so a +6bps bounce is a legal Up. Bounce first-cross hold-to-settle orig WR is ~54% (coin-flip); dump90+oracle is what makes that family +EV. Skip/fade HTF \u8d70\u52e2 cuts n or is reverse. skip_crash26 is the closest miss (+$4.37 holdout, under $5). Keep 60s vs T0.",
+  "shipped_holdout": {
+    "n": 199,
+    "pnl5": 118.0185,
+    "take_wr": 1.0,
+    "ev_ok": true
+  },
+  "winners": [],
+  "live_fingerprint": {
+    "note": "ETH 00:20 HKT Sep 4: prev 5m \u221226bps, this window +7bps Up bounce, settle Down",
+    "crash26_n": 68,
+    "crash26_shipped": {
+      "n": 68,
+      "pnl5": -32.9195,
+      "pnl3": -19.7517,
+      "win": 11,
+      "lose": 1,
+      "held": 12,
+      "scratch_n": 56,
+      "take_wr": 0.9167,
+      "ev_ok": false
+    },
+    "crash20_n": 100,
+    "crash20_shipped": {
+      "n": 100,
+      "pnl5": -1.7525,
+      "pnl3": -1.0515,
+      "win": 24,
+      "lose": 1,
+      "held": 25,
+      "scratch_n": 75,
+      "take_wr": 0.96,
+      "ev_ok": false
+    }
+  },
+  "do_not": [
+    "htf_pick_side",
+    "fade_bounce_after_crash",
+    "skip_all_15m_disagree",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "chase_leftover",
+    "lead_4bps",
+    "band_40_60",
+    "autodial_from_live_n3"
+  ]
+}

@@ -1,0 +1,350 @@
+{
+  "researched_at_utc": "2026-08-26T09:55:01Z",
+  "window_hours": 6.0,
+  "tags": [
+    "15M",
+    "1H"
+  ],
+  "assets": [
+    "btc",
+    "eth",
+    "sol",
+    "xrp",
+    "bnb",
+    "hype",
+    "doge"
+  ],
+  "markets_listed": 210,
+  "markets_replayed": 210,
+  "fetch_errors": 0,
+  "data": "data-api.polymarket.com/trades per conditionId. prices-history cannot be used: YES+NO always sums to 1.00.",
+  "models": {
+    "sync_taker": "Taker uses last BUY prints on both legs within 1s (optimistic vs live CLOB asks). Maker uses last SELL prints within 10s, fills when a BUY prints through the resting bid.",
+    "maker_only": "Same maker model, taker disabled. Closest to the HTTP bot, which almost never sees ask_sum < 1 at rest.",
+    "tight_skew_maker": "maker_only with maker_max_skew=0.10 instead of 0.28."
+  },
+  "sync_taker": {
+    "starting_cash": 500.0,
+    "ending_equity": 546.292,
+    "total_pnl": 46.292,
+    "n_trades_in": 18358,
+    "taker_n": 103,
+    "taker_pnl": 51.0453,
+    "maker_quoted": 6,
+    "maker_two_sided_n": 0,
+    "maker_two_sided_pnl": 0.0,
+    "maker_hedge_n": 1,
+    "maker_hedge_pnl": -1.5197,
+    "maker_dump_n": 5,
+    "maker_dump_pnl": -3.2337,
+    "maker_expire_unfilled": 0,
+    "maker_expire_settle_n": 0,
+    "maker_expire_settle_pnl": 0.0,
+    "pnl": 46.292,
+    "markets": 210,
+    "worst": [
+      {
+        "slug": "bnb-updown-15m-1787733000",
+        "pnl": -1.5197,
+        "tag": "15M"
+      },
+      {
+        "slug": "bnb-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "hype-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787735700",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "bnb-updown-15m-1787735700",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787735700",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "hype-updown-15m-1787735700",
+        "pnl": 0.0,
+        "tag": "15M"
+      }
+    ],
+    "best": [
+      {
+        "slug": "xrp-updown-15m-1787736600",
+        "pnl": 6.6216,
+        "tag": "15M"
+      },
+      {
+        "slug": "btc-updown-15m-1787733000",
+        "pnl": 4.3018,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787733000",
+        "pnl": 3.8934,
+        "tag": "15M"
+      },
+      {
+        "slug": "btc-updown-15m-1787731200",
+        "pnl": 3.1099,
+        "tag": "15M"
+      },
+      {
+        "slug": "eth-updown-15m-1787734800",
+        "pnl": 2.8414,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787715900",
+        "pnl": 2.8313,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787715900",
+        "pnl": 2.7334,
+        "tag": "15M"
+      },
+      {
+        "slug": "eth-updown-15m-1787733000",
+        "pnl": 2.4497,
+        "tag": "15M"
+      }
+    ]
+  },
+  "maker_only": {
+    "starting_cash": 500.0,
+    "ending_equity": 495.2113,
+    "total_pnl": -4.7887,
+    "n_trades_in": 18358,
+    "taker_n": 0,
+    "taker_pnl": 0.0,
+    "maker_quoted": 7,
+    "maker_two_sided_n": 0,
+    "maker_two_sided_pnl": 0.0,
+    "maker_hedge_n": 2,
+    "maker_hedge_pnl": -1.555,
+    "maker_dump_n": 5,
+    "maker_dump_pnl": -3.2337,
+    "maker_expire_unfilled": 0,
+    "maker_expire_settle_n": 0,
+    "maker_expire_settle_pnl": 0.0,
+    "pnl": -4.7887,
+    "markets": 210,
+    "worst": [
+      {
+        "slug": "sol-updown-15m-1787733000",
+        "pnl": -1.7904,
+        "tag": "15M"
+      },
+      {
+        "slug": "bnb-updown-15m-1787733000",
+        "pnl": -1.5197,
+        "tag": "15M"
+      },
+      {
+        "slug": "bitcoin-up-or-down-august-25-2026-11pm-et",
+        "pnl": -1.3946,
+        "tag": "1H"
+      },
+      {
+        "slug": "sol-updown-15m-1787715900",
+        "pnl": -0.084,
+        "tag": "15M"
+      },
+      {
+        "slug": "bnb-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "eth-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "xrp-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      }
+    ],
+    "best": [
+      {
+        "slug": "bnb-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "eth-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "xrp-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "btc-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "hype-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787735700",
+        "pnl": 0.0,
+        "tag": "15M"
+      }
+    ]
+  },
+  "tight_skew_maker": {
+    "starting_cash": 500.0,
+    "ending_equity": 496.2507,
+    "total_pnl": -3.7493,
+    "n_trades_in": 18358,
+    "taker_n": 0,
+    "taker_pnl": 0.0,
+    "maker_quoted": 5,
+    "maker_two_sided_n": 0,
+    "maker_two_sided_pnl": 0.0,
+    "maker_hedge_n": 2,
+    "maker_hedge_pnl": -1.555,
+    "maker_dump_n": 3,
+    "maker_dump_pnl": -2.1943,
+    "maker_expire_unfilled": 0,
+    "maker_expire_settle_n": 0,
+    "maker_expire_settle_pnl": 0.0,
+    "pnl": -3.7493,
+    "markets": 210,
+    "worst": [
+      {
+        "slug": "bnb-updown-15m-1787733000",
+        "pnl": -1.5197,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787733000",
+        "pnl": -1.2026,
+        "tag": "15M"
+      },
+      {
+        "slug": "bitcoin-up-or-down-august-25-2026-11pm-et",
+        "pnl": -0.943,
+        "tag": "1H"
+      },
+      {
+        "slug": "sol-updown-15m-1787715900",
+        "pnl": -0.084,
+        "tag": "15M"
+      },
+      {
+        "slug": "bnb-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "eth-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "xrp-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      }
+    ],
+    "best": [
+      {
+        "slug": "bnb-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "eth-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "xrp-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "sol-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "btc-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "hype-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787736600",
+        "pnl": 0.0,
+        "tag": "15M"
+      },
+      {
+        "slug": "doge-updown-15m-1787735700",
+        "pnl": 0.0,
+        "tag": "15M"
+      }
+    ]
+  },
+  "feasibility": "HTTP-like maker-only 6h tape: quotes 7, two-sided fills 0, hedge 2 ($-1.55), dump 5 ($-3.23), total $-4.79. Optimistic 1s print-implied taker (not live books): 103 fills, $51.05. Live rest-state ask_sum stays \u2265 1.01 so the HTTP bot does not harvest this. Last-window maker is not +EV on this history: fills are one-sided, matching live paper (SOL hedge loss). Top-tier would be websocket + tighter skew or no maker.",
+  "settings": {
+    "min_edge": 0.02,
+    "maker_min_edge": 0.01,
+    "maker_window_seconds": 75.0,
+    "maker_max_skew": 0.28,
+    "maker_min_leg": 0.22,
+    "fee_rate": 0.07,
+    "max_usd_per_trade": 25.0,
+    "ask_stale_s": 1.0,
+    "bid_stale_s": 10.0
+  }
+}

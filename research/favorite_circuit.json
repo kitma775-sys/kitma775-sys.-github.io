@@ -1,0 +1,475 @@
+{
+  "researched_at_utc": "2026-08-29T03:46:50Z",
+  "live_bot_2026_08_29": {
+    "strategy_rev": 18,
+    "mode": "paper",
+    "band": "97-98c (user tightened from Rev 18 default 90-98)",
+    "window": "last 180s",
+    "assets": [
+      "btc",
+      "eth"
+    ],
+    "tags": [
+      "5M"
+    ],
+    "max_usd_per_trade": 10.0,
+    "daily_loss_limit_usd": 50.0,
+    "circuit": true,
+    "today_pnl": -50.313,
+    "paper_equity": 397.25,
+    "starting": 500.0,
+    "total_pnl": -102.75,
+    "fills_24h": 56
+  },
+  "bug": {
+    "name": "ended-clock 50/50 mid redeem",
+    "file": "app/rescue.py is_redeemable_market",
+    "old_rule": "decided if 0/1 OR (0.50 \u00b1 0.02) AND (closed OR ended OR uma ready/resolved)",
+    "why_wrong": "5m crypto books go closed/ended with last mid ~0.50/0.50 for seconds to a minute before automaticallyResolved posts 0/1. Paper then credits shares*0.50 and deletes inventory. Winners that should pay $1 are booked as ~-$5. The $50 circuit is ~10 such fills at $10, or ~25 minutes of BTC+ETH.",
+    "live_examples": [
+      {
+        "slug": "btc-updown-5m-1787964600",
+        "bought": "Down",
+        "fill_px": 0.97,
+        "paper_prices": [
+          0.515,
+          0.485
+        ],
+        "paper_net": -5.021,
+        "gamma_later": [
+          "1",
+          "0"
+        ],
+        "true_winner": "Up",
+        "true_net_at_10": -10.021,
+        "note": "false mid redeem; official later Up \u2014 bought Down so true loss is ~-$10, paper only booked -$5"
+      },
+      {
+        "slug": "btc-updown-5m-1787964300",
+        "bought": "Down",
+        "fill_px": 0.97,
+        "paper_prices": [
+          0.485,
+          0.515
+        ],
+        "paper_net": -4.712,
+        "gamma_later": [
+          "0",
+          "1"
+        ],
+        "true_winner": "Down",
+        "true_net_at_10": 0.288,
+        "note": "false mid redeem stole a winner: paper -$4.71 instead of +$0.29"
+      },
+      {
+        "slug": "btc-updown-5m-1787964000",
+        "bought": "Down",
+        "fill_px": 0.97,
+        "paper_prices": [
+          0.505,
+          0.495
+        ],
+        "paper_net": -4.918,
+        "gamma_later": [
+          "1",
+          "0"
+        ],
+        "true_winner": "Up",
+        "true_net_at_10": -10.021,
+        "note": "false mid redeem; official later Up \u2014 true -$10"
+      },
+      {
+        "slug": "eth-updown-5m-1787964600",
+        "bought": "Down",
+        "fill_px": 0.97,
+        "paper_prices": [
+          1.0,
+          0.0
+        ],
+        "paper_net": -10.021,
+        "gamma_later": [
+          "1",
+          "0"
+        ],
+        "true_winner": "Up",
+        "true_net_at_10": -10.021,
+        "note": "real reverse, 0/1 already posted \u2014 this path is correct"
+      },
+      {
+        "slug": "btc-updown-5m-1787963700",
+        "bought": "Up",
+        "fill_px": 0.97,
+        "paper_prices": [
+          0.0,
+          1.0
+        ],
+        "paper_net": -10.021,
+        "gamma_later": [
+          "0",
+          "1"
+        ],
+        "true_winner": "Down",
+        "true_net_at_10": -10.021,
+        "note": "real reverse, 0/1 already posted \u2014 this path is correct"
+      }
+    ]
+  },
+  "math_at_97c": {
+    "fee_per_share": 0.002037,
+    "breakeven_reverse": 0.972037,
+    "win_usd": {
+      "5": 0.1441,
+      "10": 0.2883
+    },
+    "lose_usd": {
+      "5": -5.0105,
+      "10": -10.021
+    },
+    "false_mid_usd": {
+      "5": -2.4332,
+      "10": -4.8664
+    },
+    "fills_to_50_circuit": {
+      "false_mid_5": 20.55,
+      "false_mid_10": 10.27,
+      "true_loss_5": 9.98,
+      "true_loss_10": 4.99
+    },
+    "note": "At $10, five true reverses halt the day even with a perfect redeem. The 50/50 bug halts after ~10 fills with no reverses required. Rev 18 default 90-98 still first-prints ~90c; that is a separate EV problem."
+  },
+  "playbooks": {
+    "keep_90_98_last180s": "No. First print is almost always 90c. This 12h BTC+ETH reverse 10.6%. 36h BTC full tape 5.6%. Circuit food.",
+    "user_97_98_at_10_with_mid_redeem": "What the live paper bot was doing. $10 false-mid ~-$4.87/fill. Circuit after ~10 fills / both UTC days in the 12h tape. Expected, not unlucky.",
+    "97_98_last180s_wait_0_1_size_5": "Stops the daily circuit. This 12h BTC+ETH sample was still -EV (reverse 4.96% vs 2.80% breakeven at 97c, -$17/day) but worst day -$19, 0 halt days. Prior 36h BTC-only 96-98 was +EV (1.53%). Edge is regime-dependent; size $5 keeps a dump day inside $50.",
+    "97_98_at_10_wait_0_1": "This 12h worst day -$38, no halt. Five clustered true reverses still halt. Prefer $5 until redeem is proven clean.",
+    "last_60s": "Fewer fills (163 vs 282). This 12h reverse 3.68%, still slightly -EV, less dollar damage. Optional later; not required to stop circuit trips.",
+    "skip_session_opposite_prints": "Useless on liquid 5m: the other side always printed 40c+ earlier in the window. Do not ship.",
+    "favorite_maker_on": "Resting 97c is the steamroller. Taker-only is the cleaner favorite path.",
+    "do_not": [
+      "lower complement min_edge",
+      "re-enable all-session complement maker",
+      "buy the 0.001 side alone",
+      "credit 50/50 mids",
+      "go live / paper-reset"
+    ]
+  },
+  "prior_36h_btc_paginated": {
+    "source": "research/btc_5m_90_audit.json",
+    "90_98_last180s_full_tape_reverse": 0.05598,
+    "96_98_last180s_full_tape_reverse": 0.015267,
+    "96_98_last180s_pnl_at_5": 36.82
+  },
+  "tape": {
+    "sample_hours": 12,
+    "assets": [
+      "btc",
+      "eth"
+    ],
+    "markets": 285,
+    "errors": 0,
+    "error_samples": [],
+    "combos": {
+      "97_98_last180s_5_true": {
+        "n": 282,
+        "win": 268,
+        "lose": 14,
+        "reverse": 0.049645,
+        "reverse_ci95": [
+          0.0298,
+          0.081596
+        ],
+        "pnl_no_circuit": -33.75,
+        "circuit_50": {
+          "n_taken": 282,
+          "n_skipped_circuit": 0,
+          "lose_taken": 14,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -33.74,
+          "usd_per_day": -16.87,
+          "worst_day_usd": -18.85,
+          "best_day_usd": -14.89
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 0,
+        "avg_left_s": 98.9,
+        "avg_px": 0.9717
+      },
+      "97_98_last180s_10_true": {
+        "n": 282,
+        "win": 268,
+        "lose": 14,
+        "reverse": 0.049645,
+        "reverse_ci95": [
+          0.0298,
+          0.081596
+        ],
+        "pnl_no_circuit": -67.47,
+        "circuit_50": {
+          "n_taken": 282,
+          "n_skipped_circuit": 0,
+          "lose_taken": 14,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -67.47,
+          "usd_per_day": -33.74,
+          "worst_day_usd": -37.69,
+          "best_day_usd": -29.78
+        },
+        "false_mid": false,
+        "notional": 10.0,
+        "skipped_opp": 0,
+        "avg_left_s": 98.9,
+        "avg_px": 0.9717
+      },
+      "97_98_last180s_10_false_mid": {
+        "n": 282,
+        "win": 268,
+        "lose": 14,
+        "reverse": 0.049645,
+        "reverse_ci95": [
+          0.0298,
+          0.081596
+        ],
+        "pnl_no_circuit": -1374.47,
+        "circuit_50": {
+          "n_taken": 22,
+          "n_skipped_circuit": 260,
+          "lose_taken": 22,
+          "halt_days": 2,
+          "trade_days": 2,
+          "total_usd": -107.19,
+          "usd_per_day": -53.59,
+          "worst_day_usd": -53.61,
+          "best_day_usd": -53.58
+        },
+        "false_mid": true,
+        "notional": 10.0,
+        "skipped_opp": 0,
+        "avg_left_s": 98.9,
+        "avg_px": 0.9717
+      },
+      "90_98_last180s_5_true": {
+        "n": 284,
+        "win": 254,
+        "lose": 30,
+        "reverse": 0.105634,
+        "reverse_ci95": [
+          0.075,
+          0.146794
+        ],
+        "pnl_no_circuit": -46.47,
+        "circuit_50": {
+          "n_taken": 284,
+          "n_skipped_circuit": 0,
+          "lose_taken": 30,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -46.47,
+          "usd_per_day": -23.24,
+          "worst_day_usd": -24.4,
+          "best_day_usd": -22.08
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 0,
+        "avg_left_s": 130.1,
+        "avg_px": 0.9191
+      },
+      "96_98_last180s_5_true": {
+        "n": 284,
+        "win": 267,
+        "lose": 17,
+        "reverse": 0.059859,
+        "reverse_ci95": [
+          0.037705,
+          0.093762
+        ],
+        "pnl_no_circuit": -40.41,
+        "circuit_50": {
+          "n_taken": 284,
+          "n_skipped_circuit": 0,
+          "lose_taken": 17,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -40.4,
+          "usd_per_day": -20.2,
+          "worst_day_usd": -21.42,
+          "best_day_usd": -18.98
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 0,
+        "avg_left_s": 104.0,
+        "avg_px": 0.9652
+      },
+      "97_98_last60s_5_true": {
+        "n": 163,
+        "win": 157,
+        "lose": 6,
+        "reverse": 0.03681,
+        "reverse_ci95": [
+          0.016977,
+          0.077973
+        ],
+        "pnl_no_circuit": -10.66,
+        "circuit_50": {
+          "n_taken": 163,
+          "n_skipped_circuit": 0,
+          "lose_taken": 6,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -10.65,
+          "usd_per_day": -5.33,
+          "worst_day_usd": -7.04,
+          "best_day_usd": -3.62
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 0,
+        "avg_left_s": 48.0,
+        "avg_px": 0.9742
+      },
+      "97_98_last30s_5_true": {
+        "n": 52,
+        "win": 50,
+        "lose": 2,
+        "reverse": 0.038462,
+        "reverse_ci95": [
+          0.010611,
+          0.129814
+        ],
+        "pnl_no_circuit": -3.91,
+        "circuit_50": {
+          "n_taken": 52,
+          "n_skipped_circuit": 0,
+          "lose_taken": 2,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -3.91,
+          "usd_per_day": -1.96,
+          "worst_day_usd": -5.92,
+          "best_day_usd": 2.01
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 0,
+        "avg_left_s": 23.6,
+        "avg_px": 0.9743
+      },
+      "98_only_last180s_5_true": {
+        "n": 279,
+        "win": 268,
+        "lose": 11,
+        "reverse": 0.039427,
+        "reverse_ci95": [
+          0.022155,
+          0.069209
+        ],
+        "pnl_no_circuit": -29.28,
+        "circuit_50": {
+          "n_taken": 279,
+          "n_skipped_circuit": 0,
+          "lose_taken": 11,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": -29.27,
+          "usd_per_day": -14.64,
+          "worst_day_usd": -17.24,
+          "best_day_usd": -12.03
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 0,
+        "avg_left_s": 91.2,
+        "avg_px": 0.9798
+      },
+      "97_98_last180s_5_skip_opp40": {
+        "n": 2,
+        "win": 2,
+        "lose": 0,
+        "reverse": 0.0,
+        "reverse_ci95": [
+          0.0,
+          0.657628
+        ],
+        "pnl_no_circuit": 0.24,
+        "circuit_50": {
+          "n_taken": 2,
+          "n_skipped_circuit": 0,
+          "lose_taken": 0,
+          "halt_days": 0,
+          "trade_days": 2,
+          "total_usd": 0.24,
+          "usd_per_day": 0.12,
+          "worst_day_usd": 0.1,
+          "best_day_usd": 0.14
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 280,
+        "avg_left_s": 167.5,
+        "avg_px": 0.975
+      },
+      "97_98_last60s_5_skip_opp40": {
+        "n": 0,
+        "win": 0,
+        "lose": 0,
+        "reverse": null,
+        "reverse_ci95": null,
+        "pnl_no_circuit": 0,
+        "circuit_50": {
+          "n_taken": 0,
+          "n_skipped_circuit": 0,
+          "lose_taken": 0,
+          "halt_days": 0,
+          "trade_days": 0,
+          "total_usd": 0.0,
+          "usd_per_day": 0.0,
+          "worst_day_usd": 0.0,
+          "best_day_usd": 0.0
+        },
+        "false_mid": false,
+        "notional": 5.0,
+        "skipped_opp": 163,
+        "avg_left_s": null,
+        "avg_px": null
+      }
+    },
+    "rule": "First public BUY in band during last T seconds. Settle at official 0/1 (true) or shares*0.50 at end (false_mid). $50 UTC-day circuit."
+  },
+  "live_vs_backtest_2026_08_29T05": {
+    "circuit": false,
+    "today_pnl": -31.18,
+    "equity": 468.82,
+    "starting": 500.0,
+    "size": 5.0,
+    "band": "97-98",
+    "window": "last 180s (Rev 19)",
+    "approx_settled": {"win": 27, "lose": 7, "open": 2, "reverse": 0.206},
+    "example_loss": {
+      "slug": "btc-updown-5m-1787981100 and eth same window",
+      "paper": "Up @0.97 ~05:27:52",
+      "tape": "no public BUY at 97+ in last 200s; ETH tape was Up 0.63-0.93 with Down still 0.07-0.44",
+      "resolved": "Down",
+      "why": "Paper lifted a 97 ask on the book. Backtest only counts a public 97 BUY, so this market is a skip in the study and a fill on the bot. BTC+ETH same 5m both lost."
+    },
+    "gaps": [
+      "Backtest = first tape BUY at 97. Bot = lift 97 ASK if it exists after 250ms HTTP, even with no 97 print.",
+      "180s window bought fake-out pumps ~100s before end.",
+      "BTC and ETH same 5m dump together; two $5 losses in one window.",
+      "Win +$0.14 vs lose -$5.01 needs 97.2% win rate. 20% reverse on this morning is -EV even before circuit."
+    ],
+    "rev20": [
+      "Last 60s (the 05:27 Up@97 losses had ~108-128s left).",
+      "Locked book: bid>=90c and spread<4c; skip if other ask>=10c.",
+      "One fill per 5m timestamp across assets."
+    ]
+  },
+  "verdict": [
+    "Rev 19 redeem is working (0/1 payouts). Circuit is not latched right now; today is still -$31 on $5 size.",
+    "Live is worse than the 97-98 tape study because the bot lifts 97 asks that never printed 97 on the tape, takes both BTC and ETH, and buys 97s ~2 minutes out on fake-out pumps.",
+    "Rev 20: last 60s, locked 97-98 book, one asset per 5m window. Keep paper. No live. Edge is still thin in dump regimes."
+  ]
+}

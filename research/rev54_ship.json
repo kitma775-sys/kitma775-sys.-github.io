@@ -1,0 +1,47 @@
+{
+  "strategy_rev": 54,
+  "ship": true,
+  "researched_at_utc": "2026-09-01T11:26:36Z",
+  "source": "research/high_wr.json",
+  "pick": "first_dump_by90_h2",
+  "why": "BTC+ETH first-cross 6bps 45–55 + causal dump if same-side book never printed 62¢ by 90s left. Train and holdout +EV. Live residual CF dumped 0 winners / 29 losers (−$77 → −$39). dump_mid90 clips live winners sitting ~59¢ — not shipped. Alts were leftover 45¢ dogs on live FOK last-look; month 7-coin dump overlays are invalid (prints slimmed ≤62¢).",
+  "hunt_assets": ["btc", "eth"],
+  "params": {
+    "band": [0.45, 0.55],
+    "min_lead_bps": 6.0,
+    "max_lead_bps": 40.0,
+    "min_left": 120.0,
+    "max_left": 280.0,
+    "no_cheaper": true,
+    "cheaper_eps": 0.005,
+    "confirm_px": 0.62,
+    "confirm_left": 90.0,
+    "take_profit": 0.87,
+    "scratch_adverse": 0.0,
+    "twap_reverse": false,
+    "horizons": ["5m"]
+  },
+  "btc_eth": {
+    "all": {"n": 593, "pnl_usd": 543.31, "take_win_rate": 0.938},
+    "train": {"n": 244, "pnl_usd": 149.8, "take_win_rate": 0.8953, "ev_ok": true},
+    "holdout": {"n": 349, "pnl_usd": 393.51, "take_win_rate": 0.964, "ev_ok": true}
+  },
+  "live_cf_dump_by90_h2": {
+    "residual_before_pnl": -77.07,
+    "residual_after_pnl": -38.98,
+    "dumped_winners": 0,
+    "dumped_losers": 29,
+    "kept_wr": 0.4737
+  },
+  "do_not": [
+    "price_sl_8c",
+    "scratch_adverse_0.08",
+    "cheap_bounce_20_30",
+    "btc_eth_min_left_180",
+    "dump_mid90",
+    "complement",
+    "favorite_97_98",
+    "twap_reverse_on",
+    "wipe_telegram_assets"
+  ]
+}
