@@ -8570,3 +8570,54 @@ def test_sparse_fix_does_not_autodial_six_bps() -> None:
     assert abs(p.up_tick - 0.01) < 1e-9
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
+def test_always_in_does_not_autodial_every_window() -> None:
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "always_in.json").read_text())
+    ship = json.loads((root / "research" / "always_in_ship.json").read_text())
+    assert data["ship"] is False
+    assert ship["ship"] is False
+    assert data["pick"] is None
+    assert ship["pick"] is None
+    assert ship["winners"] == []
+    assert data["winners"] == []
+    assert DEFAULT_SETTINGS["twap_min_lead_bps"] == 6.0
+    assert DEFAULT_SETTINGS["twap_min_price"] == 0.45
+    assert DEFAULT_SETTINGS["twap_max_price"] == 0.55
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert ship["params_kept"]["twap_min_lead_bps"] == 6.0
+    assert ship["params_kept"]["band"] == [0.45, 0.55]
+    assert ship["frozen_coverage"] < 0.12
+    assert ship["always_open_coverage"] >= 0.95
+    assert ship["always_open_holdout_ev_ok"] is False
+    assert ship["always_open_rev59_holdout_ev_ok"] is False
+    assert ship["always_open_expensive_holdout_ev_ok"] is False
+    assert ship["favorite_open_settle_wr"] > ship["frozen_settle_wr"]
+    assert ship["favorite_open_holdout_ev_ok"] is False
+    assert ship["wait_mid_settle_wr"] < ship["frozen_settle_wr"]
+    assert ship["wait_mid_is_not_higher_settle_wr"] is True
+    assert ship["wait_mid_hold_holdout_ev_ok"] is False
+    assert float(ship["wait_mid_extras_orig_hold_wr_all"]) < 0.85
+    assert ship["every_window_needs_expensive_asks"] is True
+    assert ship["wr_dump_forbidden"] is True
+    assert "always_in_live" in ship["do_not"]
+    assert "favorite_every_window" in ship["do_not"]
+    assert "lead_4bps" in ship["do_not"]
+    assert "chase_leftover" in ship["do_not"]
+    open_hold = data["combos"]["always_open__hold"]
+    assert open_hold["holdout"]["ev_ok"] is False
+    for name in ("px_55_70", "px_70_85", "px_85_plus"):
+        assert data["combos"]["always_open__hold"]["buckets"][name]["ev_ok"] is False
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
