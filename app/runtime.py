@@ -494,6 +494,30 @@ def ws_token_shards(
     return [toks[i * n : (i + 1) * n] for i in range(max(1, int(sockets)))]
 
 
+def clob_ws_connect_kwargs() -> dict[str, Any]:
+    """CLOB market WS connect options.
+
+    JP host 1013s when the hunt/universe loop stalls the reader (default
+    max_queue is tiny). Buffer bursts; still deltas-only (no initial_dump).
+    """
+    import websockets
+
+    kw: dict[str, Any] = {"ping_interval": None, "max_size": 2**22}
+    params = inspect.signature(websockets.connect).parameters
+    headers = {"Origin": "https://polymarket.com", "User-Agent": "surf-arb-bot/0.2"}
+    if "additional_headers" in params:
+        kw["additional_headers"] = headers
+    elif "extra_headers" in params:
+        kw["extra_headers"] = headers
+    if "close_timeout" in params:
+        kw["close_timeout"] = 5
+    if "open_timeout" in params:
+        kw["open_timeout"] = 15
+    if "max_queue" in params:
+        kw["max_queue"] = 1024
+    return kw
+
+
 def ws_sub_plan(old_chunk: list[str] | tuple[str, ...], new_chunk: list[str] | tuple[str, ...]) -> dict[str, Any]:
     """Keep vs in-place resub vs idle when a shard's token list changes.
 
@@ -1281,17 +1305,7 @@ async def _ws_socket(rt: Runtime, index: int) -> None:
             rt.books.connected = False
             await asyncio.sleep(15)
             continue
-        kw: dict[str, Any] = {"ping_interval": None, "max_size": 2**22}
-        params = inspect.signature(websockets.connect).parameters
-        headers = {"Origin": "https://polymarket.com", "User-Agent": "surf-arb-bot/0.2"}
-        if "additional_headers" in params:
-            kw["additional_headers"] = headers
-        elif "extra_headers" in params:
-            kw["extra_headers"] = headers
-        if "close_timeout" in params:
-            kw["close_timeout"] = 5
-        if "open_timeout" in params:
-            kw["open_timeout"] = 15
+        kw = clob_ws_connect_kwargs()
 
         def _sub(ids: list[str]) -> str:
             # initial_dump of 14–16 books 1013'd this JP host. Deltas only.

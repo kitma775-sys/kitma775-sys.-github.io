@@ -7139,6 +7139,15 @@ def test_ws_sub_plan_keep_resub_idle():
     assert ws_sub_frames({"action": "keep", "add": [], "drop": []}) == []
 
 
+def test_clob_ws_connect_kwargs_buffers_slow_consumer():
+    from app.runtime import clob_ws_connect_kwargs
+
+    kw = clob_ws_connect_kwargs()
+    assert kw.get("ping_interval") is None
+    assert kw.get("max_size") == 2**22
+    assert int(kw.get("max_queue") or 0) >= 1024
+
+
 def test_rev57_ship_json_ws_stay_alive_not_sleeve():
     import json
     from pathlib import Path
@@ -8447,5 +8456,51 @@ def test_easy_entry_does_not_autodial_six_bps() -> None:
     assert abs(p.max_price - 0.55) < 1e-9
     assert abs(p.min_left - 120.0) < 1e-9
     assert abs(p.max_left - 280.0) < 1e-9
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
+def test_sparse_fix_does_not_autodial_six_bps() -> None:
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.runtime import clob_ws_connect_kwargs
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "sparse_fix.json").read_text())
+    ship = json.loads((root / "research" / "sparse_fix_ship.json").read_text())
+    assert data["ship"] is False
+    assert ship["ship"] is False
+    assert ship["pick"] is None
+    assert ship["tape_candidate"] == "lead_5_5"
+    assert ship["recommend_ops"] == "ws_max_queue"
+    assert DEFAULT_SETTINGS["twap_min_lead_bps"] == 6.0
+    assert DEFAULT_SETTINGS["twap_min_price"] == 0.45
+    assert DEFAULT_SETTINGS["twap_max_price"] == 0.55
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert ship["params_kept"]["twap_min_lead_bps"] == 6.0
+    assert ship["params_kept"]["band"] == [0.45, 0.55]
+    assert ship["params_kept"]["twap_no_cheaper"] is True
+    assert abs(float(ship["params_kept"]["twap_up_tick"]) - 0.01) < 1e-9
+    assert ship["long_valid_share"] < 0.12
+    assert ship["weekend_valid_share"] < ship["weekday_valid_share"]
+    assert ship["sep5_tape_valid"] <= 3
+    assert ship["sep6_tape_valid"] <= 8
+    assert ship["live_36h_fill_rate"] < 0.5
+    assert ship["ws_1013_36h"] >= 5
+    assert "chase_leftover" in ship["do_not"]
+    assert "autodial_5_5bps" in ship["do_not"]
+    assert "band_40_60" in ship["do_not"]
+    assert "favorite_97_98" in ship["do_not"]
+    kw = clob_ws_connect_kwargs()
+    assert int(kw.get("max_queue") or 0) >= 1024
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert p.no_cheaper is True
+    assert abs(p.up_tick - 0.01) < 1e-9
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
