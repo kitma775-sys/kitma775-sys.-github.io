@@ -3463,6 +3463,72 @@ def test_format_fill_headline_ten_dollar_xrp_is_not_nineteen():
     assert down_line == "Down 0.5 × 19.32股 · 成本 $10.00"
 
 
+def test_live_fill_notice_includes_polymarket_event_url():
+    from app.config import live_notice_market_url, polymarket_event_url, with_live_market_url
+
+    slug = "eth-updown-5m-1788710700"
+    url = f"https://polymarket.com/event/{slug}"
+    assert polymarket_event_url(slug) == url
+    assert polymarket_event_url("ETH-updown-5m-1788710700") == url
+    assert polymarket_event_url("0xabc") is None
+    assert polymarket_event_url("eth-updown-5m-1788710700/../x") is None
+    assert live_notice_market_url(slug, live=True) == url
+    assert live_notice_market_url(slug, live=False) is None
+    live = with_live_market_url(
+        "🔴實盤 成交 TWAP\nEthereum Up or Down - September 6, 6:55PM-7:00PM ET\n"
+        "Up 0.55 × 6.17股 · 成本 $2.90\n贏可取回 $6.17 · 未結算期望 $1.32",
+        slug,
+        live=True,
+    )
+    assert live.endswith(url)
+    paper = with_live_market_url("🧪紙盤 成交 TWAP", slug, live=False)
+    assert "https://polymarket.com" not in paper
+
+
+def test_notice_kb_adds_live_market_button(tmp_path):
+    from app.config import Env
+    from app.runtime import Runtime
+    from app.telegram_ui import home_kb, notice_kb
+
+    st = Store(tmp_path / "notice-kb.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    slug = "eth-updown-5m-1788710700"
+    url = f"https://polymarket.com/event/{slug}"
+    home_urls = [btn.url for row in home_kb(rt).inline_keyboard for btn in row if getattr(btn, "url", None)]
+    assert url not in home_urls
+    assert all(btn.text != "睇盤" for row in home_kb(rt).inline_keyboard for btn in row)
+    kb = notice_kb(rt, url)
+    first = kb.inline_keyboard[0]
+    assert len(first) == 1
+    assert first[0].text == "睇盤"
+    assert first[0].url == url
+    home_labels = [btn.text for row in home_kb(rt).inline_keyboard for btn in row]
+    assert [btn.text for row in notice_kb(rt, None).inline_keyboard for btn in row] == home_labels
+    assert [btn.text for row in notice_kb(rt, "javascript:alert(1)").inline_keyboard for btn in row] == home_labels
+
+
+def test_runtime_notify_appends_live_market_url(tmp_path):
+    import asyncio
+
+    from app.config import Env, live_notice_market_url
+    from app.runtime import Runtime
+
+    st = Store(tmp_path / "notice-url.sqlite")
+    st.ensure_paper(500)
+    rt = Runtime(st, Env())
+    slug = "eth-updown-5m-1788710700"
+    url = live_notice_market_url(slug, live=True)
+    asyncio.run(rt.notify("🔴實盤 成交 TWAP", important=True, market_url=url))
+    note = rt.notices.get_nowait()
+    assert note["text"].endswith(url)
+    assert note["market_url"] == url
+    asyncio.run(rt.notify("🧪紙盤 成交 TWAP", important=True, market_url=live_notice_market_url(slug, live=False)))
+    paper = rt.notices.get_nowait()
+    assert "https://polymarket.com" not in paper["text"]
+    assert paper["market_url"] is None
+
+
 def test_pos_and_log_use_share_qty_not_one_decimal(tmp_path):
     from app.config import Env
     from app.runtime import Runtime

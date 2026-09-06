@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
@@ -195,6 +195,16 @@ def home_kb(rt: Runtime) -> InlineKeyboardMarkup:
             [InlineKeyboardButton("🧊 解除今日熔斷（今日PnL重新計）", callback_data="circuit1")],
         )
     return InlineKeyboardMarkup(rows)
+
+
+def notice_kb(rt: Runtime, market_url: str | None = None) -> InlineKeyboardMarkup:
+    """Live fill/dump/redeem: tappable Polymarket row above the home board."""
+    kb = home_kb(rt)
+    url = str(market_url or "").strip()
+    if not (url.startswith("https://") or url.startswith("http://")):
+        return kb
+    extra = [InlineKeyboardButton("睇盤", url=url)]
+    return InlineKeyboardMarkup([extra, *list(kb.inline_keyboard)])
 
 
 def mode_kb(rt: Runtime) -> InlineKeyboardMarkup:
@@ -812,7 +822,16 @@ async def run_telegram(rt: Runtime) -> None:
             if owner is None:
                 continue
             try:
-                await application.bot.send_message(chat_id=owner, text=_clip(note["text"]), reply_markup=home_kb(rt))
+                url = note.get("market_url")
+                kwargs = {}
+                if url:
+                    kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
+                await application.bot.send_message(
+                    chat_id=owner,
+                    text=_clip(note["text"]),
+                    reply_markup=notice_kb(rt, url),
+                    **kwargs,
+                )
             except Exception:
                 pass
     finally:

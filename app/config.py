@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -240,6 +241,31 @@ def format_fill_headline(*, up, down, shares, cost=None, leg: str | None = None)
     except (TypeError, ValueError):
         pass
     return line
+
+
+_POLYMARKET_EVENT_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)+$")
+
+
+def polymarket_event_url(slug) -> str | None:
+    """Public event page. Only hyphenated lowercase slugs — never a raw condition id."""
+    raw = str(slug or "").strip().lower()
+    if not raw or len(raw) > 80 or not _POLYMARKET_EVENT_SLUG.fullmatch(raw):
+        return None
+    return f"https://polymarket.com/event/{raw}"
+
+
+def live_notice_market_url(slug, *, live: bool) -> str | None:
+    """Telegram live fills only. Paper stays text-only so paper noise is not a deep link."""
+    if not live:
+        return None
+    return polymarket_event_url(slug)
+
+
+def with_live_market_url(text: str, slug, *, live: bool) -> str:
+    url = live_notice_market_url(slug, live=live)
+    if not url:
+        return text
+    return f"{text.rstrip()}\n{url}"
 
 
 def is_favorite_inventory(kind) -> bool:

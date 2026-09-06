@@ -10,7 +10,7 @@ import httpx
 
 from app.broker import FillResult, LiveBroker, PaperBroker, redeem_not_ready, sell_size_dust, setup_buy_orders
 from app.fees import taker_cash, taker_fee
-from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_switch_blockers, setting_num, strategy_mode_of
+from app.config import Env, LIVE_BLOCKER_ZH, clamp_paper_cash, favorite_window_of, format_fill_headline, format_leg_prices, format_share_qty, format_signed_usd, inventory_matches_mode, is_directional_inventory, is_favorite_inventory, is_live_inventory_kind, live_keys_ready, live_notice_market_url, live_switch_blockers, setting_num, strategy_mode_of
 from app.hunter import book_quote, favorite_window_key, favorite_lock_reason, favorite_ws_ok, hunt, is_favorite_setup, is_one_leg_setup, is_twap_setup, parse_favorite_dir, summarize_quotes, _top
 from app.chainlink import RTDS_RECYCLE_COOLDOWN, RTDS_URL, ChainlinkTape, should_recycle_rtds
 from app.twap import MUST_DUMP_WHY, chainlink_symbols_for, cheaper_than_first, default_params, future_listing, hunt_assets, hunt_horizons, in_mid_band, parse_window, richer_than_up_tick, scratch_book_max_age_ms, scratch_rescore_seconds, should_scratch, slug_allowed, take_profit_px, trade_leg, twap_entry_reason
@@ -1030,9 +1030,12 @@ class Runtime:
             self._broker_mode = mode
         return self._broker
 
-    async def notify(self, text: str, *, important: bool = False) -> None:
+    async def notify(self, text: str, *, important: bool = False, market_url: str | None = None) -> None:
+        url = str(market_url or "").strip() or None
+        if url:
+            text = f"{text.rstrip()}\n{url}"
         try:
-            self.notices.put_nowait({"text": text, "important": important})
+            self.notices.put_nowait({"text": text, "important": important, "market_url": url})
         except asyncio.QueueFull:
             pass
 
@@ -2179,6 +2182,7 @@ async def _scan_markets(rt: Runtime, events: list[dict]) -> None:
                     f"{format_fill_headline(up=fill_up, down=fill_down, shares=fill_shares, cost=fill_cost, leg=(setup.extra or {}).get('leg'))}\n"
                     f"{payout_line}{expect} ${fill_net:.2f}{book}",
                     important=True,
+                    market_url=live_notice_market_url(setup.slug, live=result.mode != "paper"),
                 )
         elif result.ok and result.status in {"paper_resting", "resting"}:
             if not paper_mode:
@@ -3039,6 +3043,7 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
             await rt.notify(
                 f"🧯 {flag} 單邊出貨 {slug}\n@{dump_px} 回籠 ${cash_out_f:.2f} · 淨 ${pnl:.2f}",
                 important=True,
+                market_url=live_notice_market_url(slug, live=not paper_mode),
             )
         return 1
     return 0
@@ -3272,6 +3277,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
                 f"♻️ {flag} redeem 取回 {job['slug'] or cid}\n"
                 f"Up {format_share_qty(up)} × {up_p} + Down {format_share_qty(down)} × {dn_p} = ${payout:.2f}{extra}",
                 important=True,
+                market_url=live_notice_market_url(job.get("slug") or "", live=not paper_books),
             )
     return n
 
