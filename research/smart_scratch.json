@@ -1,0 +1,1987 @@
+{
+  "researched_at_utc": "2026-09-07T00:19:53Z",
+  "elapsed_s": 30.19,
+  "question": "Smarter live scratch + other PnL overlays without changing entry?",
+  "ship": false,
+  "pick": null,
+  "tape_candidate": "keep_late_dump",
+  "why": "Entry stays 6bps\u222945\u201355 first-cross. Live-faithful should_scratch (high_water + BM + TP + dump90 + oracle) on the print tape is \u2212EV after a 2\u00a2 haircut because scratch_better sells ~71% WR winners vs hold. Unconfirmed + oracle are the only +EV-vs-hold dump reasons and match the live leak (14d redeem WR ~21%; tape residual holds after BM are 0% WR). Persist/hold-all dumps fewer of those dogs. 8\u00a2 SL and dump_mid90 stay \u2212EV. Other sleeves (bounce/alts/\u8d70\u52bf/every-window/reverse/easy-entry) already failed the ship bar. No autodial \u2014 user confirms. Tape candidate keep_late_dump beats shipped on haircut train+holdout; still ship=false until the operator confirms (live leak is under-dump).",
+  "n_takes": 558,
+  "entry_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_no_cheaper": true
+  },
+  "shipped_exit": {
+    "twap_scratch_p": 0.48,
+    "twap_scratch_min_bid": 0.38,
+    "twap_scratch_dump_floor": 0.22,
+    "twap_tp_bid": 0.87,
+    "twap_confirm_px": 0.62,
+    "twap_confirm_left": 90.0,
+    "twap_confirm_fair": 0.6,
+    "twap_scratch_adverse": 0.0,
+    "high_water": true
+  },
+  "live": {
+    "fills_14d": 79,
+    "dumps_14d": 39,
+    "dump_pnl": 38.9513,
+    "redeems_14d": 47,
+    "redeem_pnl": -55.708,
+    "redeem_wins": 10,
+    "redeem_wr": 0.2128,
+    "note": "Dumps +EV. Redeems 10/47 \u2248 21% WR. Tape residual holds after dump90+oracle are ~90%+. Live leak is holds that should have been dumped, not missing persist."
+  },
+  "autopsy_shipped": {
+    "twap_scratch_better": {
+      "n": 292,
+      "would_win_wr": 0.7123,
+      "pnl5": 405.12,
+      "pnl_hc": 347.52,
+      "if_held_pnl5": 494.51,
+      "delta_vs_hold": -89.39,
+      "delta_hc_vs_hold": -146.99
+    },
+    "twap_scratch_weak": {
+      "n": 105,
+      "would_win_wr": 0.3333,
+      "pnl5": -233.94,
+      "pnl_hc": -253.91,
+      "if_held_pnl5": -201.54,
+      "delta_vs_hold": -32.4,
+      "delta_hc_vs_hold": -52.36
+    },
+    "twap_scratch_tp": {
+      "n": 52,
+      "would_win_wr": 0.9038,
+      "pnl5": 181.35,
+      "pnl_hc": 170.79,
+      "if_held_pnl5": 183.97,
+      "delta_vs_hold": -2.62,
+      "delta_hc_vs_hold": -13.18
+    },
+    "settle": {
+      "n": 42,
+      "would_win_wr": 0.0,
+      "pnl5": -217.19,
+      "pnl_hc": -217.19,
+      "if_held_pnl5": -217.19,
+      "delta_vs_hold": 0.0,
+      "delta_hc_vs_hold": 0.0
+    },
+    "twap_scratch_flip": {
+      "n": 32,
+      "would_win_wr": 0.5312,
+      "pnl5": -54.4,
+      "pnl_hc": -60.58,
+      "if_held_pnl5": -1.96,
+      "delta_vs_hold": -52.44,
+      "delta_hc_vs_hold": -58.62
+    },
+    "twap_scratch_unconfirmed": {
+      "n": 22,
+      "would_win_wr": 0.2727,
+      "pnl5": -39.13,
+      "pnl_hc": -43.32,
+      "if_held_pnl5": -56.46,
+      "delta_vs_hold": 17.33,
+      "delta_hc_vs_hold": 13.14
+    },
+    "twap_scratch_oracle": {
+      "n": 12,
+      "would_win_wr": 0.25,
+      "pnl5": -16.0,
+      "pnl_hc": -18.32,
+      "if_held_pnl5": -32.89,
+      "delta_vs_hold": 16.89,
+      "delta_hc_vs_hold": 14.57
+    },
+    "twap_scratch_wild": {
+      "n": 1,
+      "would_win_wr": 0.0,
+      "pnl5": -1.66,
+      "pnl_hc": -1.88,
+      "if_held_pnl5": -5.19,
+      "delta_vs_hold": 3.52,
+      "delta_hc_vs_hold": 3.31
+    }
+  },
+  "grid": {
+    "shipped": {
+      "n": 558,
+      "pnl5": -76.8745,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -51.3054,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -25.5691,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 24.1498,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -10.8486,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 34.9984,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 292,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 12,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0,
+      "d_scratch": 0
+    },
+    "hold_only": {
+      "n": 558,
+      "pnl5": 163.2498,
+      "take_wr": 0.5663,
+      "held": 558,
+      "scratch_n": 0,
+      "win": 316,
+      "lose": 242,
+      "train": {
+        "n": 227,
+        "pnl5": 40.0622,
+        "take_wr": 0.5551,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 123.1876,
+        "take_wr": 0.574,
+        "ev_ok": true
+      },
+      "robust": true,
+      "raw": {
+        "n": 558,
+        "pnl5": 163.2498,
+        "take_wr": 0.5663,
+        "held": 558,
+        "scratch_n": 0,
+        "win": 316,
+        "lose": 242,
+        "train": {
+          "n": 227,
+          "pnl5": 40.0622,
+          "take_wr": 0.5551,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 123.1876,
+          "take_wr": 0.574,
+          "ev_ok": true
+        },
+        "robust": true
+      },
+      "why": {
+        "settle": 558
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": 148.76,
+      "d_tr": 91.37,
+      "d_scratch": -516
+    },
+    "persist2_weak_flip": {
+      "n": 558,
+      "pnl5": -86.7847,
+      "take_wr": 0.0,
+      "held": 61,
+      "scratch_n": 497,
+      "win": 0,
+      "lose": 61,
+      "train": {
+        "n": 227,
+        "pnl5": -27.3991,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -59.3857,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 10.7709,
+        "take_wr": 0.0,
+        "held": 61,
+        "scratch_n": 497,
+        "win": 0,
+        "lose": 61,
+        "train": {
+          "n": 227,
+          "pnl5": 12.7614,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": -1.9905,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 324,
+        "settle": 61,
+        "twap_scratch_unconfirmed": 40,
+        "twap_scratch_oracle": 16,
+        "twap_scratch_tp": 52,
+        "twap_scratch_weak": 63,
+        "twap_scratch_flip": 1,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": -33.82,
+      "d_tr": 23.91,
+      "d_scratch": -19
+    },
+    "delay1": {
+      "n": 558,
+      "pnl5": -95.0865,
+      "take_wr": 0.0,
+      "held": 72,
+      "scratch_n": 486,
+      "win": 0,
+      "lose": 72,
+      "train": {
+        "n": 227,
+        "pnl5": -62.1254,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -32.9611,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 0.4663,
+        "take_wr": 0.0,
+        "held": 72,
+        "scratch_n": 486,
+        "win": 0,
+        "lose": 72,
+        "train": {
+          "n": 227,
+          "pnl5": -23.5104,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 23.9768,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_oracle": 38,
+        "twap_scratch_better": 212,
+        "settle": 72,
+        "twap_scratch_unconfirmed": 44,
+        "twap_scratch_tp": 109,
+        "twap_scratch_weak": 80,
+        "twap_scratch_flip": 2,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": -7.39,
+      "d_tr": -10.82,
+      "d_scratch": -30
+    },
+    "no_better": {
+      "n": 558,
+      "pnl5": -31.6125,
+      "take_wr": 0.0,
+      "held": 54,
+      "scratch_n": 504,
+      "win": 0,
+      "lose": 54,
+      "train": {
+        "n": 227,
+        "pnl5": -67.5598,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 35.9473,
+        "take_wr": 0.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 67.3962,
+        "take_wr": 0.0,
+        "held": 54,
+        "scratch_n": 504,
+        "win": 0,
+        "lose": 54,
+        "train": {
+          "n": 227,
+          "pnl5": -28.5733,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 95.9695,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_oracle": 63,
+        "twap_scratch_weak": 147,
+        "settle": 54,
+        "twap_scratch_tp": 232,
+        "twap_scratch_unconfirmed": 25,
+        "twap_scratch_flip": 36,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 61.52,
+      "d_tr": -16.25,
+      "d_scratch": -12
+    },
+    "no_weak": {
+      "n": 558,
+      "pnl5": -75.9634,
+      "take_wr": 0.0,
+      "held": 77,
+      "scratch_n": 481,
+      "win": 0,
+      "lose": 77,
+      "train": {
+        "n": 227,
+        "pnl5": -25.0184,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -50.9449,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 18.6793,
+        "take_wr": 0.0,
+        "held": 77,
+        "scratch_n": 481,
+        "win": 0,
+        "lose": 77,
+        "train": {
+          "n": 227,
+          "pnl5": 13.6982,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 4.9811,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": true
+      },
+      "why": {
+        "twap_scratch_better": 331,
+        "settle": 77,
+        "twap_scratch_unconfirmed": 48,
+        "twap_scratch_oracle": 15,
+        "twap_scratch_tp": 54,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": -25.38,
+      "d_tr": 26.29,
+      "d_scratch": -35
+    },
+    "no_flip": {
+      "n": 558,
+      "pnl5": -72.6391,
+      "take_wr": 0.0,
+      "held": 43,
+      "scratch_n": 515,
+      "win": 0,
+      "lose": 43,
+      "train": {
+        "n": 227,
+        "pnl5": -48.5265,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -24.1125,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 28.2063,
+        "take_wr": 0.0,
+        "held": 43,
+        "scratch_n": 515,
+        "win": 0,
+        "lose": 43,
+        "train": {
+          "n": 227,
+          "pnl5": -8.0621,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 36.2684,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 301,
+        "settle": 43,
+        "twap_scratch_weak": 123,
+        "twap_scratch_oracle": 14,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 24,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 1.46,
+      "d_tr": 2.78,
+      "d_scratch": -1
+    },
+    "confirmed_quiet": {
+      "n": 558,
+      "pnl5": -74.2263,
+      "take_wr": 0.0,
+      "held": 68,
+      "scratch_n": 490,
+      "win": 0,
+      "lose": 68,
+      "train": {
+        "n": 227,
+        "pnl5": -94.9511,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 20.7248,
+        "take_wr": 0.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 22.1213,
+        "take_wr": 0.0,
+        "held": 68,
+        "scratch_n": 490,
+        "win": 0,
+        "lose": 68,
+        "train": {
+          "n": 227,
+          "pnl5": -57.1477,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 79.269,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_oracle": 61,
+        "settle": 68,
+        "twap_scratch_better": 59,
+        "twap_scratch_weak": 101,
+        "twap_scratch_tp": 216,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 30,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": 46.29,
+      "d_tr": -43.65,
+      "d_scratch": -26
+    },
+    "skip_better_confirmed": {
+      "n": 558,
+      "pnl5": -38.5615,
+      "take_wr": 0.0,
+      "held": 51,
+      "scratch_n": 507,
+      "win": 0,
+      "lose": 51,
+      "train": {
+        "n": 227,
+        "pnl5": -85.9339,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 47.3723,
+        "take_wr": 0.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 60.9602,
+        "take_wr": 0.0,
+        "held": 51,
+        "scratch_n": 507,
+        "win": 0,
+        "lose": 51,
+        "train": {
+          "n": 227,
+          "pnl5": -46.8255,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 107.7857,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_oracle": 50,
+        "twap_scratch_weak": 127,
+        "twap_scratch_better": 59,
+        "settle": 51,
+        "twap_scratch_tp": 215,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 33,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 72.94,
+      "d_tr": -34.63,
+      "d_scratch": -9
+    },
+    "haircut_better": {
+      "n": 558,
+      "pnl5": -66.6752,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -45.0323,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -21.6429,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 34.3728,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -4.5598,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 38.9326,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_oracle": 16,
+        "twap_scratch_better": 265,
+        "settle": 42,
+        "twap_scratch_weak": 115,
+        "twap_scratch_tp": 62,
+        "twap_scratch_unconfirmed": 23,
+        "twap_scratch_flip": 34,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 3.93,
+      "d_tr": 6.27,
+      "d_scratch": 0
+    },
+    "runner70_quiet": {
+      "n": 558,
+      "pnl5": -78.4983,
+      "take_wr": 0.0,
+      "held": 56,
+      "scratch_n": 502,
+      "win": 0,
+      "lose": 56,
+      "train": {
+        "n": 227,
+        "pnl5": -80.605,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 2.1067,
+        "take_wr": 0.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 20.0251,
+        "take_wr": 0.0,
+        "held": 56,
+        "scratch_n": 502,
+        "win": 0,
+        "lose": 56,
+        "train": {
+          "n": 227,
+          "pnl5": -41.6708,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 61.6959,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 138,
+        "settle": 56,
+        "twap_scratch_weak": 103,
+        "twap_scratch_oracle": 35,
+        "twap_scratch_tp": 171,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": 27.68,
+      "d_tr": -29.3,
+      "d_scratch": -14
+    },
+    "dump90_only": {
+      "n": 558,
+      "pnl5": -31.0744,
+      "take_wr": 0.0,
+      "held": 125,
+      "scratch_n": 433,
+      "win": 0,
+      "lose": 125,
+      "train": {
+        "n": 227,
+        "pnl5": -39.2178,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 8.1435,
+        "take_wr": 0.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 54.9663,
+        "take_wr": 0.0,
+        "held": 125,
+        "scratch_n": 433,
+        "win": 0,
+        "lose": 125,
+        "train": {
+          "n": 227,
+          "pnl5": -4.1801,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 59.1463,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_oracle": 93,
+        "settle": 125,
+        "twap_scratch_unconfirmed": 82,
+        "twap_scratch_tp": 257,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 33.71,
+      "d_tr": 12.09,
+      "d_scratch": -83
+    },
+    "keep_late_dump": {
+      "n": 558,
+      "pnl5": 115.0176,
+      "take_wr": 0.6381,
+      "held": 373,
+      "scratch_n": 185,
+      "win": 238,
+      "lose": 135,
+      "train": {
+        "n": 227,
+        "pnl5": 30.4028,
+        "take_wr": 0.6351,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": 84.6148,
+        "take_wr": 0.64,
+        "ev_ok": true
+      },
+      "robust": true,
+      "raw": {
+        "n": 558,
+        "pnl5": 150.5946,
+        "take_wr": 0.6381,
+        "held": 373,
+        "scratch_n": 185,
+        "win": 238,
+        "lose": 135,
+        "train": {
+          "n": 227,
+          "pnl5": 45.5611,
+          "take_wr": 0.6351,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 105.0335,
+          "take_wr": 0.64,
+          "ev_ok": true
+        },
+        "robust": true
+      },
+      "why": {
+        "twap_scratch_oracle": 102,
+        "settle": 373,
+        "twap_scratch_unconfirmed": 82,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": true,
+      "d_ho": 110.18,
+      "d_tr": 81.71,
+      "d_scratch": -331
+    },
+    "bm_only": {
+      "n": 558,
+      "pnl5": -75.6506,
+      "take_wr": 0.0,
+      "held": 43,
+      "scratch_n": 515,
+      "win": 0,
+      "lose": 43,
+      "train": {
+        "n": 227,
+        "pnl5": -50.7655,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -24.885,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 25.1969,
+        "take_wr": 0.0,
+        "held": 43,
+        "scratch_n": 515,
+        "win": 0,
+        "lose": 43,
+        "train": {
+          "n": 227,
+          "pnl5": -10.4871,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 35.684,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 304,
+        "settle": 43,
+        "twap_scratch_weak": 121,
+        "twap_scratch_tp": 52,
+        "twap_scratch_flip": 37,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": 0.68,
+      "d_tr": 0.54,
+      "d_scratch": -1
+    },
+    "tp_off": {
+      "n": 558,
+      "pnl5": -73.0531,
+      "take_wr": 0.0455,
+      "held": 44,
+      "scratch_n": 514,
+      "win": 2,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -50.8206,
+        "take_wr": 0.0476,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -22.2325,
+        "take_wr": 0.0435,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 27.5765,
+        "take_wr": 0.0455,
+        "held": 44,
+        "scratch_n": 514,
+        "win": 2,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -10.5573,
+          "take_wr": 0.0476,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 38.1338,
+          "take_wr": 0.0435,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 342,
+        "settle": 44,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 12,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 3.34,
+      "d_tr": 0.48,
+      "d_scratch": -2
+    },
+    "tp_80": {
+      "n": 558,
+      "pnl5": -69.7205,
+      "take_wr": 0.0,
+      "held": 41,
+      "scratch_n": 517,
+      "win": 0,
+      "lose": 41,
+      "train": {
+        "n": 227,
+        "pnl5": -43.5675,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -26.153,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 31.4939,
+        "take_wr": 0.0,
+        "held": 41,
+        "scratch_n": 517,
+        "win": 0,
+        "lose": 41,
+        "train": {
+          "n": 227,
+          "pnl5": -2.9193,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 34.4132,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 240,
+        "settle": 41,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 11,
+        "twap_scratch_tp": 106,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": -0.58,
+      "d_tr": 7.74,
+      "d_scratch": 1
+    },
+    "tp_90": {
+      "n": 558,
+      "pnl5": -74.2688,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -51.3054,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -22.9634,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 26.7624,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -10.8486,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 37.611,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 310,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 12,
+        "twap_scratch_tp": 34,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 2.61,
+      "d_tr": 0.0,
+      "d_scratch": 0
+    },
+    "oracle_55": {
+      "n": 558,
+      "pnl5": -73.8047,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -50.3629,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -23.4419,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 27.2281,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -9.9034,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 37.1315,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 293,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 11,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": 2.13,
+      "d_tr": 0.94,
+      "d_scratch": 0
+    },
+    "oracle_65": {
+      "n": 558,
+      "pnl5": -80.7769,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -49.2679,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -31.509,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 20.2368,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -8.8051,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 29.0419,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 290,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 14,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": -5.94,
+      "d_tr": 2.04,
+      "d_scratch": 0
+    },
+    "oracle_70": {
+      "n": 558,
+      "pnl5": -86.7122,
+      "take_wr": 0.0,
+      "held": 41,
+      "scratch_n": 517,
+      "win": 0,
+      "lose": 41,
+      "train": {
+        "n": 227,
+        "pnl5": -51.8378,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -34.8745,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 14.461,
+        "take_wr": 0.0,
+        "held": 41,
+        "scratch_n": 517,
+        "win": 0,
+        "lose": 41,
+        "train": {
+          "n": 227,
+          "pnl5": -11.2061,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 25.6671,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 288,
+        "settle": 41,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 18,
+        "twap_scratch_tp": 51,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": -9.31,
+      "d_tr": -0.53,
+      "d_scratch": 1
+    },
+    "confirm_58": {
+      "n": 558,
+      "pnl5": -76.8745,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -51.3054,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -25.5691,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 24.1498,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -10.8486,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 34.9984,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 292,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 16,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 18,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": true,
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0,
+      "d_scratch": 0
+    },
+    "confirm_66": {
+      "n": 558,
+      "pnl5": -75.6377,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -49.2679,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -26.3699,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 25.3903,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -8.8051,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 34.1954,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 291,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 8,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 27,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": -0.8,
+      "d_tr": 2.04,
+      "d_scratch": 0
+    },
+    "confirm_70": {
+      "n": 558,
+      "pnl5": -80.9192,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -49.6831,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -31.2361,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 20.0942,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -9.2214,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 29.3156,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 290,
+        "settle": 42,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 5,
+        "twap_scratch_tp": 51,
+        "twap_scratch_unconfirmed": 32,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": -5.67,
+      "d_tr": 1.62,
+      "d_scratch": 0
+    },
+    "confirm_left_120": {
+      "n": 558,
+      "pnl5": -62.4087,
+      "take_wr": 0.0,
+      "held": 31,
+      "scratch_n": 527,
+      "win": 0,
+      "lose": 31,
+      "train": {
+        "n": 227,
+        "pnl5": -49.3446,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -13.0641,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 40.6731,
+        "take_wr": 0.0,
+        "held": 31,
+        "scratch_n": 527,
+        "win": 0,
+        "lose": 31,
+        "train": {
+          "n": 227,
+          "pnl5": -8.3503,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 49.0234,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 271,
+        "twap_scratch_unconfirmed": 68,
+        "twap_scratch_oracle": 24,
+        "twap_scratch_tp": 50,
+        "settle": 31,
+        "twap_scratch_weak": 85,
+        "twap_scratch_flip": 28,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 12.5,
+      "d_tr": 1.96,
+      "d_scratch": 11
+    },
+    "weak_p_045": {
+      "n": 558,
+      "pnl5": -76.8745,
+      "take_wr": 0.0,
+      "held": 42,
+      "scratch_n": 516,
+      "win": 0,
+      "lose": 42,
+      "train": {
+        "n": 227,
+        "pnl5": -51.3054,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -25.5691,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 24.1498,
+        "take_wr": 0.0,
+        "held": 42,
+        "scratch_n": 516,
+        "win": 0,
+        "lose": 42,
+        "train": {
+          "n": 227,
+          "pnl5": -10.8486,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 34.9984,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 292,
+        "settle": 42,
+        "twap_scratch_weak": 63,
+        "twap_scratch_oracle": 12,
+        "twap_scratch_tp": 52,
+        "twap_scratch_flip": 74,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0,
+      "d_scratch": 0
+    },
+    "weak_p_052": {
+      "n": 558,
+      "pnl5": -64.9089,
+      "take_wr": 0.0,
+      "held": 30,
+      "scratch_n": 528,
+      "win": 0,
+      "lose": 30,
+      "train": {
+        "n": 227,
+        "pnl5": -44.9034,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -20.0055,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 38.2962,
+        "take_wr": 0.0,
+        "held": 30,
+        "scratch_n": 528,
+        "win": 0,
+        "lose": 30,
+        "train": {
+          "n": 227,
+          "pnl5": -3.3745,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 41.6707,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 279,
+        "settle": 30,
+        "twap_scratch_weak": 167,
+        "twap_scratch_oracle": 11,
+        "twap_scratch_tp": 51,
+        "twap_scratch_unconfirmed": 19,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 5.56,
+      "d_tr": 6.4,
+      "d_scratch": 12
+    },
+    "last30_need_80": {
+      "n": 558,
+      "pnl5": -72.8089,
+      "take_wr": 0.0,
+      "held": 34,
+      "scratch_n": 524,
+      "win": 0,
+      "lose": 34,
+      "train": {
+        "n": 227,
+        "pnl5": -47.9698,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -24.8391,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 29.7034,
+        "take_wr": 0.0,
+        "held": 34,
+        "scratch_n": 524,
+        "win": 0,
+        "lose": 34,
+        "train": {
+          "n": 227,
+          "pnl5": -6.4229,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 36.1262,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 292,
+        "settle": 34,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 12,
+        "twap_scratch_tp": 52,
+        "twap_scratch_unconfirmed": 22,
+        "twap_scratch_flip": 32,
+        "twap_scratch_last30": 8,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 0.73,
+      "d_tr": 3.34,
+      "d_scratch": 8
+    },
+    "last45_need_70": {
+      "n": 558,
+      "pnl5": -69.8382,
+      "take_wr": 0.0,
+      "held": 27,
+      "scratch_n": 531,
+      "win": 0,
+      "lose": 27,
+      "train": {
+        "n": 227,
+        "pnl5": -46.8207,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -23.0175,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 33.9418,
+        "take_wr": 0.0,
+        "held": 27,
+        "scratch_n": 531,
+        "win": 0,
+        "lose": 27,
+        "train": {
+          "n": 227,
+          "pnl5": -5.0803,
+          "take_wr": 0.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 39.0221,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": false
+      },
+      "why": {
+        "twap_scratch_better": 292,
+        "twap_scratch_last30": 17,
+        "twap_scratch_weak": 105,
+        "twap_scratch_oracle": 11,
+        "twap_scratch_tp": 52,
+        "settle": 27,
+        "twap_scratch_unconfirmed": 21,
+        "twap_scratch_flip": 32,
+        "twap_scratch_wild": 1
+      },
+      "forbidden": false,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 2.55,
+      "d_tr": 4.48,
+      "d_scratch": 15
+    },
+    "adverse_08": {
+      "n": 558,
+      "pnl5": -47.0581,
+      "take_wr": 0.0,
+      "held": 6,
+      "scratch_n": 552,
+      "win": 0,
+      "lose": 6,
+      "train": {
+        "n": 227,
+        "pnl5": -25.0802,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 331,
+        "pnl5": -21.9779,
+        "take_wr": 0.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "raw": {
+        "n": 558,
+        "pnl5": 60.6027,
+        "take_wr": 0.0,
+        "held": 6,
+        "scratch_n": 552,
+        "win": 0,
+        "lose": 6,
+        "train": {
+          "n": 227,
+          "pnl5": 18.6634,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": 41.9393,
+          "take_wr": 0.0,
+          "ev_ok": true
+        },
+        "robust": true
+      },
+      "why": {
+        "twap_scratch_better": 242,
+        "twap_scratch_stop": 241,
+        "twap_scratch_tp": 51,
+        "twap_scratch_weak": 6,
+        "twap_scratch_flip": 3,
+        "twap_scratch_unconfirmed": 6,
+        "twap_scratch_oracle": 3,
+        "settle": 6
+      },
+      "forbidden": true,
+      "dump_less": false,
+      "beats": false,
+      "d_ho": 3.59,
+      "d_tr": 26.23,
+      "d_scratch": 36
+    }
+  },
+  "winners": [
+    "keep_late_dump"
+  ],
+  "dump_more_names": [
+    "tp_80",
+    "oracle_70",
+    "confirm_left_120",
+    "weak_p_052",
+    "last30_need_80",
+    "last45_need_70"
+  ],
+  "other_sleeves": {
+    "dump_exec": {
+      "ship": true,
+      "pick": "hot_books_last90",
+      "do_not_default_on": false,
+      "question": "When unconfirmed/oracle must dump, why does a sellable \u226522\u00a2 bid sit to $0?",
+      "why": "Unconfirmed/oracle dump is already shipped. Live ETH 00:10 px90=22\u00a2 was sellable under the floor; the miss was a 60s WS cache + 15s rescore during a CLOB disconnect, so FAK min_price sat on a stale 50\u00a2. Last 90s: HTTP if cache >2s, rescore 3s, keep last-seen ev, must-dump may sell below min_shares. Not dump_mid90. Not lower 22\u00a2.",
+      "winners": null
+    },
+    "cheap_bounce": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": true,
+      "question": "Buy 20-30\u00a2 wounded 5m dog at the open, scalp the mid-window bounce, do not need settlement win",
+      "why": "no core BTC+ETH exit is +EV on both train and holdout",
+      "winners": null
+    },
+    "two_alts": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": false,
+      "question": "Open two more 5m coins on the frozen BTC+ETH TWAP sleeve?",
+      "why": "Shipped first-cross + dump90 + oracle, independent clocks, 7d holdout. BTC+ETH stay +EV. SOL/XRP/DOGE/BNB are train and holdout \u2212EV on this sleeve: they rarely print 62\u00a2 so dump90 fires on ~90%+ of fills and donates spread instead of holding. BM-only print-tape orig_hold_wr still looks 75\u201395% (SOL 94.6%) but that is NOT live \u2014 Rev 47/48 alt holds hit 14%, SOL \u2212$8.49. Do not skip dump90 on alts to ",
+      "winners": null
+    },
+    "trend_side": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": false,
+      "question": "Look at higher-TF \u8d70\u52e2 before choosing 5m Up vs Down?",
+      "why": "5m Up/Down is vs this window's T0, not the 15m chart. After a dump the next T0 is already low, so a +6bps bounce is a legal Up. Bounce first-cross hold-to-settle orig WR is ~54% (coin-flip); dump90+oracle is what makes that family +EV. Skip/fade HTF \u8d70\u52e2 cuts n or is reverse. skip_crash26 is the closest miss (+$4.37 holdout, under $5). Keep 60s vs T0.",
+      "winners": []
+    },
+    "always_in": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": false,
+      "question": "Enter every 5m window, manage in-window for higher WR?",
+      "why": "Every-window entry has to lift the CLOB ask as-is. Most 5m books are already 60\u00a2+ on the TWAP side: high settle WR, negative payoff after taker fee. In-window BM/dump/TP can raise *take* WR by selling losers and still lose money \u2014 same dump-overlay trap as easy_entry. The +EV high-WR sleeve remains 6bps\u222945\u201355 first-cross plus dump90/oracle, which only prints on ~7% of windows. Patient mid (any lea",
+      "winners": []
+    },
+    "easy_entry": {
+      "ship": false,
+      "pick": "lead_5_5",
+      "do_not_default_on": false,
+      "question": "Ease entry without cutting holdout WR or PnL vs frozen 6bps 45\u201355.",
+      "why": "Frozen sleeve 6bps / 45\u201355 / dump90+oracle. Easier entry only ships if EXTRA windows (never made 6bps 45\u201355) have orig-hold WR \u22650.85 on the 7d holdout, train+holdout extra +EV, leftover 1s not worse than core+15pp, and combo holdout PnL \u2265 frozen +$5. Dump overlay can fake 100% residual WR. Live drought is twap_band (ask 68\u201396\u00a2, lead 1\u20134bps) \u2014 5.5bps does not buy a 96\u00a2 ask. 4bps / 40\u201360 / leftover ",
+      "winners": [
+        "lead_5_5",
+        "lead_5",
+        "lead_5_5_left150",
+        "band_44_56"
+      ]
+    },
+    "learn_fail": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": false,
+      "question": "Learn from failures online so the bot slowly improves?",
+      "why": "Shipped dump overlay already clips residual hold losses (3 of 184 holds). Online cooldowns therefore almost never fire, or they skip +EV windows after a dump/scratch. Train-only hour/bucket skips fail holdout. Live FOK unmatched is an execution gap (Rev 60), not a direction error to autodial 6bps from. Keep frozen sleeve; keep learning offline on tape.",
+      "winners": []
+    },
+    "reverse_fade": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": true,
+      "question": "TG reverse-thinking: same TWAP gates, buy the other 5m leg, hold to settle",
+      "why": "",
+      "winners": null
+    },
+    "sparse_fix": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": false,
+      "question": "Why so few live TWAP fills, and which fix is +EV?",
+      "why": "Few live fills = rare 6bps\u222945\u201355 coincidence plus live FOK conversion. Weekend/\u62c9\u76e4 windows print lead while the taker ask is already 60\u00a2+. 5.5bps extras are +EV on tape (orig-hold 92%) but do not buy a 71\u00a2 ask. Leftover unlock would raise conversion of already-seen prints by chasing cheaper second looks \u2014 forbidden. Ship conversion ops (WS 1013 queue), not autodial of 6bps.",
+      "winners": null
+    },
+    "freq_params": {
+      "ship": false,
+      "pick": null,
+      "do_not_default_on": false,
+      "question": "Raise fill count without cutting shipped take WR.",
+      "why": "max_left 280\u2192300 adds 0 takes. 5.5bps / 5bps / 44\u201356\u00a2 add prints on the tape because Rev 59 dump keeps residual-hold WR ~100%, but those extras are windows that never made 6bps or 45\u201355 \u2014 same last-look family as forbidden 4bps / 40\u201360. Live FOK already converts 6bps worse than the print tape. Keep 6bps, 45\u201355, 120\u2013280, leftover kill, reverse off.",
+      "winners": null
+    }
+  },
+  "findings": {
+    "headline": "\u5165\u5834\u5514\u6539\u3002Live-faithful scratch \u55ba print tape \u4e0a \u2212EV\uff0c\u56e0\u70ba scratch_better \u8ce3\u8d70 ~71% WR \u8d0f\u5bb6\uff1bdump90+oracle \u5148\u81f3\u4fc2\u5c0d\u4f4f hold \u5605 +EV\uff0c\u540c live redeem ~21% \u6f0f dump \u540c\u4e00\u6876\u3002Persist\uff0fhold-all \u6703\u5c11 dump \u55f0\u6876\u72d7\u30028\u00a2 SL\uff0fdump_mid90\uff0fbounce\uff0falts\uff0fevery-window \u4ecd\u7136\u5514\u904e bar\u3002",
+    "live_underdumps": true,
+    "persist_fights_live_leak": true,
+    "persist_scratch_delta": -19,
+    "entry_unchanged": true,
+    "scratch_better_would_win_wr": 0.7123,
+    "scratch_better_delta_hc_vs_hold": -146.99,
+    "scratch_weak_delta_hc_vs_hold": -52.36,
+    "unconfirmed_delta_hc_vs_hold": 13.14,
+    "oracle_delta_hc_vs_hold": 14.57,
+    "settle_would_win_wr": 0.0,
+    "scratch_better_is_neg_ev_vs_hold": true,
+    "late_dump_is_pos_ev_vs_hold": true,
+    "hold_only_holdout_ev_ok": true
+  },
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "autodial_5_5bps",
+    "band_40_60",
+    "chase_leftover",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "scratch_adverse_0.08",
+    "favorite_97_98",
+    "persist_when_live_underdumps",
+    "always_in_live",
+    "cheap_bounce_20_30",
+    "autodial_keep_late_dump",
+    "disable_bm_scratch_live"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_no_cheaper": true,
+    "twap_scratch_dump_floor": 0.22,
+    "twap_scratch_adverse": 0.0,
+    "twap_confirm_fair": 0.6,
+    "twap_confirm_px": 0.62,
+    "twap_tp_bid": 0.87
+  }
+}

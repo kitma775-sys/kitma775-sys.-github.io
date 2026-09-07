@@ -8621,3 +8621,75 @@ def test_always_in_does_not_autodial_every_window() -> None:
     assert abs(p.max_price - 0.55) < 1e-9
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+
+
+def test_smart_scratch_does_not_autodial_entry() -> None:
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "smart_scratch.json").read_text())
+    ship = json.loads((root / "research" / "smart_scratch_ship.json").read_text())
+    assert data["ship"] is False
+    assert ship["ship"] is False
+    assert data["pick"] is None
+    assert ship["pick"] is None
+    assert ship["tape_candidate"] == "keep_late_dump"
+    assert ship["winners"] == ["keep_late_dump"]
+    assert DEFAULT_SETTINGS["twap_min_lead_bps"] == 6.0
+    assert DEFAULT_SETTINGS["twap_min_price"] == 0.45
+    assert DEFAULT_SETTINGS["twap_max_price"] == 0.55
+    assert DEFAULT_SETTINGS["twap_scratch_adverse"] == 0.0
+    assert DEFAULT_SETTINGS["twap_scratch_dump_floor"] == 0.22
+    assert DEFAULT_SETTINGS["twap_confirm_px"] == 0.62
+    assert DEFAULT_SETTINGS["twap_confirm_fair"] == 0.60
+    assert DEFAULT_SETTINGS["twap_tp_bid"] == 0.87
+    assert DEFAULT_SETTINGS["twap_scratch_p"] == 0.48
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert ship["params_kept"]["twap_min_lead_bps"] == 6.0
+    assert ship["params_kept"]["band"] == [0.45, 0.55]
+    assert ship["params_kept"]["twap_scratch_adverse"] == 0.0
+    assert ship["live_underdumps"] is True
+    assert ship["persist_fights_live_leak"] is True
+    assert ship["adverse_08_beats"] is False
+    assert ship["hold_only_holdout_ev_ok"] is True
+    assert float(ship["hold_only_holdout_take_wr"]) > 0.50
+    assert float(ship["scratch_better_would_win_wr"]) > 0.65
+    assert float(ship["scratch_better_delta_hc_vs_hold"]) < 0
+    assert float(ship["unconfirmed_delta_hc_vs_hold"]) > 0
+    assert float(ship["oracle_delta_hc_vs_hold"]) > 0
+    assert float(ship["settle_would_win_wr"]) == 0.0
+    assert ship["keep_late_dump_beats"] is True
+    assert ship["keep_late_dump_holdout_ev_ok"] is True
+    assert float(ship["keep_late_dump_holdout_take_wr"]) >= 0.50
+    assert float(ship["keep_late_dump_holdout_pnl5"]) >= float(ship["shipped_holdout_pnl5"]) + 5.0
+    assert "hold_only" not in ship["winners"]
+    assert "persist2_weak_flip" not in ship["winners"]
+    assert "adverse_08" not in ship["winners"]
+    assert "autodial_keep_late_dump" in ship["do_not"]
+    assert "disable_bm_scratch_live" in ship["do_not"]
+    assert "persist_when_live_underdumps" in ship["do_not"]
+    assert "dump_mid90" in ship["do_not"]
+    assert "price_sl_8c" in ship["do_not"]
+    assert "chase_leftover" in ship["do_not"]
+    assert "lead_4bps" in ship["do_not"]
+    assert "cheap_bounce_20_30" in ship["do_not"]
+    assert ship["other_sleeves_ship"]["cheap_bounce"]["ship"] is False
+    assert ship["other_sleeves_ship"]["two_alts"]["ship"] is False
+    assert ship["other_sleeves_ship"]["always_in"]["ship"] is False
+    assert data["findings"]["scratch_better_is_neg_ev_vs_hold"] is True
+    assert data["findings"]["late_dump_is_pos_ev_vs_hold"] is True
+    assert data["findings"]["entry_unchanged"] is True
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.scratch_p - 0.48) < 1e-9
+    assert abs(p.scratch_adverse) < 1e-9
+    assert abs(p.confirm_px - 0.62) < 1e-9
+    assert abs(p.confirm_fair - 0.60) < 1e-9
+    assert abs(p.take_profit - 0.87) < 1e-9
+    assert bool(p.reverse) is False
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
