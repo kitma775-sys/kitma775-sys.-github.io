@@ -59,6 +59,8 @@ def _rev_blurb(s: dict) -> str:
         "持倉最後 90 秒用新鮮盤 dump（唔好用 60 秒舊 WS cache）；22¢ floor 唔減——更平嘅未確認 dump 喺 tape 上比坐上結算更差。"
         "高階設定有「止賺 bid」：預設 87¢，Telegram 0/80/85/87/90/95。bid 全倉夠價先走，唔會用 87¢ 一檔 walk 落 40¢。"
         "唔設價止蝕：8¢ stop 同一條回測把 PnL 由 +$845 削到 +$754；弱倉／反手 scratch 已經係資訊止蝕。"
+        "高階設定有「晚盤 dump」掣：開咗就關弱倉／反手／更好價 scratch 同止賺，只留最後 90 秒未確認同 oracle dump。"
+        "Tape 上 BM better 賣走 ~71% 贏家；live redeem ~21% WR 係漏 dump。預設關，唔寫死。逆向開緊時呢個掣無效。"
         "高階設定有「逆向思維」掣：開咗就買 TWAP lead 嘅對家，持有到結算（BM scratch 同 90s 確認都會一入場就倒貨所以關掉）。預設關。"
         "Binance 18 日同一批入場 fade 全樣本 −EV；現場 8W/32L 係 scratch 剩低嘅持有倉，唔係全部信號都應該買對家。"
         "BTC/ETH 各開一條 Chainlink socket；單幣超過 20 秒冇 tick 就重連，唔好掛死。"
@@ -105,6 +107,10 @@ TOGGLES = {
     "twap_reverse": (
         "逆向思維",
         "撳咗就買 TWAP lead 嘅對家，持有到結算。研究：Binance 18 日 fade 全樣本 −EV；現場持有倉 8W/32L 係 scratch 剩毒，唔係開掣理由。預設關。",
+    ),
+    "twap_late_dump": (
+        "晚盤 dump",
+        "開咗就關弱倉／反手／更好價 scratch 同止賺，只留最後 90 秒未確認同 oracle dump。Tape：BM better 賣走 ~71% 贏家。預設關。逆向開緊時無效。",
     ),
 }
 
@@ -750,7 +756,12 @@ async def _handle_callback(rt: Runtime, q, data: str) -> None:
     if data.startswith("tog:"):
         key = data.split(":", 1)[1]
         if key in TOGGLES:
-            rt.store.patch_settings(**{key: not bool(s.get(key))})
+            nxt = not bool(s.get(key))
+            rt.store.patch_settings(**{key: nxt})
+            if key == "twap_late_dump" and nxt and s.get("twap_reverse"):
+                await q.answer("已開晚盤 dump。而家逆向開緊，呢個掣暫時無效，先關逆向。", show_alert=True)
+                await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
+                return
         await q.answer("已更新")
         await _safe_edit(q, settings_text(rt), reply_markup=settings_kb(rt))
         return

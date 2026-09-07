@@ -2451,6 +2451,7 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert float(body.get("twap_scratch_late_left") or 0) == 0.0
     assert float(body.get("twap_scratch_late_bid") or 0) == 1.0
     assert body.get("twap_reverse") is False
+    assert body.get("twap_late_dump") is False
     assert float(body.get("twap_tp_bid") or 0) == 0.87
     assert float(body.get("twap_confirm_px") or 0) == 0.62
     assert float(body.get("twap_confirm_left") or 0) == 90.0
@@ -5081,6 +5082,7 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "而家會買：BTC+ETH" in help_txt
     assert "剔晒 SOL/XRP/BNB 都唔會入場" in help_txt
     assert "逆向思維" in labels
+    assert "晚盤 dump" in labels
     assert "週期：5分鐘（鎖定）" in labels
     assert "週期 5M／15M／1H" not in labels
     assert "大熱尾窗" not in labels
@@ -5092,6 +5094,8 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "maker_first" not in TOGGLES
     assert "twap_reverse" in TOGGLES
     assert "逆向思維" in TOGGLES["twap_reverse"][0]
+    assert "twap_late_dump" in TOGGLES
+    assert "晚盤 dump" in TOGGLES["twap_late_dump"][0]
     assert "min_edge" not in SETTING_STEPS
     assert "favorite_min_price" not in SETTING_STEPS
     assert "twap_max_left" in SETTING_STEPS
@@ -5111,6 +5115,7 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "BTC 同 ETH 可以同一 5 分鐘 unix 各做一注" in essay
     assert "scratch 之後唔反手" in essay
     assert "逆向思維" in essay
+    assert "晚盤 dump" in essay
     assert "止賺 bid" in essay
     assert "唔設價止蝕" in essay
     assert "只做 5 分鐘" in essay
@@ -5124,6 +5129,14 @@ def test_telegram_settings_lock_twap_and_drop_legacy(tmp_path):
     assert "唔做 YES+NO 互補" not in home
     assert "Rev 45" not in home
     assert "止賺 87¢" in home
+    assert "晚盤 dump" not in home
+    assert "FOK" not in home
+    st.patch_settings(twap_late_dump=True)
+    late_home = home_text(rt)
+    assert "晚盤 dump" in late_home
+    assert "止賺 87¢" not in late_home
+    assert "FOK" not in late_home
+    st.patch_settings(twap_late_dump=False)
     st.patch_settings(twap_reverse=True)
     assert "逆向思維開緊" in home_text(rt)
     st.patch_settings(twap_tp_bid=0.0)
@@ -5625,6 +5638,65 @@ def test_twap_entry_reason_and_scratch():
     assert live_p.no_cheaper is True
     assert abs(live_p.up_tick - 0.01) < 1e-9
     assert live_p.assets == ("btc", "eth")
+    assert live_p.late_dump is False
+    assert bool(DEFAULT_SETTINGS.get("twap_late_dump")) is False
+
+
+def test_twap_late_dump_skips_bm_and_tp_keeps_oracle():
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import TwapParams, default_params, should_scratch
+
+    live = default_params(DEFAULT_SETTINGS)
+    assert live.late_dump is False
+    p = TwapParams(
+        late_dump=True,
+        take_profit=0.87,
+        confirm_px=0.62,
+        confirm_left=90.0,
+        confirm_fair=0.60,
+        scratch_p=0.48,
+        scratch_min_bid=0.38,
+        scratch_dump_floor=0.22,
+        max_lead_bps=40.0,
+    )
+    go, why = should_scratch(
+        fair_p=0.40, lead_bps_signed=8.0, bid=0.38, shares=10, fee_rate=0.07, left=200.0, params=p, high_water=0.70
+    )
+    assert go is False and why == "twap_hold"
+    go, why = should_scratch(
+        fair_p=0.55, lead_bps_signed=-1.0, bid=0.50, shares=10, fee_rate=0.07, left=200.0, params=p, high_water=0.70
+    )
+    assert go is False and why == "twap_hold"
+    go, why = should_scratch(
+        fair_p=0.50, lead_bps_signed=8.0, bid=0.52, shares=10, fee_rate=0.07, left=200.0, params=p, high_water=0.70
+    )
+    assert go is False and why == "twap_hold"
+    go, why = should_scratch(
+        fair_p=0.95, lead_bps_signed=12.0, bid=0.87, shares=10, fee_rate=0.07, left=40.0, params=p, high_water=0.90
+    )
+    assert go is False and why == "twap_hold"
+    go, why = should_scratch(
+        fair_p=0.60, lead_bps_signed=8.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=p, high_water=0.50
+    )
+    assert go is True and why == "twap_scratch_unconfirmed"
+    go, why = should_scratch(
+        fair_p=0.55, lead_bps_signed=7.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=p, high_water=0.70
+    )
+    assert go is True and why == "twap_scratch_oracle"
+    go, why = should_scratch(
+        fair_p=0.70, lead_bps_signed=50.0, bid=0.50, shares=10, fee_rate=0.07, left=120.0, params=p, high_water=0.70
+    )
+    assert go is True and why == "twap_scratch_wild"
+    fade = TwapParams(reverse=True, late_dump=True, confirm_px=0.62, confirm_left=90.0, confirm_fair=0.60)
+    go, why = should_scratch(
+        fair_p=0.55, lead_bps_signed=7.0, bid=0.50, shares=10, fee_rate=0.07, left=80.0, params=fade, high_water=0.50
+    )
+    assert go is False and why == "twap_hold"
+    on = default_params({**DEFAULT_SETTINGS, "twap_late_dump": True})
+    assert on.late_dump is True
+    assert abs(on.take_profit - 0.87) < 1e-9
+    assert abs(on.scratch_p - 0.48) < 1e-9
+    assert abs(on.min_lead_bps - 6.0) < 1e-9
 
 
 def test_rev54_first_cross_and_unconfirmed_dump():
@@ -8232,6 +8304,7 @@ def test_rev60_apply_keeps_live_and_does_not_chase_leftover(tmp_path):
         live_trading=True,
         max_usd_per_trade=3.0,
         twap_reverse=False,
+        twap_late_dump=True,
         twap_no_cheaper=True,
         twap_confirm_fair=0.60,
     )
@@ -8242,15 +8315,18 @@ def test_rev60_apply_keeps_live_and_does_not_chase_leftover(tmp_path):
     assert s["live_trading"] is True
     assert float(s["max_usd_per_trade"]) == 3.0
     assert s["twap_reverse"] is False
+    assert s["twap_late_dump"] is True
     assert s["twap_no_cheaper"] is True
     assert abs(float(s["twap_confirm_fair"]) - 0.60) < 1e-9
     assert float(s["twap_min_lead_bps"]) == 6.0
     assert s["twap_assets"] == ["btc", "eth"]
     assert abs(float(s["fok_delay_ms"]) - 250.0) < 1e-9
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert bool(DEFAULT_SETTINGS.get("twap_late_dump")) is False
     p = default_params(s)
     assert abs(p.up_tick - 0.01) < 1e-9
     assert p.no_cheaper is True
+    assert p.late_dump is True
     assert apply_strategy_rev(st) == 0
 
 
@@ -8691,5 +8767,7 @@ def test_smart_scratch_does_not_autodial_entry() -> None:
     assert abs(p.confirm_fair - 0.60) < 1e-9
     assert abs(p.take_profit - 0.87) < 1e-9
     assert bool(p.reverse) is False
+    assert bool(p.late_dump) is False
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+    assert bool(DEFAULT_SETTINGS.get("twap_late_dump")) is False

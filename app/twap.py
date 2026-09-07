@@ -271,6 +271,8 @@ class TwapParams:
     scratch_late_left: float = 0.0
     scratch_late_bid: float = 1.0
     reverse: bool = False
+    # TG 「晚盤 dump」: skip BM better/weak/flip and TP; keep dump90+oracle.
+    late_dump: bool = False
     take_profit: float = 0.0
     confirm_px: float = 0.0
     confirm_left: float = 90.0
@@ -328,6 +330,7 @@ def default_params(s: dict | None = None) -> TwapParams:
         scratch_late_left=num("twap_scratch_late_left", 0.0),
         scratch_late_bid=num("twap_scratch_late_bid", 1.0),
         reverse=bool(d.get("twap_reverse")),
+        late_dump=bool(d.get("twap_late_dump")),
         take_profit=num("twap_tp_bid", 0.87),
         confirm_px=num("twap_confirm_px", 0.62),
         confirm_left=num("twap_confirm_left", 90.0),
@@ -511,9 +514,10 @@ def should_scratch(
         if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
             return True, "twap_scratch_wild"
         return False, "twap_hold"
-    tp = take_profit_px(params)
-    if tp is not None and bid is not None and float(bid) + 1e-12 >= tp:
-        return True, "twap_scratch_tp"
+    if not params.late_dump:
+        tp = take_profit_px(params)
+        if tp is not None and bid is not None and float(bid) + 1e-12 >= tp:
+            return True, "twap_scratch_tp"
     if (
         params.confirm_px > 1e-12
         and params.confirm_left > params.scratch_left_min
@@ -532,6 +536,12 @@ def should_scratch(
         and float(fair_p) + 1e-12 < params.confirm_fair
     ):
         return True, "twap_scratch_oracle"
+    if params.late_dump:
+        # keep_late_dump: BM better/weak/flip and TP sell ~71% WR winners on tape.
+        # Unconfirmed + oracle already returned. Wild still dumps a broken lead.
+        if lead_bps_signed is not None and abs(float(lead_bps_signed)) > params.max_lead_bps + 1e-12:
+            return True, "twap_scratch_wild"
+        return False, "twap_hold"
     proceeds = scratch_proceeds(shares, bid, fee_rate)
     held = hold_value(shares, fair_p)
     if proceeds + 1e-9 >= held and float(bid) + 1e-12 >= params.scratch_min_bid:

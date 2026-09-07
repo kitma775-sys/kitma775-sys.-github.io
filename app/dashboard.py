@@ -65,6 +65,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "twap_scratch_hot_ms": s.get("twap_scratch_hot_ms"),
             "twap_rescore_hot_seconds": s.get("twap_rescore_hot_seconds"),
             "twap_reverse": bool(s.get("twap_reverse")),
+            "twap_late_dump": bool(s.get("twap_late_dump")),
             "twap_tp_bid": s.get("twap_tp_bid"),
             "twap_confirm_px": s.get("twap_confirm_px"),
             "twap_confirm_left": s.get("twap_confirm_left"),

@@ -104,8 +104,11 @@ def operator_board(rt: Runtime) -> dict[str, Any]:
     if s.get("twap_reverse"):
         notes.append("🔄 逆向思維開緊：買 TWAP lead 對家，持有到結算")
     else:
+        late_dump = bool(s.get("twap_late_dump"))
         tp = setting_num(s, "twap_tp_bid", 0.87)
-        if tp > 1e-12:
+        if late_dump:
+            notes.append("🐕 晚盤 dump：關弱倉／止賺，只留 90s dump")
+        elif tp > 1e-12:
             notes.append(f"💰 止賺 {int(round(tp * 100))}¢：全倉 bid 夠價先走，弱倉 scratch 照舊")
         confirm_px = setting_num(s, "twap_confirm_px", 0.62)
         confirm_left = setting_num(s, "twap_confirm_left", 90.0)

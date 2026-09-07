@@ -68,6 +68,9 @@ DEFAULT_SETTINGS = {
     "twap_scratch_late_left": 0.0,
     "twap_scratch_late_bid": 1.0,
     "twap_reverse": False,
+    # Research keep_late_dump. TG toggle, default off — do not autodial.
+    # On: skip BM better/weak/flip and TP; keep last-90s unconfirmed + oracle.
+    "twap_late_dump": False,
     # 0 = off. Default 87¢ locks a runner; 80/85/87/90/95 via Telegram.
     "twap_tp_bid": 0.87,
     # Rev 54: first-cross + 90s unconfirmed dump. Hunt pin is BTC+ETH;
