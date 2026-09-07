@@ -8771,3 +8771,77 @@ def test_smart_scratch_does_not_autodial_entry() -> None:
     assert DEFAULT_SETTINGS["strategy_rev"] == 60
     assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
     assert bool(DEFAULT_SETTINGS.get("twap_late_dump")) is False
+
+
+def test_oracle_arb_does_not_autodial_entry() -> None:
+    import json
+    from pathlib import Path
+
+    from app.config import DEFAULT_SETTINGS
+    from app.twap import default_params, hunt_assets
+
+    root = Path(__file__).resolve().parents[1]
+    data = json.loads((root / "research" / "oracle_arb.json").read_text())
+    ship = json.loads((root / "research" / "oracle_arb_ship.json").read_text())
+    assert data["ship"] is False
+    assert ship["ship"] is False
+    assert data["pick"] is None
+    assert ship["pick"] is None
+    assert ship["use_binance_vs_chainlink"] is False
+    assert ship["skip_fok_delay"] is False
+    assert data["use_binance_vs_chainlink"] is False
+    assert data["skip_fok_delay"] is False
+    assert DEFAULT_SETTINGS["twap_min_lead_bps"] == 6.0
+    assert DEFAULT_SETTINGS["twap_min_price"] == 0.45
+    assert DEFAULT_SETTINGS["twap_max_price"] == 0.55
+    assert DEFAULT_SETTINGS["fok_delay_ms"] == 250.0
+    assert hunt_assets(DEFAULT_SETTINGS) == ("btc", "eth")
+    assert ship["params_kept"]["twap_min_lead_bps"] == 6.0
+    assert ship["params_kept"]["band"] == [0.45, 0.55]
+    assert ship["params_kept"]["fok_delay_ms"] == 250.0
+    assert "oracle_arb_live" in ship["do_not"]
+    assert "binance_minus_ptb" in ship["do_not"]
+    assert "use_binance_as_settlement" in ship["do_not"]
+    assert "skip_fok_delay_ms" in ship["do_not"]
+    assert "post_close_taker" in ship["do_not"]
+    assert "favorite_97_98" in ship["do_not"]
+    assert "late_fair_widen_ask" in ship["do_not"]
+    assert "late_stale_mid" in ship["do_not"]
+    assert "chase_leftover" in ship["do_not"]
+    assert "lead_4bps" in ship["do_not"]
+    assert ship["post_close_not_fillable_mid"] is True
+    assert ship["post_close_winner_mid_robust"] is False
+    assert int(ship["post_close_http_winner_mid_n"] or 0) == 0
+    assert ship["stale_mid_beats"] is False
+    assert ship["stale_mid_train_ev_ok"] is False
+    assert float(ship["stale_mid_settle_wr"]) < 0.55
+    assert ship["late_fair85_mid_beats"] is False
+    assert float(ship["late_fair85_mid_settle_wr"]) < 0.55
+    assert ship["late_fair85_cheap_beats"] is False
+    assert ship["late_fair85_cheap_expensive_ok"] is False
+    assert ship["late_fair85_any_beats"] is False
+    assert ship["late_fair85_any_is_97_98_cousin"] is True
+    assert ship["frozen_ptb_train_ev_ok"] is False
+    assert ship["frozen_open_beats"] is True
+    assert ship["winners"] == []
+    assert data["findings"]["shipped_sleeve_is_mild_oracle_latency"] is True
+    assert data["findings"]["usable_delay_is_early_clob_lag"] is True
+    assert data["findings"]["late_stale_mid_is_leftover_not_arb"] is True
+    assert data["findings"]["high_fair_late_mid_is_coin_flip"] is True
+    assert data["findings"]["post_close_winner_mid_not_on_tape"] is True
+    assert data["findings"]["binance_minus_ptb_is_not_arb"] is True
+    assert data["findings"]["skip_fok_delay_is_not_oracle_arb"] is True
+    assert data["findings"]["entry_unchanged"] is True
+    assert data["families"]["frozen_ptb"]["forbidden"] is True
+    assert data["families"]["late_fair85_any"]["forbidden"] is True
+    assert float(data["delay"]["fair_minus_ask_at_frozen"]["mean"]) > 0.05
+    assert float(data["delay"]["fair_minus_ask_last30s"]["mean"]) < 0.05
+    p = default_params(DEFAULT_SETTINGS)
+    assert abs(p.min_lead_bps - 6.0) < 1e-9
+    assert abs(p.min_price - 0.45) < 1e-9
+    assert abs(p.max_price - 0.55) < 1e-9
+    assert abs(p.up_tick - 0.01) < 1e-9
+    assert p.no_cheaper is True
+    assert DEFAULT_SETTINGS["strategy_rev"] == 60
+    assert bool(DEFAULT_SETTINGS.get("twap_reverse")) is False
+    assert bool(DEFAULT_SETTINGS.get("twap_late_dump")) is False
