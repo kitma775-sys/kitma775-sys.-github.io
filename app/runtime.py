@@ -3109,6 +3109,7 @@ async def _redeem_resolved(rt: Runtime) -> int:
 
     Runs while paused, killed, or circuit-tripped so leftover favorite inventory
     is not stuck. Live tokens stay in the proxy until redeemPositions.
+    After redeem_wait, retry if the data API lists the condition as redeemable.
     """
     if rt.data is None:
         return 0
@@ -3149,12 +3150,19 @@ async def _redeem_resolved(rt: Runtime) -> int:
             }
         )
         seen.add(cid)
+    extra: list[dict] = []
+    ready_cids: set[str] = set()
     if not paper_mode:
         try:
             extra = await rt.broker().list_redeemable()
         except Exception as exc:
             rt.store.add_event("warn", f"redeem list {fmt_exc(exc)}"[:200])
             extra = []
+        ready_cids = {
+            str((row or {}).get("condition_id") or "")
+            for row in extra
+            if str((row or {}).get("condition_id") or "")
+        }
         for row in extra:
             cid = str((row or {}).get("condition_id") or "")
             slug = str((row or {}).get("slug") or "")
@@ -3210,6 +3218,9 @@ async def _redeem_resolved(rt: Runtime) -> int:
                     "already empty",
                     {"condition_id": cid, "already": True},
                 )
+            elif cid in ready_cids:
+                # Data-API marks redeemable; do not wait forever for auto-empty.
+                result = await rt.broker().redeem(cid)
             else:
                 rt.cooldown[f"redeem:{cid}"] = now + 45.0
                 continue

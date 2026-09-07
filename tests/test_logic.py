@@ -2759,6 +2759,63 @@ def test_redeem_wait_logs_once_then_settles_when_empty(tmp_path):
     assert abs(float(trade["net"]) - (0.0 - 2.65)) < 1e-5
 
 
+def test_redeem_wait_retries_when_data_api_says_redeemable(tmp_path):
+    import asyncio
+
+    from app.broker import FillResult
+    from app.config import Env
+    from app.runtime import Runtime, _redeem_resolved
+
+    class WaitThenReady:
+        mode = "live"
+
+        def __init__(self):
+            self.redeem_calls = 0
+
+        async def redeem(self, condition_id):
+            self.redeem_calls += 1
+            if self.redeem_calls == 1:
+                return FillResult(
+                    False,
+                    "redeem_wait",
+                    "live",
+                    f"No market found for condition {condition_id}",
+                    {"condition_id": condition_id, "wait": True, "held": 5.3},
+                )
+            return FillResult(True, "redeemed", "live", "redeem 完成", {"condition_id": condition_id})
+
+        async def condition_token_size(self, condition_id):
+            return 5.3
+
+        async def list_redeemable(self):
+            if self.redeem_calls >= 1:
+                return [{"condition_id": "0xxrp", "slug": "xrp-updown-5m-1788178800", "size": 5.3}]
+            return []
+
+    st = Store(tmp_path / "redeem-retry.sqlite")
+    st.ensure_paper(500)
+    st.add_inventory("0xxrp", "xrp-updown-5m-1788178800", 0.0, 5.3, kind="twap_live", cost=2.65)
+    st.patch_settings(live_trading=True, auto_redeem=True)
+    rt = Runtime(st, Env(force_paper=False, private_key="0xabc"))
+    rt.skip_live_preflight = True
+    spy = WaitThenReady()
+    rt._broker = spy
+    rt._broker_mode = "live"
+    rt.data = _FakeGamma(
+        {"xrp-updown-5m-1788178800": {"closed": True, "markets": [{"closed": True, "outcomePrices": ["1", "0"]}]}}
+    )
+    assert asyncio.run(_redeem_resolved(rt)) == 0
+    assert spy.redeem_calls == 1
+    rt.cooldown.clear()
+    n = asyncio.run(_redeem_resolved(rt))
+    assert n == 1
+    assert spy.redeem_calls == 2
+    assert st.inventory_open() == []
+    trade = st.recent_trades(1)[0]
+    assert trade["status"] == "redeemed"
+    assert abs(float(trade["net"]) - (0.0 - 2.65)) < 1e-5
+
+
 def test_is_redeemable_market_waits_for_decided_prices():
     from datetime import datetime, timedelta, timezone
 
