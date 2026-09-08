@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import clamp_paper_cash, live_keys_ready, live_switch_blockers, strategy_mode_of
 from app.runtime import Runtime
+from app.wall import twap_funnel
 
 PAGE = Path(__file__).with_name("dashboard.html")
 
@@ -95,6 +96,7 @@ def create_app(rt: Runtime) -> FastAPI:
             "today_pnl": paper["today_pnl"] if paper is not None else rt.store.today_pnl(mode="live"),
             "daily_loss_limit_usd": s.get("daily_loss_limit_usd"),
             "paper_equity": None if paper is None else paper["equity"],
+            "twap_funnel": twap_funnel(rt),
         }
 
     @app.get("/", response_class=HTMLResponse)

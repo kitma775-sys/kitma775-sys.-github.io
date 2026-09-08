@@ -3039,6 +3039,7 @@ async def _apply_rescue(rt: Runtime, row: dict, missing_side: str, plan) -> int:
                 "fees": sell_fee,
                 "floor_px": floor,
                 "cost_taken": cost_taken,
+                "why": plan.reason,
             },
         )
         if s.get("notify_signals"):

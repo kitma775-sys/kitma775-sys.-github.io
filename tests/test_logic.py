@@ -2479,6 +2479,56 @@ def test_health_reports_rev_and_ws(tmp_path):
     assert "可用 USDC" not in (state["board"].get("cash_label") or "")
 
 
+def test_health_funnel_counts_today_trades_and_unique_skips(tmp_path):
+    """Public /health must show UTC-day conversion + first-look skips, not loop spam."""
+    from fastapi.testclient import TestClient
+
+    from app.config import Env
+    from app.dashboard import create_app
+    from app.runtime import Runtime
+    from app.wall import note_wall_gate, utc_day_start
+
+    st = Store(tmp_path / "funnel.sqlite")
+    st.ensure_paper(500)
+    now = utc_day_start() + 3600.0
+    st.add_trade(
+        slug="btc-updown-5m-1", kind="twap", shares=5, up_price=0.5, down_price=0,
+        net=-0.1, mode="paper", status="paper_filled", payload={}, ts=now,
+    )
+    st.add_trade(
+        slug="eth-updown-5m-1", kind="twap", shares=5, up_price=0.5, down_price=0,
+        net=0.0, mode="paper", status="paper_fok_killed", payload={}, ts=now,
+    )
+    st.add_trade(
+        slug="sol-updown-5m-1", kind="twap", shares=5, up_price=0, down_price=0.22,
+        net=-1.0, mode="paper", status="paper_dumped",
+        payload={"why": "twap_scratch_unconfirmed"}, ts=now,
+    )
+    st.add_trade(
+        slug="btc-updown-5m-0", kind="twap", shares=5, up_price=0.5, down_price=0,
+        net=1.0, mode="paper", status="paper_filled", payload={},
+        ts=utc_day_start() - 10.0,
+    )
+    rt = Runtime(st, Env(dashboard_token="tok"))
+    note_wall_gate(rt, {"slug": "btc-updown-5m-1788000000", "reason": "twap_band", "ask": 0.99})
+    note_wall_gate(rt, {"slug": "btc-updown-5m-1788000000", "reason": "twap_band", "ask": 0.99})
+    note_wall_gate(rt, {"slug": "eth-updown-5m-1788000000", "reason": "ready", "ask": 0.50})
+    note_wall_gate(rt, {"slug": "eth-updown-5m-1788000300", "reason": "twap_no_cheaper", "ask": 0.48})
+    note_wall_gate(rt, {"slug": "xrp-updown-5m-1788000000", "reason": "future_listing"})
+    body = TestClient(create_app(rt)).get("/health").json()
+    funnel = body["twap_funnel"]
+    assert funnel["fills"] == 1
+    assert funnel["kills"] == 1
+    assert funnel["attempts"] == 2
+    assert funnel["dumps"] == 1
+    assert funnel["dump_why"]["twap_scratch_unconfirmed"] == 1
+    assert funnel["windows"] == 3
+    assert funnel["ready"] == 1
+    assert funnel["no_cheaper"] == 1
+    assert funnel["skips"].get("twap_band") == 1
+    assert "future_listing" not in (funnel.get("skips") or {})
+
+
 def test_merge_deletes_empty_inventory_row(tmp_path):
     st = Store(tmp_path / "empty.sqlite")
     st.add_inventory("c1", "btc", 10, 10)
@@ -4226,6 +4276,7 @@ def test_scratch_twap_hot_books_http_over_stale_ws(tmp_path):
     trade = st.recent_trades(1)[0]
     assert trade["status"] == "paper_dumped"
     assert abs(float(trade["payload"]["floor_px"]) - 0.22) < 1e-9
+    assert trade["payload"].get("why") == "twap_scratch_unconfirmed"
     assert st.inventory_open() == []
 
 

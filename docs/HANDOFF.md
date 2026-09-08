@@ -156,7 +156,7 @@ Buy cost uses official taker fee `shares × 0.07 × p × (1−p)` (`app/fees.py`
 
 **`apply_strategy_rev`:** one-way sqlite patches up to 60. **Must not** patch `twap_reverse` or `twap_late_dump` on future revs (would wipe operator toggles). Rev 60 only sets `twap_up_tick=0.01`.
 
-**Dashboard:** query param is **`t=`** (not `token=`). `/health` is public (no token). `/api/state?t=` is gated.
+**Dashboard:** query param is **`t=`** (not `token=`). `/health` is public (no token). `twap_funnel` on `/health` is UTC-day fills/kills/dumps + unique-slug skips (skip mix resets on boot). `/api/state?t=` is gated.
 
 ---
 

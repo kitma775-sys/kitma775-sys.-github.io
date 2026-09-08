@@ -70,6 +70,7 @@ Never write **values** into markdown, git, or chat. Scan diffs for `sk-`, `0x` p
 - Settlement slug allowlist: `{asset}-updown-5m-{unix}` only (`app/twap.py` `parse_window`). Do not redeem other Polymarket bets on the same wallet.
 - Do not autodial 6bps, leftover chase, skip 250ms, Binance−PTB, favorite 97–98, or `always_in` (`research/oracle_arb_ship.json` `ship: false`).
 - Home Telegram text is short `operator_board` — **must not** contain the substring `FOK`.
+- `/health` `twap_funnel`: UTC-day fills/kills/dumps (sqlite) and unique-slug skips (memory). Dump trades store `payload.why`. Do not zip unless asked.
 - WS: `WS_MAX_TOKENS=14` on **two** sockets; `clob_ws_connect_kwargs` `max_queue=1024`. Halt backoff 5→10→20→30 min on CLOB `trading is disabled`.
 
 ## Do not

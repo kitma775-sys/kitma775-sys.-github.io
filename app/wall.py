@@ -298,6 +298,83 @@ def note_wall_gate(rt, gate: dict | None) -> None:
     overflow = len(buf) - WALL_TAPE_MAX
     if overflow > 0:
         del buf[:overflow]
+    note_funnel_gate(rt, reason, slug)
+
+
+def _funnel_day_key(now: float | None = None) -> str:
+    start = utc_day_start(now)
+    return time.strftime("%Y-%m-%d", time.gmtime(start))
+
+
+def note_funnel_gate(rt, reason: str, slug: str) -> None:
+    """One row per slug per UTC day. Hunt loops must not increment."""
+    day = _funnel_day_key()
+    if getattr(rt, "_funnel_day", None) != day:
+        rt._funnel_day = day
+        rt._funnel_slugs = {}
+    recs = rt._funnel_slugs
+    rec = recs.get(slug)
+    if rec is None:
+        rec = {"first": reason, "ever_ready": False, "ever_no_cheaper": False}
+        recs[slug] = rec
+    if reason in PASS_REASONS:
+        rec["ever_ready"] = True
+    if reason == "twap_no_cheaper":
+        rec["ever_no_cheaper"] = True
+
+
+def twap_funnel(rt) -> dict[str, Any]:
+    """UTC-day conversion (sqlite) + unique-slug skips (memory; resets on boot)."""
+    day = _funnel_day_key()
+    if getattr(rt, "_funnel_day", None) != day:
+        rt._funnel_day = day
+        rt._funnel_slugs = {}
+    mode = rt.mode()
+    start = utc_day_start()
+    fill_st = {"filled", "paper_filled"} if mode == "paper" else {"filled"}
+    kill_st = {"fok_killed", "paper_fok_killed"} if mode == "paper" else {"fok_killed"}
+    dump_st = {"dumped", "paper_dumped"} if mode == "paper" else {"dumped"}
+    wanted = tuple(fill_st | kill_st | dump_st)
+    rows = rt.store.trades_since(start, mode=mode, limit=5000, statuses=wanted)
+    fills = kills = dumps = unmatched = 0
+    dump_why: dict[str, int] = {}
+    for t in rows:
+        status = str(t.get("status") or "")
+        payload = t.get("payload") if isinstance(t.get("payload"), dict) else {}
+        if status in fill_st:
+            fills += 1
+        elif status in kill_st:
+            kills += 1
+        elif status in dump_st:
+            dumps += 1
+            why = str(payload.get("why") or payload.get("reason") or "dump")
+            dump_why[why] = dump_why.get(why, 0) + 1
+        if payload.get("unmatched_retry") or payload.get("unmatched_retried"):
+            unmatched += 1
+    skips: dict[str, int] = {}
+    ready = no_cheaper = 0
+    recs = getattr(rt, "_funnel_slugs", {}) or {}
+    for rec in recs.values():
+        if rec.get("ever_ready"):
+            ready += 1
+        if rec.get("ever_no_cheaper"):
+            no_cheaper += 1
+        first = str(rec.get("first") or "")
+        if first and first not in PASS_REASONS:
+            skips[first] = skips.get(first, 0) + 1
+    return {
+        "utc_day": day,
+        "fills": fills,
+        "kills": kills,
+        "attempts": fills + kills,
+        "dumps": dumps,
+        "dump_why": dump_why,
+        "unmatched": unmatched,
+        "windows": len(recs),
+        "ready": ready,
+        "no_cheaper": no_cheaper,
+        "skips": skips,
+    }
 
 
 def _mode_inv(rt) -> list[dict]:
