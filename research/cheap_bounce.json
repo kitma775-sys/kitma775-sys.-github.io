@@ -1,0 +1,2535 @@
+{
+  "researched_at_utc": "2026-09-01T10:55:27Z",
+  "question": "Buy 20-30\u00a2 wounded 5m dog at the open, scalp the mid-window bounce, do not need settlement win",
+  "do_not_default_on": true,
+  "ship": false,
+  "why_not": [
+    "no core BTC+ETH exit is +EV on both train and holdout"
+  ],
+  "notional_usd": 3.0,
+  "holdout_days": 7,
+  "entry": {
+    "early_s": 90,
+    "dog": [
+      0.2,
+      0.32
+    ],
+    "favorite": [
+      0.62,
+      0.88
+    ],
+    "note": "\u672a\u8b8a\u5c4d = favorite still 62-88, not 97/3. First qualifying BUY print."
+  },
+  "core_btc_eth_twap60": {
+    "hold": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -1091.62,
+        "avg_pnl": -0.1528,
+        "scratch_n": 0,
+        "held": 7146,
+        "held_win": 2060,
+        "held_lose": 5086,
+        "settle_wr": 0.2883,
+        "take_win_rate": 0.2883,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -372.58
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -719.04
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -321.26,
+        "avg_pnl": -0.083,
+        "scratch_n": 0,
+        "held": 3870,
+        "held_win": 1141,
+        "held_lose": 2729,
+        "settle_wr": 0.2948,
+        "take_win_rate": 0.2948,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -94.79
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -226.48
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -770.35,
+        "avg_pnl": -0.2352,
+        "scratch_n": 0,
+        "held": 3276,
+        "held_win": 919,
+        "held_lose": 2357,
+        "settle_wr": 0.2805,
+        "take_win_rate": 0.2805,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -277.79
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -492.56
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "hold",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "tp40": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -1346.25,
+        "avg_pnl": -0.1884,
+        "scratch_n": 4854,
+        "held": 2292,
+        "held_win": 0,
+        "held_lose": 2292,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -479.06
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -867.19
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -634.27,
+        "avg_pnl": -0.1639,
+        "scratch_n": 2614,
+        "held": 1256,
+        "held_win": 0,
+        "held_lose": 1256,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -189.31
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -444.96
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -711.98,
+        "avg_pnl": -0.2173,
+        "scratch_n": 2240,
+        "held": 1036,
+        "held_win": 0,
+        "held_lose": 1036,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -289.75
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -422.23
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "tp40",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "tp45": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -1321.49,
+        "avg_pnl": -0.1849,
+        "scratch_n": 4304,
+        "held": 2842,
+        "held_win": 0,
+        "held_lose": 2842,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -486.41
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -835.08
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -688.79,
+        "avg_pnl": -0.178,
+        "scratch_n": 2309,
+        "held": 1561,
+        "held_win": 0,
+        "held_lose": 1561,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -256.63
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -432.15
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -632.7,
+        "avg_pnl": -0.1931,
+        "scratch_n": 1995,
+        "held": 1281,
+        "held_win": 0,
+        "held_lose": 1281,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -229.78
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -402.92
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "tp45",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "tp50": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -1311.49,
+        "avg_pnl": -0.1835,
+        "scratch_n": 3911,
+        "held": 3235,
+        "held_win": 0,
+        "held_lose": 3235,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -555.61
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -755.88
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -626.54,
+        "avg_pnl": -0.1619,
+        "scratch_n": 2108,
+        "held": 1762,
+        "held_win": 0,
+        "held_lose": 1762,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -234.15
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -392.4
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -684.95,
+        "avg_pnl": -0.2091,
+        "scratch_n": 1803,
+        "held": 1473,
+        "held_win": 0,
+        "held_lose": 1473,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -321.47
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -363.48
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "tp50",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "tp55": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -1327.83,
+        "avg_pnl": -0.1858,
+        "scratch_n": 3543,
+        "held": 3603,
+        "held_win": 0,
+        "held_lose": 3603,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -620.77
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -707.06
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -611.65,
+        "avg_pnl": -0.158,
+        "scratch_n": 1917,
+        "held": 1953,
+        "held_win": 0,
+        "held_lose": 1953,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -220.01
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -391.64
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -716.18,
+        "avg_pnl": -0.2186,
+        "scratch_n": 1626,
+        "held": 1650,
+        "held_win": 0,
+        "held_lose": 1650,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -400.76
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -315.42
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "tp55",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "tp45_stop90": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -784.55,
+        "avg_pnl": -0.1098,
+        "scratch_n": 4536,
+        "held": 2610,
+        "held_win": 0,
+        "held_lose": 2610,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -315.82
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -468.73
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -364.37,
+        "avg_pnl": -0.0942,
+        "scratch_n": 2449,
+        "held": 1421,
+        "held_win": 0,
+        "held_lose": 1421,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -153.17
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -211.2
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -420.19,
+        "avg_pnl": -0.1283,
+        "scratch_n": 2087,
+        "held": 1189,
+        "held_win": 0,
+        "held_lose": 1189,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -162.65
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -257.53
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "tp45_stop90",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "tp45_h2": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -2214.37,
+        "avg_pnl": -0.3099,
+        "scratch_n": 4304,
+        "held": 2842,
+        "held_win": 0,
+        "held_lose": 2842,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -953.65
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -1260.72
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -1170.2,
+        "avg_pnl": -0.3024,
+        "scratch_n": 2309,
+        "held": 1561,
+        "held_win": 0,
+        "held_lose": 1561,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -508.86
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -661.34
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -1044.17,
+        "avg_pnl": -0.3187,
+        "scratch_n": 1995,
+        "held": 1281,
+        "held_win": 0,
+        "held_lose": 1281,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -444.79
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -599.38
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "tp45_h2",
+      "haircut": 0.02,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    },
+    "rel12": {
+      "all": {
+        "n": 7146,
+        "pnl_usd": -3412.38,
+        "avg_pnl": -0.4775,
+        "scratch_n": 4677,
+        "held": 2469,
+        "held_win": 0,
+        "held_lose": 2469,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_max": 0.6246,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045,
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3654,
+            "pnl_usd": -1553.87
+          },
+          "eth": {
+            "n": 3492,
+            "pnl_usd": -1858.51
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3870,
+        "pnl_usd": -1950.33,
+        "avg_pnl": -0.504,
+        "scratch_n": 2505,
+        "held": 1365,
+        "held_win": 0,
+        "held_lose": 1365,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6755,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.2881,
+        "avg_other": 0.7016,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1984,
+            "pnl_usd": -903.43
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -1046.9
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -1462.05,
+        "avg_pnl": -0.4463,
+        "scratch_n": 2172,
+        "held": 1104,
+        "held_win": 0,
+        "held_lose": 1104,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -650.44
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -811.61
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "mode": "rel12",
+      "haircut": 0.0,
+      "path": {
+        "n": 7146,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6047,
+        "bounce_50": 0.5473,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2883,
+        "avg_max": 0.6246,
+        "avg_px": 0.2887,
+        "avg_other": 0.6995,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7239
+      }
+    }
+  },
+  "kind_split_tp45": {
+    "coin_flip": {
+      "all": {
+        "n": 7045,
+        "pnl_usd": -1313.39,
+        "avg_pnl": -0.1864,
+        "scratch_n": 4243,
+        "held": 2802,
+        "held_win": 0,
+        "held_lose": 2802,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6793,
+        "bounce_45": 0.6045,
+        "bounce_50": 0.5472,
+        "bounce_55": 0.4968,
+        "avg_px": 0.2889,
+        "avg_other": 0.6991,
+        "avg_max": 0.6247,
+        "avg_left": 265.3,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7045
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3631,
+            "pnl_usd": -476.75
+          },
+          "eth": {
+            "n": 3414,
+            "pnl_usd": -836.64
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3797,
+        "pnl_usd": -688.22,
+        "avg_pnl": -0.1813,
+        "scratch_n": 2264,
+        "held": 1533,
+        "held_win": 0,
+        "held_lose": 1533,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.675,
+        "bounce_45": 0.5981,
+        "bounce_50": 0.5439,
+        "bounce_55": 0.4954,
+        "avg_px": 0.2883,
+        "avg_other": 0.7011,
+        "avg_max": 0.6258,
+        "avg_left": 265.0,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3797
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1967,
+            "pnl_usd": -242.26
+          },
+          "eth": {
+            "n": 1830,
+            "pnl_usd": -445.96
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3248,
+        "pnl_usd": -625.17,
+        "avg_pnl": -0.1925,
+        "scratch_n": 1979,
+        "held": 1269,
+        "held_win": 0,
+        "held_lose": 1269,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6844,
+        "bounce_45": 0.6121,
+        "bounce_50": 0.5511,
+        "bounce_55": 0.4985,
+        "avg_px": 0.2896,
+        "avg_other": 0.6968,
+        "avg_max": 0.6234,
+        "avg_left": 265.7,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3248
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1664,
+            "pnl_usd": -234.49
+          },
+          "eth": {
+            "n": 1584,
+            "pnl_usd": -390.68
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "bounce_45": 0.6045,
+      "settle_wr": 0.2889
+    },
+    "fade_dog": {
+      "all": {
+        "n": 101,
+        "pnl_usd": -8.1,
+        "avg_pnl": -0.0802,
+        "scratch_n": 61,
+        "held": 40,
+        "held_win": 0,
+        "held_lose": 40,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6733,
+        "bounce_45": 0.6139,
+        "bounce_50": 0.5545,
+        "bounce_55": 0.505,
+        "avg_px": 0.275,
+        "avg_other": 0.7261,
+        "avg_max": 0.6159,
+        "avg_left": 255.0,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 101
+        },
+        "by_asset": {
+          "btc": {
+            "n": 23,
+            "pnl_usd": -9.66
+          },
+          "eth": {
+            "n": 78,
+            "pnl_usd": 1.56
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 58,
+        "pnl_usd": -11.26,
+        "avg_pnl": -0.1941,
+        "scratch_n": 33,
+        "held": 25,
+        "held_win": 0,
+        "held_lose": 25,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6724,
+        "bounce_45": 0.5862,
+        "bounce_50": 0.5345,
+        "bounce_55": 0.4655,
+        "avg_px": 0.2758,
+        "avg_other": 0.731,
+        "avg_max": 0.579,
+        "avg_left": 257.2,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 58
+        },
+        "by_asset": {
+          "btc": {
+            "n": 14,
+            "pnl_usd": -13.36
+          },
+          "eth": {
+            "n": 44,
+            "pnl_usd": 2.1
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 43,
+        "pnl_usd": 3.16,
+        "avg_pnl": 0.0735,
+        "scratch_n": 28,
+        "held": 15,
+        "held_win": 0,
+        "held_lose": 15,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6744,
+        "bounce_45": 0.6512,
+        "bounce_50": 0.5814,
+        "bounce_55": 0.5581,
+        "avg_px": 0.2738,
+        "avg_other": 0.7195,
+        "avg_max": 0.6656,
+        "avg_left": 252.1,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 43
+        },
+        "by_asset": {
+          "btc": {
+            "n": 9,
+            "pnl_usd": 3.7
+          },
+          "eth": {
+            "n": 34,
+            "pnl_usd": -0.54
+          }
+        },
+        "ev_ok": true
+      },
+      "robust": false,
+      "bounce_45": 0.6139,
+      "settle_wr": 0.2475
+    }
+  },
+  "entry_variants_tp45": {
+    "early60": {
+      "all": {
+        "n": 5784,
+        "pnl_usd": -877.2,
+        "avg_pnl": -0.1517,
+        "scratch_n": 3535,
+        "held": 2249,
+        "held_win": 0,
+        "held_lose": 2249,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6867,
+        "bounce_45": 0.6136,
+        "bounce_50": 0.5557,
+        "bounce_55": 0.5041,
+        "avg_px": 0.2888,
+        "avg_other": 0.7001,
+        "avg_max": 0.6286,
+        "avg_left": 274.3,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 5711,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3034,
+            "pnl_usd": -228.13
+          },
+          "eth": {
+            "n": 2750,
+            "pnl_usd": -649.07
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3121,
+        "pnl_usd": -446.26,
+        "avg_pnl": -0.143,
+        "scratch_n": 1893,
+        "held": 1228,
+        "held_win": 0,
+        "held_lose": 1228,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6841,
+        "bounce_45": 0.6081,
+        "bounce_50": 0.554,
+        "bounce_55": 0.5034,
+        "avg_px": 0.2884,
+        "avg_other": 0.702,
+        "avg_max": 0.6296,
+        "avg_left": 274.1,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3067,
+          "fade_dog": 54
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1659,
+            "pnl_usd": -132.24
+          },
+          "eth": {
+            "n": 1462,
+            "pnl_usd": -314.02
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 2663,
+        "pnl_usd": -430.94,
+        "avg_pnl": -0.1618,
+        "scratch_n": 1642,
+        "held": 1021,
+        "held_win": 0,
+        "held_lose": 1021,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6898,
+        "bounce_45": 0.62,
+        "bounce_50": 0.5576,
+        "bounce_55": 0.5051,
+        "avg_px": 0.2892,
+        "avg_other": 0.6979,
+        "avg_max": 0.6274,
+        "avg_left": 274.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 2644,
+          "fade_dog": 19
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1375,
+            "pnl_usd": -95.89
+          },
+          "eth": {
+            "n": 1288,
+            "pnl_usd": -335.05
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "path": {
+        "n": 5784,
+        "bounce_40": 0.6867,
+        "bounce_45": 0.6136,
+        "bounce_50": 0.5557,
+        "bounce_55": 0.5041,
+        "settle_wr_if_hold": 0.2906,
+        "avg_max": 0.6286,
+        "avg_px": 0.2888,
+        "avg_other": 0.7001,
+        "avg_left": 274.3,
+        "mid_band_frac": 0.6703
+      }
+    },
+    "early120": {
+      "all": {
+        "n": 7866,
+        "pnl_usd": -1451.9,
+        "avg_pnl": -0.1846,
+        "scratch_n": 4719,
+        "held": 3147,
+        "held_win": 0,
+        "held_lose": 3147,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6756,
+        "bounce_45": 0.6022,
+        "bounce_50": 0.5445,
+        "bounce_55": 0.4943,
+        "avg_px": 0.2883,
+        "avg_other": 0.6999,
+        "avg_max": 0.6224,
+        "avg_left": 258.9,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7750,
+          "fade_dog": 114,
+          "cheap_lead": 1,
+          "no_oracle": 1
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3981,
+            "pnl_usd": -613.76
+          },
+          "eth": {
+            "n": 3885,
+            "pnl_usd": -838.15
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 4265,
+        "pnl_usd": -783.68,
+        "avg_pnl": -0.1837,
+        "scratch_n": 2530,
+        "held": 1735,
+        "held_win": 0,
+        "held_lose": 1735,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6701,
+        "bounce_45": 0.5951,
+        "bounce_50": 0.5402,
+        "bounce_55": 0.4914,
+        "avg_px": 0.2876,
+        "avg_other": 0.702,
+        "avg_max": 0.6227,
+        "avg_left": 258.5,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 4186,
+          "fade_dog": 78,
+          "no_oracle": 1
+        },
+        "by_asset": {
+          "btc": {
+            "n": 2155,
+            "pnl_usd": -376.78
+          },
+          "eth": {
+            "n": 2110,
+            "pnl_usd": -406.9
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3601,
+        "pnl_usd": -668.23,
+        "avg_pnl": -0.1856,
+        "scratch_n": 2189,
+        "held": 1412,
+        "held_win": 0,
+        "held_lose": 1412,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.682,
+        "bounce_45": 0.6107,
+        "bounce_50": 0.5496,
+        "bounce_55": 0.4976,
+        "avg_px": 0.2892,
+        "avg_other": 0.6973,
+        "avg_max": 0.6219,
+        "avg_left": 259.3,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3564,
+          "fade_dog": 36,
+          "cheap_lead": 1
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1826,
+            "pnl_usd": -236.98
+          },
+          "eth": {
+            "n": 1775,
+            "pnl_usd": -431.25
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "path": {
+        "n": 7866,
+        "bounce_40": 0.6756,
+        "bounce_45": 0.6022,
+        "bounce_50": 0.5445,
+        "bounce_55": 0.4943,
+        "settle_wr_if_hold": 0.2845,
+        "avg_max": 0.6224,
+        "avg_px": 0.2883,
+        "avg_other": 0.6999,
+        "avg_left": 258.9,
+        "mid_band_frac": 0.7474
+      }
+    },
+    "fav_to_92": {
+      "all": {
+        "n": 7151,
+        "pnl_usd": -1319.78,
+        "avg_pnl": -0.1846,
+        "scratch_n": 4306,
+        "held": 2845,
+        "held_win": 0,
+        "held_lose": 2845,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6791,
+        "bounce_45": 0.6045,
+        "bounce_50": 0.5472,
+        "bounce_55": 0.4969,
+        "avg_px": 0.2886,
+        "avg_other": 0.6997,
+        "avg_max": 0.6245,
+        "avg_left": 265.2,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7049,
+          "fade_dog": 102
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3658,
+            "pnl_usd": -488.95
+          },
+          "eth": {
+            "n": 3493,
+            "pnl_usd": -830.83
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3872,
+        "pnl_usd": -685.0,
+        "avg_pnl": -0.1769,
+        "scratch_n": 2310,
+        "held": 1562,
+        "held_win": 0,
+        "held_lose": 1562,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6754,
+        "bounce_45": 0.5987,
+        "bounce_50": 0.5447,
+        "bounce_55": 0.4959,
+        "avg_px": 0.288,
+        "avg_other": 0.7017,
+        "avg_max": 0.6255,
+        "avg_left": 264.8,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3799,
+          "fade_dog": 73
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1986,
+            "pnl_usd": -252.84
+          },
+          "eth": {
+            "n": 1886,
+            "pnl_usd": -432.15
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3279,
+        "pnl_usd": -634.79,
+        "avg_pnl": -0.1936,
+        "scratch_n": 1996,
+        "held": 1283,
+        "held_win": 0,
+        "held_lose": 1283,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6834,
+        "bounce_45": 0.6115,
+        "bounce_50": 0.5502,
+        "bounce_55": 0.498,
+        "avg_px": 0.2893,
+        "avg_other": 0.6973,
+        "avg_max": 0.6233,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3250,
+          "fade_dog": 29
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1672,
+            "pnl_usd": -236.11
+          },
+          "eth": {
+            "n": 1607,
+            "pnl_usd": -398.68
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "path": {
+        "n": 7151,
+        "bounce_40": 0.6791,
+        "bounce_45": 0.6045,
+        "bounce_50": 0.5472,
+        "bounce_55": 0.4969,
+        "settle_wr_if_hold": 0.2884,
+        "avg_max": 0.6245,
+        "avg_px": 0.2886,
+        "avg_other": 0.6997,
+        "avg_left": 265.2,
+        "mid_band_frac": 0.7235
+      }
+    },
+    "size5": {
+      "all": {
+        "n": 7116,
+        "pnl_usd": -1305.09,
+        "avg_pnl": -0.1834,
+        "scratch_n": 4275,
+        "held": 2841,
+        "held_win": 0,
+        "held_lose": 2841,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6775,
+        "bounce_45": 0.6031,
+        "bounce_50": 0.5461,
+        "bounce_55": 0.4958,
+        "avg_px": 0.2878,
+        "avg_other": 0.7012,
+        "avg_max": 0.6237,
+        "avg_left": 264.9,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 7008,
+          "fade_dog": 108
+        },
+        "by_asset": {
+          "btc": {
+            "n": 3652,
+            "pnl_usd": -476.83
+          },
+          "eth": {
+            "n": 3464,
+            "pnl_usd": -828.26
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3853,
+        "pnl_usd": -658.99,
+        "avg_pnl": -0.171,
+        "scratch_n": 2295,
+        "held": 1558,
+        "held_win": 0,
+        "held_lose": 1558,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.674,
+        "bounce_45": 0.5977,
+        "bounce_50": 0.5437,
+        "bounce_55": 0.4952,
+        "avg_px": 0.2871,
+        "avg_other": 0.7033,
+        "avg_max": 0.6248,
+        "avg_left": 264.6,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3773,
+          "fade_dog": 80
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1983,
+            "pnl_usd": -250.13
+          },
+          "eth": {
+            "n": 1870,
+            "pnl_usd": -408.86
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3263,
+        "pnl_usd": -646.1,
+        "avg_pnl": -0.198,
+        "scratch_n": 1980,
+        "held": 1283,
+        "held_win": 0,
+        "held_lose": 1283,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6816,
+        "bounce_45": 0.6096,
+        "bounce_50": 0.5489,
+        "bounce_55": 0.4965,
+        "avg_px": 0.2886,
+        "avg_other": 0.6987,
+        "avg_max": 0.6223,
+        "avg_left": 265.4,
+        "mid_band_frac": null,
+        "kind": {
+          "coin_flip": 3235,
+          "fade_dog": 28
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1669,
+            "pnl_usd": -226.7
+          },
+          "eth": {
+            "n": 1594,
+            "pnl_usd": -419.4
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "path": {
+        "n": 7116,
+        "bounce_40": 0.6775,
+        "bounce_45": 0.6031,
+        "bounce_50": 0.5461,
+        "bounce_55": 0.4958,
+        "settle_wr_if_hold": 0.2875,
+        "avg_max": 0.6237,
+        "avg_px": 0.2878,
+        "avg_other": 0.7012,
+        "avg_left": 264.9,
+        "mid_band_frac": 0.723
+      }
+    },
+    "pre_twap60": {
+      "all": {
+        "n": 13122,
+        "pnl_usd": -2600.37,
+        "avg_pnl": -0.1982,
+        "scratch_n": 7860,
+        "held": 5262,
+        "held_win": 0,
+        "held_lose": 5262,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6762,
+        "bounce_45": 0.6014,
+        "bounce_50": 0.5446,
+        "bounce_55": 0.4954,
+        "avg_px": 0.2897,
+        "avg_other": 0.6998,
+        "avg_max": 0.6239,
+        "avg_left": 262.7,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 13122
+        },
+        "by_asset": {
+          "btc": {
+            "n": 6729,
+            "pnl_usd": -1250.03
+          },
+          "eth": {
+            "n": 6393,
+            "pnl_usd": -1350.34
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 9846,
+        "pnl_usd": -1967.67,
+        "avg_pnl": -0.1998,
+        "scratch_n": 5865,
+        "held": 3981,
+        "held_win": 0,
+        "held_lose": 3981,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6737,
+        "bounce_45": 0.5979,
+        "bounce_50": 0.5427,
+        "bounce_55": 0.4944,
+        "avg_px": 0.2898,
+        "avg_other": 0.7007,
+        "avg_max": 0.6241,
+        "avg_left": 261.7,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 9846
+        },
+        "by_asset": {
+          "btc": {
+            "n": 5059,
+            "pnl_usd": -1020.26
+          },
+          "eth": {
+            "n": 4787,
+            "pnl_usd": -947.42
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 3276,
+        "pnl_usd": -632.7,
+        "avg_pnl": -0.1931,
+        "scratch_n": 1995,
+        "held": 1281,
+        "held_win": 0,
+        "held_lose": 1281,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6838,
+        "bounce_45": 0.6117,
+        "bounce_50": 0.5504,
+        "bounce_55": 0.4982,
+        "avg_px": 0.2894,
+        "avg_other": 0.6971,
+        "avg_max": 0.6234,
+        "avg_left": 265.6,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 3276
+        },
+        "by_asset": {
+          "btc": {
+            "n": 1670,
+            "pnl_usd": -229.78
+          },
+          "eth": {
+            "n": 1606,
+            "pnl_usd": -402.92
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false,
+      "path": {
+        "n": 13122,
+        "bounce_40": 0.6762,
+        "bounce_45": 0.6014,
+        "bounce_50": 0.5446,
+        "bounce_55": 0.4954,
+        "settle_wr_if_hold": 0.2892,
+        "avg_max": 0.6239,
+        "avg_px": 0.2897,
+        "avg_other": 0.6998,
+        "avg_left": 262.7,
+        "mid_band_frac": 0.7305
+      }
+    }
+  },
+  "alts_month_twap60": {
+    "tp45": {
+      "all": {
+        "n": 5588,
+        "pnl_usd": -534.72,
+        "avg_pnl": -0.0957,
+        "scratch_n": 2748,
+        "held": 2840,
+        "held_win": 186,
+        "held_lose": 2654,
+        "settle_wr": 0.0655,
+        "take_win_rate": 0.0655,
+        "bounce_40": 0.558,
+        "bounce_45": 0.4962,
+        "bounce_50": 0.4349,
+        "bounce_55": 0.3545,
+        "avg_px": 0.2719,
+        "avg_other": 0.59,
+        "avg_max": 0.4395,
+        "avg_left": 254.7,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 5588
+        },
+        "by_asset": {
+          "bnb": {
+            "n": 847,
+            "pnl_usd": -29.83
+          },
+          "doge": {
+            "n": 942,
+            "pnl_usd": 47.85
+          },
+          "sol": {
+            "n": 2362,
+            "pnl_usd": -493.73
+          },
+          "xrp": {
+            "n": 1437,
+            "pnl_usd": -59.02
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3574,
+        "pnl_usd": -676.95,
+        "avg_pnl": -0.1894,
+        "scratch_n": 1695,
+        "held": 1879,
+        "held_win": 120,
+        "held_lose": 1759,
+        "settle_wr": 0.0639,
+        "take_win_rate": 0.0639,
+        "bounce_40": 0.542,
+        "bounce_45": 0.4801,
+        "bounce_50": 0.4205,
+        "bounce_55": 0.3419,
+        "avg_px": 0.2712,
+        "avg_other": 0.5891,
+        "avg_max": 0.4349,
+        "avg_left": 256.2,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 3574
+        },
+        "by_asset": {
+          "bnb": {
+            "n": 541,
+            "pnl_usd": -101.94
+          },
+          "doge": {
+            "n": 595,
+            "pnl_usd": 51.35
+          },
+          "sol": {
+            "n": 1468,
+            "pnl_usd": -488.95
+          },
+          "xrp": {
+            "n": 970,
+            "pnl_usd": -137.41
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 2014,
+        "pnl_usd": 142.22,
+        "avg_pnl": 0.0706,
+        "scratch_n": 1053,
+        "held": 961,
+        "held_win": 66,
+        "held_lose": 895,
+        "settle_wr": 0.0687,
+        "take_win_rate": 0.0687,
+        "bounce_40": 0.5864,
+        "bounce_45": 0.5248,
+        "bounce_50": 0.4603,
+        "bounce_55": 0.3769,
+        "avg_px": 0.2731,
+        "avg_other": 0.5917,
+        "avg_max": 0.4477,
+        "avg_left": 252.1,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 2014
+        },
+        "by_asset": {
+          "bnb": {
+            "n": 306,
+            "pnl_usd": 72.11
+          },
+          "doge": {
+            "n": 347,
+            "pnl_usd": -3.5
+          },
+          "sol": {
+            "n": 894,
+            "pnl_usd": -4.78
+          },
+          "xrp": {
+            "n": 467,
+            "pnl_usd": 78.39
+          }
+        },
+        "ev_ok": true
+      },
+      "robust": false
+    },
+    "hold": {
+      "all": {
+        "n": 5588,
+        "pnl_usd": -332.2,
+        "avg_pnl": -0.0594,
+        "scratch_n": 0,
+        "held": 5588,
+        "held_win": 1558,
+        "held_lose": 4030,
+        "settle_wr": 0.2788,
+        "take_win_rate": 0.2788,
+        "bounce_40": 0.558,
+        "bounce_45": 0.4962,
+        "bounce_50": 0.4349,
+        "bounce_55": 0.3545,
+        "avg_px": 0.2719,
+        "avg_other": 0.59,
+        "avg_max": 0.4395,
+        "avg_left": 254.7,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 5588
+        },
+        "by_asset": {
+          "bnb": {
+            "n": 847,
+            "pnl_usd": -29.85
+          },
+          "doge": {
+            "n": 942,
+            "pnl_usd": 88.96
+          },
+          "sol": {
+            "n": 2362,
+            "pnl_usd": -429.14
+          },
+          "xrp": {
+            "n": 1437,
+            "pnl_usd": 37.83
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 3574,
+        "pnl_usd": -427.57,
+        "avg_pnl": -0.1196,
+        "scratch_n": 0,
+        "held": 3574,
+        "held_win": 976,
+        "held_lose": 2598,
+        "settle_wr": 0.2731,
+        "take_win_rate": 0.2731,
+        "bounce_40": 0.542,
+        "bounce_45": 0.4801,
+        "bounce_50": 0.4205,
+        "bounce_55": 0.3419,
+        "avg_px": 0.2712,
+        "avg_other": 0.5891,
+        "avg_max": 0.4349,
+        "avg_left": 256.2,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 3574
+        },
+        "by_asset": {
+          "bnb": {
+            "n": 541,
+            "pnl_usd": -53.77
+          },
+          "doge": {
+            "n": 595,
+            "pnl_usd": 71.7
+          },
+          "sol": {
+            "n": 1468,
+            "pnl_usd": -420.39
+          },
+          "xrp": {
+            "n": 970,
+            "pnl_usd": -25.12
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 2014,
+        "pnl_usd": 95.37,
+        "avg_pnl": 0.0474,
+        "scratch_n": 0,
+        "held": 2014,
+        "held_win": 582,
+        "held_lose": 1432,
+        "settle_wr": 0.289,
+        "take_win_rate": 0.289,
+        "bounce_40": 0.5864,
+        "bounce_45": 0.5248,
+        "bounce_50": 0.4603,
+        "bounce_55": 0.3769,
+        "avg_px": 0.2731,
+        "avg_other": 0.5917,
+        "avg_max": 0.4477,
+        "avg_left": 252.1,
+        "mid_band_frac": null,
+        "kind": {
+          "no_oracle": 2014
+        },
+        "by_asset": {
+          "bnb": {
+            "n": 306,
+            "pnl_usd": 23.91
+          },
+          "doge": {
+            "n": 347,
+            "pnl_usd": 17.26
+          },
+          "sol": {
+            "n": 894,
+            "pnl_usd": -8.75
+          },
+          "xrp": {
+            "n": 467,
+            "pnl_usd": 62.95
+          }
+        },
+        "ev_ok": true
+      },
+      "robust": false
+    },
+    "path": {
+      "n": 5588,
+      "bounce_40": 0.558,
+      "bounce_45": 0.4962,
+      "bounce_50": 0.4349,
+      "bounce_55": 0.3545,
+      "settle_wr_if_hold": 0.2788,
+      "avg_max": 0.4395,
+      "avg_px": 0.2719,
+      "avg_other": 0.59,
+      "avg_left": 254.7,
+      "mid_band_frac": 0.6013
+    }
+  },
+  "value_fade_fair_ge_px": {
+    "hold": {
+      "all": {
+        "n": 82,
+        "pnl_usd": -60.2,
+        "avg_pnl": -0.7341,
+        "scratch_n": 0,
+        "held": 82,
+        "held_win": 19,
+        "held_lose": 63,
+        "settle_wr": 0.2317,
+        "take_win_rate": 0.2317,
+        "bounce_40": 0.6829,
+        "bounce_45": 0.6098,
+        "bounce_50": 0.561,
+        "bounce_55": 0.5,
+        "avg_px": 0.2791,
+        "avg_other": 0.7186,
+        "avg_max": 0.6072,
+        "avg_left": 258.8,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 82
+        },
+        "by_asset": {
+          "btc": {
+            "n": 18,
+            "pnl_usd": 20.93
+          },
+          "eth": {
+            "n": 64,
+            "pnl_usd": -81.13
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 49,
+        "pnl_usd": -75.31,
+        "avg_pnl": -1.5369,
+        "scratch_n": 0,
+        "held": 49,
+        "held_win": 8,
+        "held_lose": 41,
+        "settle_wr": 0.1633,
+        "take_win_rate": 0.1633,
+        "bounce_40": 0.6939,
+        "bounce_45": 0.5918,
+        "bounce_50": 0.5306,
+        "bounce_55": 0.449,
+        "avg_px": 0.2796,
+        "avg_other": 0.7232,
+        "avg_max": 0.5629,
+        "avg_left": 260.4,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 49
+        },
+        "by_asset": {
+          "btc": {
+            "n": 13,
+            "pnl_usd": 7.59
+          },
+          "eth": {
+            "n": 36,
+            "pnl_usd": -82.9
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 33,
+        "pnl_usd": 15.11,
+        "avg_pnl": 0.4578,
+        "scratch_n": 0,
+        "held": 33,
+        "held_win": 11,
+        "held_lose": 22,
+        "settle_wr": 0.3333,
+        "take_win_rate": 0.3333,
+        "bounce_40": 0.6667,
+        "bounce_45": 0.6364,
+        "bounce_50": 0.6061,
+        "bounce_55": 0.5758,
+        "avg_px": 0.2783,
+        "avg_other": 0.7117,
+        "avg_max": 0.6731,
+        "avg_left": 256.3,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 33
+        },
+        "by_asset": {
+          "btc": {
+            "n": 5,
+            "pnl_usd": 13.34
+          },
+          "eth": {
+            "n": 28,
+            "pnl_usd": 1.77
+          }
+        },
+        "ev_ok": true
+      },
+      "robust": false
+    },
+    "tp45": {
+      "all": {
+        "n": 82,
+        "pnl_usd": -13.79,
+        "avg_pnl": -0.1682,
+        "scratch_n": 49,
+        "held": 33,
+        "held_win": 0,
+        "held_lose": 33,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6829,
+        "bounce_45": 0.6098,
+        "bounce_50": 0.561,
+        "bounce_55": 0.5,
+        "avg_px": 0.2791,
+        "avg_other": 0.7186,
+        "avg_max": 0.6072,
+        "avg_left": 258.8,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 82
+        },
+        "by_asset": {
+          "btc": {
+            "n": 18,
+            "pnl_usd": -8.87
+          },
+          "eth": {
+            "n": 64,
+            "pnl_usd": -4.92
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 49,
+        "pnl_usd": -11.62,
+        "avg_pnl": -0.2371,
+        "scratch_n": 28,
+        "held": 21,
+        "held_win": 0,
+        "held_lose": 21,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6939,
+        "bounce_45": 0.5918,
+        "bounce_50": 0.5306,
+        "bounce_55": 0.449,
+        "avg_px": 0.2796,
+        "avg_other": 0.7232,
+        "avg_max": 0.5629,
+        "avg_left": 260.4,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 49
+        },
+        "by_asset": {
+          "btc": {
+            "n": 13,
+            "pnl_usd": -10.2
+          },
+          "eth": {
+            "n": 36,
+            "pnl_usd": -1.42
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 33,
+        "pnl_usd": -2.18,
+        "avg_pnl": -0.0659,
+        "scratch_n": 21,
+        "held": 12,
+        "held_win": 0,
+        "held_lose": 12,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6667,
+        "bounce_45": 0.6364,
+        "bounce_50": 0.6061,
+        "bounce_55": 0.5758,
+        "avg_px": 0.2783,
+        "avg_other": 0.7117,
+        "avg_max": 0.6731,
+        "avg_left": 256.3,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 33
+        },
+        "by_asset": {
+          "btc": {
+            "n": 5,
+            "pnl_usd": 1.32
+          },
+          "eth": {
+            "n": 28,
+            "pnl_usd": -3.5
+          }
+        },
+        "ev_ok": false
+      },
+      "robust": false
+    },
+    "tp45_stop90": {
+      "all": {
+        "n": 82,
+        "pnl_usd": -7.64,
+        "avg_pnl": -0.0932,
+        "scratch_n": 52,
+        "held": 30,
+        "held_win": 0,
+        "held_lose": 30,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6829,
+        "bounce_45": 0.6098,
+        "bounce_50": 0.561,
+        "bounce_55": 0.5,
+        "avg_px": 0.2791,
+        "avg_other": 0.7186,
+        "avg_max": 0.6072,
+        "avg_left": 258.8,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 82
+        },
+        "by_asset": {
+          "btc": {
+            "n": 18,
+            "pnl_usd": -7.42
+          },
+          "eth": {
+            "n": 64,
+            "pnl_usd": -0.23
+          }
+        },
+        "ev_ok": false
+      },
+      "train": {
+        "n": 49,
+        "pnl_usd": -8.24,
+        "avg_pnl": -0.1681,
+        "scratch_n": 30,
+        "held": 19,
+        "held_win": 0,
+        "held_lose": 19,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6939,
+        "bounce_45": 0.5918,
+        "bounce_50": 0.5306,
+        "bounce_55": 0.449,
+        "avg_px": 0.2796,
+        "avg_other": 0.7232,
+        "avg_max": 0.5629,
+        "avg_left": 260.4,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 49
+        },
+        "by_asset": {
+          "btc": {
+            "n": 13,
+            "pnl_usd": -8.74
+          },
+          "eth": {
+            "n": 36,
+            "pnl_usd": 0.5
+          }
+        },
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 33,
+        "pnl_usd": 0.6,
+        "avg_pnl": 0.018,
+        "scratch_n": 22,
+        "held": 11,
+        "held_win": 0,
+        "held_lose": 11,
+        "settle_wr": 0.0,
+        "take_win_rate": 0.0,
+        "bounce_40": 0.6667,
+        "bounce_45": 0.6364,
+        "bounce_50": 0.6061,
+        "bounce_55": 0.5758,
+        "avg_px": 0.2783,
+        "avg_other": 0.7117,
+        "avg_max": 0.6731,
+        "avg_left": 256.3,
+        "mid_band_frac": null,
+        "kind": {
+          "fade_dog": 33
+        },
+        "by_asset": {
+          "btc": {
+            "n": 5,
+            "pnl_usd": 1.32
+          },
+          "eth": {
+            "n": 28,
+            "pnl_usd": -0.73
+          }
+        },
+        "ev_ok": true
+      },
+      "robust": false
+    }
+  },
+  "rich_fade_fair_lt_px_tp45": {
+    "all": {
+      "n": 19,
+      "pnl_usd": 5.69,
+      "avg_pnl": 0.2997,
+      "scratch_n": 12,
+      "held": 7,
+      "held_win": 0,
+      "held_lose": 7,
+      "settle_wr": 0.0,
+      "take_win_rate": 0.0,
+      "bounce_40": 0.6316,
+      "bounce_45": 0.6316,
+      "bounce_50": 0.5263,
+      "bounce_55": 0.5263,
+      "avg_px": 0.2573,
+      "avg_other": 0.7584,
+      "avg_max": 0.6531,
+      "avg_left": 238.8,
+      "mid_band_frac": null,
+      "kind": {
+        "fade_dog": 19
+      },
+      "by_asset": {
+        "btc": {
+          "n": 5,
+          "pnl_usd": -0.78
+        },
+        "eth": {
+          "n": 14,
+          "pnl_usd": 6.48
+        }
+      },
+      "ev_ok": true
+    },
+    "train": {
+      "n": 9,
+      "pnl_usd": 0.36,
+      "avg_pnl": 0.0396,
+      "scratch_n": 5,
+      "held": 4,
+      "held_win": 0,
+      "held_lose": 4,
+      "settle_wr": 0.0,
+      "take_win_rate": 0.0,
+      "bounce_40": 0.5556,
+      "bounce_45": 0.5556,
+      "bounce_50": 0.5556,
+      "bounce_55": 0.5556,
+      "avg_px": 0.2554,
+      "avg_other": 0.7733,
+      "avg_max": 0.6666,
+      "avg_left": 239.7,
+      "mid_band_frac": null,
+      "kind": {
+        "fade_dog": 9
+      },
+      "by_asset": {
+        "btc": {
+          "n": 1,
+          "pnl_usd": -3.17
+        },
+        "eth": {
+          "n": 8,
+          "pnl_usd": 3.52
+        }
+      },
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 10,
+      "pnl_usd": 5.34,
+      "avg_pnl": 0.5338,
+      "scratch_n": 7,
+      "held": 3,
+      "held_win": 0,
+      "held_lose": 3,
+      "settle_wr": 0.0,
+      "take_win_rate": 0.0,
+      "bounce_40": 0.7,
+      "bounce_45": 0.7,
+      "bounce_50": 0.5,
+      "bounce_55": 0.5,
+      "avg_px": 0.259,
+      "avg_other": 0.745,
+      "avg_max": 0.641,
+      "avg_left": 238.0,
+      "mid_band_frac": null,
+      "kind": {
+        "fade_dog": 10
+      },
+      "by_asset": {
+        "btc": {
+          "n": 4,
+          "pnl_usd": 2.38
+        },
+        "eth": {
+          "n": 6,
+          "pnl_usd": 2.96
+        }
+      },
+      "ev_ok": true
+    },
+    "robust": true
+  },
+  "findings": {
+    "headline_cantonese": "\u7a97\u958b 90s \u5167 20\u201332\u00a2 \u5c0d\u4f4f 62\u201388\u00a2 \u5927\u71b1\uff1asettle \u52dd\u7387 0.2883\uff0c\u4e4b\u5f8c\u898b\u904e \u226545\u00a2 \u6bd4\u4f8b 0.6047\uff0c\u6301\u6709\u5230\u7d50\u7b97 $-1092\uff0c45\u00a2\u6b62\u8cfa $-1321\u3002 \u5514\u4e0a\u5be6\u76e4\u3002",
+    "path_vs_settle": "User is right that the wounded dog often reprints 45¢+ (60% BTC/ETH). Those bounces ARE the winning paths: after a 40¢ TP every leftover hold lost. Taking 40–45¢ therefore clips nearly every $1 winner into a small scalp, and still eats dogs that never bounce. Hold stays the least-bad exit and is still −EV: avg 28.9¢ vs 28.8% settle WR; fee BE is ~30.3%. The 70/30 book is roughly efficient; Chainlink 6bps is not even registered yet (98.6% of takes are |lead|<6 coin-flip).",
+    "executable": "20-30¢ CLOB is thinner than 45-55. Live FOK already kills dog books. 2¢ print-to-bid haircut makes TP much worse.",
+    "vs_current_twap": "72% of these windows also printed 45-55 in the TWAP 120-280s window. A bounce engine fights the same 5m clock.",
+    "top_strategy": "No. Do not ship. Do not default-on beside 45-55/6bps scratch."
+  }
+}

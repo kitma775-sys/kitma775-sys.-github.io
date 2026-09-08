@@ -1,0 +1,41 @@
+{
+  "strategy_rev": 57,
+  "ship": true,
+  "researched_at_utc": "2026-09-01T15:20:00Z",
+  "question": "More fills and fewer FOK kills without cutting first-cross take WR.",
+  "answer": "Do not widen 6bps / 45–55 / leftover / delay. Remaining +EV conversion is CLOB stay-alive: prewarm used to break the socket; initial_dump=false then blanks current BTC/ETH books until deltas, so the 45–55 flash is gone and leftover 49¢ dies on first-cross gates. Official market WS supports operation subscribe/unsubscribe in place. Unsubscribe first so a shard never briefly holds 8+new. Sleeve, 250ms FOK, no_cheaper, confirm overlay unchanged.",
+  "why_few_trades": [
+    "mid-window books already 58¢+ → twap_band",
+    "lead < 6bps → twap_lead",
+    "leftover cheaper / up-requote after first print → keep killing (WR)"
+  ],
+  "why_not_sleeve": {
+    "bps_4": "twap_freq.json grid is 6bps only; 4bps is more trades lower WR",
+    "band_40_60": "dogs",
+    "chase_cheaper_leftover": "rev56_fok.json 35% cheaper within 1s",
+    "skip_fok_delay": "same leftover persistence",
+    "restore_alts": "rev54 holdout worse",
+    "reconnect_is_not_volume": "1013 / reconnect is the same rare sleeve missed, not a reason to add coins"
+  },
+  "ws": {
+    "before": "now_chunk != chunk → break → reconnect; books empty until price_change",
+    "after": "ws_sub_plan keep|resub|idle; resub = unsubscribe drop then subscribe add",
+    "initial_dump": false,
+    "http_prime": "unchanged; still snapshots newly added tokens"
+  },
+  "do_not": [
+    "restore_alts",
+    "chase_cheaper_leftover",
+    "bps_4",
+    "band_40_60",
+    "min_left_below_120",
+    "dump_mid90",
+    "twap_reverse_on",
+    "price_sl_8c",
+    "turn_taker_fok_off",
+    "skip_fok_delay",
+    "wipe_telegram_assets",
+    "flip_live_trading",
+    "custom_feature_enabled_false_blind"
+  ]
+}

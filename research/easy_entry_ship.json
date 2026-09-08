@@ -1,0 +1,74 @@
+{
+  "strategy_rev": 60,
+  "ship": false,
+  "pick": "lead_5_5",
+  "winners": [
+    "lead_5_5",
+    "lead_5",
+    "lead_5_5_left150",
+    "band_44_56"
+  ],
+  "researched_at_utc": "2026-09-05T05:54:51Z",
+  "source": "research/easy_entry.json",
+  "question": "Ease entry without cutting holdout WR or PnL vs frozen 6bps 45–55.",
+  "why": "Frozen sleeve 6bps / 45–55 / dump90+oracle. Easier entry only ships if EXTRA windows (never made 6bps 45–55) have orig-hold WR ≥0.85 on the 7d holdout, train+holdout extra +EV, leftover 1s not worse than core+15pp, and combo holdout PnL ≥ frozen +$5. Dump overlay can fake 100% residual WR. Live drought is twap_band (ask 68–96¢, lead 1–4bps) — 5.5bps does not buy a 96¢ ask. 4bps / 40–60 / leftover chase stay forbidden.",
+  "baseline_holdout": {
+    "n": 349,
+    "pnl5": 266.3267,
+    "take_wr": 1.0,
+    "ev_ok": true
+  },
+  "baseline_orig_hold_wr_holdout": 0.9358,
+  "core": {
+    "min_lead_bps": 6.0,
+    "n": 593,
+    "n_holdout": 349,
+    "orig_hold_wr_holdout": 0.9358,
+    "pnl5_holdout": 266.3267,
+    "cheap_1s": 0.3457
+  },
+  "lead_5_5": {
+    "delta_n": 124,
+    "d_train": 26.15,
+    "d_holdout": 63.35,
+    "extra_orig_hold_wr_holdout": 0.92,
+    "extra_orig_hold_n_holdout": 25,
+    "extra_cheap_1s": 0.2661,
+    "core_cheap_1s": 0.3457,
+    "beats": true
+  },
+  "live_drought_is_band_not_lead": true,
+  "live_today_skip_is_band": true,
+  "live_skip": {
+    "reason": "twap_band",
+    "ask": 0.96,
+    "lead_bps": 3.737
+  },
+  "live_last_fill_hours": 16.0,
+  "leftover_not_the_fix": true,
+  "persist_fair_did_not_beat_holdout_pnl": true,
+  "lead_4_beats": false,
+  "band_40_60_beats": false,
+  "do_not": [
+    "lead_4bps",
+    "lead_4",
+    "band_40_60",
+    "chase_leftover",
+    "up_requote_2ticks",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "favorite_97_98",
+    "autodial_bps_without_extra_orig_hold",
+    "autodial_live_without_owner"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [0.45, 0.55],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0
+  }
+}

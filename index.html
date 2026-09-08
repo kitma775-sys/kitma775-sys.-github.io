@@ -1,11 +1,569 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>My Test Site</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>同類 Bot 可行性研究｜0xSurferX Polymarket 套利文對賬</title>
+  <meta name="description" content="根據 0xSurferX 2026-08-23 X Article，對公開錢包、撮合延遲、費用公式與建設同類 bot 的可行性做頂層對賬。研究用途，不下單。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #16120c;
+      --paper: #f3ead7;
+      --rule: #c9b48a;
+      --stamp: #9c2b16;
+      --ok: #1f6b3a;
+      --warn: #8a5a12;
+      --muted: #6b6256;
+      --card: #fffaf0;
+      --chip: #efe4cc;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+      line-height: 1.65;
+      font-size: 17px;
+    }
+    .sheet {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 36px 22px 80px;
+    }
+    header.mast {
+      border-bottom: 3px solid var(--ink);
+      padding-bottom: 18px;
+      margin-bottom: 28px;
+    }
+    .kicker {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--stamp);
+      font-weight: 600;
+    }
+    h1 {
+      font-family: "Noto Serif TC", serif;
+      font-size: clamp(28px, 5vw, 44px);
+      line-height: 1.2;
+      margin: 10px 0 8px;
+      font-weight: 700;
+    }
+    .dek { color: var(--muted); font-size: 16px; max-width: 42em; }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-top: 16px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stamp {
+      display: inline-block;
+      border: 2px solid var(--stamp);
+      color: var(--stamp);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      transform: rotate(-2deg);
+      margin: 8px 8px 0 0;
+    }
+    .stamp.ok { border-color: var(--ok); color: var(--ok); }
+    .stamp.warn { border-color: var(--warn); color: var(--warn); }
+    h2 {
+      font-family: "Noto Serif TC", serif;
+      font-size: 26px;
+      margin: 42px 0 12px;
+      border-top: 1px solid var(--rule);
+      padding-top: 22px;
+    }
+    h3 { font-size: 18px; margin: 26px 0 8px; }
+    p { margin: 0 0 14px; }
+    a { color: var(--stamp); }
+    .verdict {
+      background: var(--card);
+      border: 1px solid var(--ink);
+      padding: 22px 22px 8px;
+      box-shadow: 6px 6px 0 rgba(22, 18, 12, 0.08);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin: 16px 0 22px;
+    }
+    .tile {
+      background: var(--chip);
+      border: 1px solid var(--rule);
+      padding: 14px 14px 10px;
+    }
+    .tile b {
+      display: block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .tile span { font-size: 13px; color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--card);
+      margin: 12px 0 20px;
+    }
+    th, td {
+      border: 1px solid var(--rule);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: var(--chip);
+    }
+    .num { font-family: "IBM Plex Mono", monospace; white-space: nowrap; }
+    .good { color: var(--ok); font-weight: 700; }
+    .bad { color: var(--stamp); font-weight: 700; }
+    .mid { color: var(--warn); font-weight: 700; }
+    ul, ol { padding-left: 1.2em; }
+    li { margin-bottom: 6px; }
+    code, .mono { font-family: "IBM Plex Mono", monospace; font-size: 0.92em; }
+    pre {
+      background: #1b1712;
+      color: #f3ead7;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+    .callout {
+      border-left: 4px solid var(--stamp);
+      background: #f7e3d4;
+      padding: 12px 14px;
+      margin: 16px 0;
+    }
+    .pipe {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 16px 0 22px;
+    }
+    .pipe div {
+      background: var(--card);
+      border: 1px solid var(--ink);
+      padding: 12px;
+      min-height: 108px;
+    }
+    .pipe strong { display: block; font-size: 13px; margin-bottom: 6px; }
+    .pipe span { font-size: 13px; color: var(--muted); }
+    @media (max-width: 760px) {
+      .pipe { grid-template-columns: 1fr 1fr; }
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+      margin: 12px 0;
+    }
+    label { font-size: 13px; color: var(--muted); display: block; }
+    input, select, button {
+      font-family: inherit;
+      font-size: 15px;
+      padding: 8px 10px;
+      border: 1px solid var(--ink);
+      background: #fff;
+    }
+    button {
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.secondary { background: transparent; color: var(--ink); }
+    .tiny { font-size: 13px; color: var(--muted); }
+    footer {
+      margin-top: 48px;
+      border-top: 3px solid var(--ink);
+      padding-top: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
 </head>
 <body>
-  <h1>歡迎嚟到我嘅免費 GitHub Pages 網站 🎉</h1>
-  <p>呢個網站係用嚟測試 Google Workspace / AI 功能用。</p>
+  <div class="sheet">
+    <header class="mast">
+      <div class="kicker">Dossier 001 · 2026-08-24 · Read-only research</div>
+      <h1>同樣 bot 可唔可以起？<br />先對賬，再決定。</h1>
+      <p class="dek">對象係 <a href="https://x.com/0xSurferX/status/2091564875294097907">0xSurferX 2026-08-23 X Article</a>：聲稱用 Grok 重建 Polymarket YES/NO 互補套利 bot，每週 $12k、終身 $66k。呢份研究用官方 API 對公開錢包、撮合延遲、費用公式同建設路徑做頂層核實。頁面<strong>唔會落單</strong>。</p>
+      <div class="meta">
+        <span>來源帳號 @0xSurferX</span>
+        <span>錢包 l5Zn1bWoM8eTsK</span>
+        <span>主伺服器 eu-west-2</span>
+        <span>研究日 2026-08-24</span>
+      </div>
+      <div>
+        <span class="stamp ok">軟件可建</span>
+        <span class="stamp warn">複製收益低機會</span>
+        <span class="stamp">唔係投資建議</span>
+      </div>
+    </header>
+
+    <section class="verdict">
+      <h2 style="border:0;margin:0 0 10px;padding:0;">一、判決</h2>
+      <p><strong>同類 bot 喺工程上可行。</strong> 公開 API、官方 SDK、CTF merge、WebSocket 盤口全部齊。真正難嘅唔係「寫得出」，而係「寫完之後仲有冇邊緣」。</p>
+      <p>對賬結論有三條硬事實：</p>
+      <ol>
+        <li>文中公開錢包 <span class="mono">l5Zn1bWoM8eTsK</span> 嘅<strong>終身盈虧 $66,670 屬實</strong>（官方 leaderboard，2026-08-24）。</li>
+        <li>文中「每週 $12k」<strong>而家唔成立</strong>：同一錢包本週 PnL 只有 <strong>$347</strong>，成交 $11 萬；本月 $18.8k / $617 萬成交。</li>
+        <li>文中用 0.55+0.42 做例子，如果兩邊都做 taker，<strong>3 仙缺口會被費用食到變負</strong>。公開成交顯示佢哋真正喺掃接近已定勝負嘅尾盤，而唔係中間價純套利。</li>
+      </ol>
+      <div class="grid">
+        <div class="tile"><b>$66,670</b><span>終身 PnL · 官方 all-time</span></div>
+        <div class="tile"><b>$347</b><span>本週 PnL · 同文中 $12k/週對唔上</span></div>
+        <div class="tile"><b>54 bps</b><span>終身 PnL / 成交額 $1,230 萬</span></div>
+        <div class="tile"><b>~15%</b><span>即時倉位兩邊股數唔匹配</span></div>
+      </div>
+    </section>
+
+    <h2>二、原文實際講咩</h2>
+    <p>你俾嘅連結唔係普通推文，而係一篇 X Article，標題係：</p>
+    <p><em>I rebuilt my arbitrage bot with Grok Bot and now it makes $12k per week (full guide + code)</em></p>
+    <p>發布時間 2026-08-23 16:35 UTC。核心主張：</p>
+    <ul>
+      <li>二元市場 Up + Down 理應等於 $1；低過 $1 就係「無方向風險」嘅定價錯誤。</li>
+      <li>分兩種：同一市場互補套利，同埋關聯市場組合套利。</li>
+      <li>用「多智能體」拆開：獵人、風控、費用、執行、對回測嘅對抗審查。</li>
+      <li>兩邊成交之後用 CTF <strong>merge</strong> 即刻換返 $1 抵押，加快資金週轉。</li>
+      <li>GTC 掛單賺 maker rebate，FAK 食價要付 taker fee。</li>
+      <li>最後導去 Telegram 頻道。</li>
+    </ul>
+    <p>同一帳號近日另一條主線（唔係呢篇文，但構成同一套「說話」）係：Polymarket CLOB 有大約 <strong>20ms 處理牆</strong>，所以 Rust 對 Python 嘅微秒戰爭無意義；活得落嘅策略要喺「幾秒」而唔係「幾毫秒」窗口。另一條係「唔好起 5 分鐘 BTC 預測 bot」，因為機器學習喺呢個窗口接近拋硬幣。</p>
+    <div class="callout">呢個帳號同時賣「免費完整指南」同 Telegram。公開代碼片段係教學級 Python，唔係生產系統。研究只信鏈上同官方 API，唔信標題。</div>
+
+    <h2>三、公開錢包對賬</h2>
+    <p>文中錢包：<a href="https://polymarket.com/@l5zn1bwom8etsk">polymarket.com/@l5zn1bwom8etsk</a> · proxy <span class="mono">0xb945945d5bcaf7b56834d4da8cdf8f8f94b2db68</span></p>
+    <table>
+      <thead>
+        <tr><th>窗口</th><th>官方 PnL</th><th>成交額</th><th>排名</th><th>PnL / 成交</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>All-time</td><td class="num">$66,670</td><td class="num">$12,302,464</td><td class="num">#2837</td><td class="num">54.2 bps</td></tr>
+        <tr><td>Month</td><td class="num">$18,816</td><td class="num">$6,166,011</td><td class="num">#659</td><td class="num">30.5 bps</td></tr>
+        <tr><td>Week</td><td class="num">$347</td><td class="num">$109,530</td><td class="num">#1112</td><td class="num">31.7 bps</td></tr>
+      </tbody>
+    </table>
+    <p>點解 closed-positions 會出現單場「贏 $26k」？因為 API 把結算後贏嘅一邊計成已實現盈虧，輸嘅一邊另列。套利兩邊一加一減，真實利潤只係缺口減費用。抄錢包睇單邊 PnL 會嚴重高估。</p>
+    <h3>即時倉（2026-08-24，BTC 15 分鐘 09:45–10:00 ET）</h3>
+    <table>
+      <thead><tr><th>邊</th><th>股數</th><th>均價</th><th>現價</th><th>市值</th></tr></thead>
+      <tbody>
+        <tr><td>Up</td><td class="num">2,959.8</td><td class="num">0.609</td><td class="num">1.000</td><td class="num">$2,958</td></tr>
+        <tr><td>Down</td><td class="num">3,390.7</td><td class="num">0.319</td><td class="num">0.001</td><td class="num">$1.70</td></tr>
+      </tbody>
+    </table>
+    <p>兩邊股數差約 15%。純套利應該幾乎對等。呢個倉係「兩邊都買 + 殘留方向曝險」。近期 50 筆成交亦確認：同一 15 分鐘窗口連續買 Up（0.94–0.98）同 Down（0.01–0.03）。呢個先係可複製嘅形態：<strong>尾盤、接近已定勝負、掃仲未撤嘅廉價對邊</strong>。</p>
+    <p>另外，持倉列表仲有大量 7 月 5 分鐘 BTC 窗口嘅殘倉（現價 0）。同一帳號公開講「唔好起 5 分鐘 bot」，但歷史上做過 5 分鐘盤，而且輸邊未清乾淨。生產級風控並唔完美。</p>
+
+    <h2>四、策略解剖：邊啲可行</h2>
+    <table>
+      <thead><tr><th>策略</th><th>窗口</th><th>可行性</th><th>備註</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>尾盤互補掃貨（0.97+0.01 類）</td>
+          <td>秒至分鐘</td>
+          <td class="good">高（工程）／中（利潤）</td>
+          <td>費用接近 0；要深度、要兩邊同時填到；競爭在加速。</td>
+        </tr>
+        <tr>
+          <td>中間價互補（0.55+0.42 類）做 taker</td>
+          <td>毫秒</td>
+          <td class="bad">低</td>
+          <td>Crypto taker 費喺 50¢ 附近最大；3¢ 缺口會變負。</td>
+        </tr>
+        <tr>
+          <td>GTC 兩邊掛單等 rebate</td>
+          <td>秒至分鐘</td>
+          <td class="mid">中</td>
+          <td>文中講得對：maker 0 費。風險係單邊成交變成裸倉。</td>
+        </tr>
+        <tr>
+          <td>CTF merge 回收資金</td>
+          <td>1–3 秒鏈上</td>
+          <td class="good">高</td>
+          <td>官方支援 <span class="mono">mergePositions</span>。15 分鐘盤即使等到結算，資金凍結都短。</td>
+        </tr>
+        <tr>
+          <td>組合／關聯市場套利</td>
+          <td>秒至分鐘</td>
+          <td class="mid">中低</td>
+          <td>官方而家有 Combos RFQ，報價窗 400ms。搜尋空間大，工程重。</td>
+        </tr>
+        <tr>
+          <td>5 分鐘 BTC 方向預測</td>
+          <td>5 分鐘</td>
+          <td class="bad">低</td>
+          <td>作者自己用 ML 證明接近 50%。唔好做。</td>
+        </tr>
+        <tr>
+          <td>新聞搶先 / 已決事實</td>
+          <td>秒</td>
+          <td class="mid">中</td>
+          <td>邊緣喺資訊延遲，唔喺語言選擇。要合規數據源。</td>
+        </tr>
+        <tr>
+          <td>天氣梯級（香港氣溫）</td>
+          <td>小時至日</td>
+          <td class="good">高（工程）</td>
+          <td>結算源係香港天文台 Daily Extract，唔係即時溫度 App。延遲牆幾乎無關。</td>
+        </tr>
+        <tr>
+          <td>熱路徑塞 LLM agent</td>
+          <td>—</td>
+          <td class="bad">負價值</td>
+          <td>套利決策必須係確定性函數。LLM 只適合研究同審查，唔適合落單循環。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>五、20ms 牆：方向對，數字唔係瓶頸</h2>
+    <p>官方文件標明主撮合在 <strong>AWS eu-west-2</strong>，最近非限制區 eu-west-1，完成 KYC/KYB 可以申請同機房共置。獨立工程測算（Poly Syncer, 2026-05）同官方行為一致：</p>
+    <table>
+      <thead><tr><th>階段</th><th>時間</th><th>可唔可以靠換語言剷走</th></tr></thead>
+      <tbody>
+        <tr><td>WebSocket 盤口更新間隔</td><td class="num">80–200 ms</td><td>唔得。快過 feed 等於空轉。</td></tr>
+        <tr><td>撮合確認（獨立估計）</td><td class="num">10–30 ms</td><td>唔得。呢個先係文中講嘅「牆」。</td></tr>
+        <tr><td>EIP-712 簽名</td><td class="num">10–40 ms</td><td>部分可以。預熱密鑰池就夠。</td></tr>
+        <tr><td>提交閘道 RTT</td><td class="num">30–80 ms</td><td>靠區域，唔靠 Rust。</td></tr>
+        <tr><td>零售端到端</td><td class="num">150–300 ms</td><td>Python 夠用。</td></tr>
+        <tr><td>頂級團隊端到端</td><td class="num">60–120 ms</td><td>同區 + 長連線 + 本機盤口。</td></tr>
+        <tr><td>鏈上結算</td><td class="num">1.5–3 s</td><td>唔阻擋下一筆決策。</td></tr>
+      </tbody>
+    </table>
+    <p>所以「唔好為 0.5ms 改寫 Rust」呢句係對嘅。錯喺把 20ms 講成唯一約束。真正殺死毫秒級策略嘅係 <strong>80–200ms 嘅盤口心跳 + 提交 RTT</strong>。策略必須設計成幾秒窗口：尾盤、新聞後錯誤定價、掛單深度、關聯約束。</p>
+    <p>撮合重啟期間 API 會回 HTTP 425，之後兩分鐘只接受 <span class="mono">postOnly</span>。生產 bot 一定要處理，文中完全冇提。</p>
+
+    <h2>六、費用：文中公式係錯嘅，但結論（盡量做 maker）係對嘅</h2>
+    <p>官方公式：</p>
+    <pre>fee = C × feeRate × p × (1 − p)
+# Crypto feeRate = 0.07；Maker 永遠 0；rebate 約為 taker 費池 20%</pre>
+    <p>費喺 50¢ 最大，兩極接近 0。所以「中間價 3 仙缺口、兩邊 taker」會虧；「0.97+0.01 尾盤」即使 taker 都可能仲有淨利。</p>
+    <div class="controls">
+      <div><label>Up 買價</label><input id="feeUp" type="number" step="0.01" min="0.01" max="0.99" value="0.55" /></div>
+      <div><label>Down 買價</label><input id="feeDn" type="number" step="0.01" min="0.01" max="0.99" value="0.42" /></div>
+      <div><label>股數 C</label><input id="feeC" type="number" step="1" min="1" value="100" /></div>
+      <div><label>feeRate</label><input id="feeR" type="number" step="0.01" min="0" max="0.2" value="0.07" /></div>
+      <button type="button" onclick="calcFee()">計算</button>
+    </div>
+    <p id="feeOut" class="mono">按計算睇官方 taker 淨利。</p>
+    <table>
+      <thead><tr><th>組合（C=100, rate=0.07）</th><th>毛利</th><th>兩邊 taker 費</th><th>淨利</th></tr></thead>
+      <tbody>
+        <tr><td class="num">0.55+0.42（文中例子）</td><td class="num">$3.00</td><td class="num">$3.44</td><td class="num bad">−$0.44</td></tr>
+        <tr><td class="num">0.50+0.48</td><td class="num">$2.00</td><td class="num">$3.50</td><td class="num bad">−$1.50</td></tr>
+        <tr><td class="num">0.70+0.28</td><td class="num">$2.00</td><td class="num">$2.88</td><td class="num bad">−$0.88</td></tr>
+        <tr><td class="num">0.94+0.03（接近公開成交）</td><td class="num">$3.00</td><td class="num">$0.60</td><td class="num good">+$2.40</td></tr>
+        <tr><td class="num">0.97+0.01</td><td class="num">$2.00</td><td class="num">$0.27</td><td class="num good">+$1.73</td></tr>
+        <tr><td class="num">0.98+0.01</td><td class="num">$1.00</td><td class="num">$0.21</td><td class="num good">+$0.79</td></tr>
+      </tbody>
+    </table>
+    <p>文中 <span class="mono">taker_fee * size * 2</span> 把費用當成固定單價，低估 50¢ 附近、高估兩極。風控必須用官方曲線，否則回測會騙人。</p>
+
+    <h2>七、正確架構：流水線，唔係「一隊 Grok」</h2>
+    <p>文中把模組叫做 agent，再包裝成 Grok Build 故事。熱路徑如果真係等 LLM 回覆，套利已經冇咗。可建、可維護嘅形狀係確定性流水線：</p>
+    <div class="pipe">
+      <div><strong>1. 盤口</strong><span>CLOB WebSocket 維護本機 book；自己成交即時扣減，唔等下一幀 80–200ms。</span></div>
+      <div><strong>2. 獵人</strong><span>用 ask+ask（你要付出嘅價）同深度，唔用 mid。輸出缺口 × 可成交量。</span></div>
+      <div><strong>3. 閘門</strong><span>兩邊深度、庫存平衡、過平報價（可能係過期單）、費用曲線、單日虧損熔斷。</span></div>
+      <div><strong>4. 執行</strong><span>預熱 HTTPS、EIP-712、盡量 post-only GTC；單邊成交即對沖或停機。配對後 merge。</span></div>
+    </div>
+    <p>LLM 只放喺盤後：解釋虧損、攻擊回測、檢查有冇未來函數。唔放落單循環。</p>
+    <p>官方整合面：</p>
+    <ul>
+      <li>Gamma <span class="mono">https://gamma-api.polymarket.com</span> 發現市場</li>
+      <li>CLOB <span class="mono">https://clob.polymarket.com</span> 落單</li>
+      <li>WS <span class="mono">wss://ws-subscriptions-clob.polymarket.com/ws/market</span></li>
+      <li>Data <span class="mono">https://data-api.polymarket.com</span> 倉位同成交</li>
+      <li>Python / TypeScript 官方 SDK：<span class="mono">@polymarket/client</span>、<span class="mono">polymarket</span></li>
+    </ul>
+
+    <h2>八、可行性評分（頂層）</h2>
+    <table>
+      <thead><tr><th>問題</th><th>分數</th><th>說明</th></tr></thead>
+      <tbody>
+        <tr><td>讀盤、算缺口、紙上模擬</td><td class="good">9/10</td><td>本頁掃描器同 <span class="mono">research/scan_books.py</span> 已證明。</td></tr>
+        <tr><td>接官方 SDK 落模擬／極小資金</td><td class="good">8/10</td><td>文件完整；要處理 425、精度、allowance。</td></tr>
+        <tr><td>穩定捕捉尾盤互補</td><td class="mid">5/10</td><td>工程可做；邊緣被做薄（而家約 30 bps）。</td></tr>
+        <tr><td>複製「每週 $12k」</td><td class="bad">2/10</td><td>對方本週自己都只有 $347。成交額要上百萬級。</td></tr>
+        <tr><td>中間價 taker 套利</td><td class="bad">1/10</td><td>費用數學直接否決。</td></tr>
+        <tr><td>多 agent LLM 熱路徑</td><td class="bad">1/10</td><td>增加延遲同不可重現錯誤。</td></tr>
+      </tbody>
+    </table>
+    <p>資金週轉現實：終身 54 bps。要靠週轉而唔係單筆暴利。$1,000 本金、每天完成 20 次 2¢ 淨缺口、每次用滿本金，理論毛利 $400／日——呢個係上限幻想，因為深度、單邊成交、競爭會把大多數缺口搶走。對方用 $1,230 萬成交先攞到 $6.7 萬，數量級先係誠實錨。</p>
+
+    <h2>九、法律、地理、唔好做嘅事</h2>
+    <p>Polymarket 官方 geoblock 名單（2026-08 文件）<strong>冇列香港</strong>，API 技術上可下單。美國、英國、新加坡、德國、法國等係限制區。技術可達 ≠ 當地合法。</p>
+    <div class="callout">香港投資者及理財教育委員會（IFEC，證監會附屬）2026 年 4 月公開提醒：參與預測市場可能構成《賭博條例》下的非法賭博，合約唔係投資產品，亦不受《證券及期貨條例》保障。呢份研究唔構成法律意見，亦唔教人繞過 geoblock。</div>
+    <p>明確排除：</p>
+    <ul>
+      <li>內幕消息、跟「未公開事實」下注。</li>
+      <li>用 VPN 偽裝受限司法管轄區。</li>
+      <li>把私人金鑰寫進網頁或公開庫。</li>
+      <li>抄單：鏈上見到嘅時候缺口已經冇咗，而且單邊 PnL 會誤導。</li>
+    </ul>
+
+    <h2>十、若要建，唯一合理路徑</h2>
+    <ol>
+      <li>紙盤掃描：ask+ask、深度、官方費用曲線。連續記錄幾日，睇真實可成交缺口分佈。</li>
+      <li>用錄製嘅 book 回測，<strong>假設單邊成交會發生</strong>。回測永遠雙腿成交＝作假。</li>
+      <li>零餘額 dry-run：對住真實拒絕原因（精度、allowance、425、深度消失）。</li>
+      <li>極小資金、單一 15 分鐘系列、硬止損、裸倉警報、崩潰後唔好重覆下單。</li>
+      <li>主機放 eu-west-1／eu-west-2。Python 先。熱路徑唔好 LLM。</li>
+    </ol>
+    <p>本倉庫只提供第 1 步。唔提供帶私鑰嘅自動交易迴路。</p>
+
+    <h2>十一、即時紙盤掃描（只讀）</h2>
+    <p class="tiny">瀏覽器直連 Gamma / CLOB 公開 API。若 CORS 被擋，改跑 <span class="mono">python3 research/scan_books.py</span>。</p>
+    <div class="controls">
+      <div>
+        <label>標籤</label>
+        <select id="tag">
+          <option value="15M" selected>15M 加密升降</option>
+          <option value="5M">5M</option>
+          <option value="crypto">crypto</option>
+        </select>
+      </div>
+      <div><label>市場數</label><input id="limit" type="number" min="3" max="20" value="8" /></div>
+      <button type="button" id="scanBtn" onclick="runScan()">掃描缺口</button>
+      <button type="button" class="secondary" onclick="location.reload()">重設</button>
+    </div>
+    <p id="scanStatus" class="tiny">尚未掃描。掃描唔會下單。</p>
+    <div style="overflow-x:auto">
+      <table id="scanTable">
+        <thead>
+          <tr>
+            <th>市場</th><th>Up ask</th><th>Down ask</th><th>合計</th><th>毛缺口</th><th>可填</th><th>Taker 淨利</th><th>狀態</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2>十二、來源</h2>
+    <ul>
+      <li>原文：<a href="https://x.com/0xSurferX/status/2091564875294097907">x.com/0xSurferX/status/2091564875294097907</a></li>
+      <li>官方文件：<a href="https://docs.polymarket.com/">docs.polymarket.com</a>（fees, geoblock, CTF merge, matching engine 425, rate limits）</li>
+      <li>Leaderboard：<span class="mono">https://lb-api.polymarket.com/profit</span> 同 <span class="mono">data-api.polymarket.com/v1/leaderboard</span></li>
+      <li>延遲預算：Poly Syncer《Polymarket High Frequency Trading: Reality Check》（2026-05-22）</li>
+      <li>本倉庫快照：<span class="mono">research/findings.json</span></li>
+    </ul>
+
+    <footer>
+      <p>呢份係工程同公開數據對賬，唔係投資、法律或稅務建議。預測市場有本金損失、單邊成交、平台維護、結算規則同監管風險。作者公開數字可以係高峰期，唔保證可複製。</p>
+      <p>kitma775-sys.github.io · Dossier 001 · 只讀研究</p>
+    </footer>
+  </div>
+  <script>
+    function takerFee(c, p, rate) {
+      const x = Math.min(Math.max(Number(p), 0), 1);
+      return Number(c) * Number(rate) * x * (1 - x);
+    }
+    function calcFee() {
+      const up = Number(document.getElementById("feeUp").value);
+      const dn = Number(document.getElementById("feeDn").value);
+      const c = Number(document.getElementById("feeC").value);
+      const r = Number(document.getElementById("feeR").value);
+      const gross = (1 - up - dn) * c;
+      const fees = takerFee(c, up, r) + takerFee(c, dn, r);
+      const net = gross - fees;
+      const el = document.getElementById("feeOut");
+      el.textContent = "毛利 $" + gross.toFixed(2) + " − taker 費 $" + fees.toFixed(2) + " = 淨利 $" + net.toFixed(2) +
+        (net > 0 ? "（taker 路徑可活）" : "（taker 路徑死亡；只剩 maker/GTC）");
+      el.style.color = net > 0 ? "#1f6b3a" : "#9c2b16";
+    }
+    calcFee();
+
+    async function fetchJson(url) {
+      const res = await fetch(url, { headers: { "Accept": "application/json" } });
+      if (!res.ok) throw new Error(url + " HTTP " + res.status);
+      return res.json();
+    }
+    function bestAsk(book) {
+      const asks = (book && book.asks) || [];
+      if (!asks.length) return [null, 0];
+      const levels = asks.map((x) => [Number(x.price), Number(x.size)]).sort((a, b) => a[0] - b[0]);
+      return levels[0];
+    }
+    async function runScan() {
+      const status = document.getElementById("scanStatus");
+      const tbody = document.querySelector("#scanTable tbody");
+      const btn = document.getElementById("scanBtn");
+      tbody.innerHTML = "";
+      btn.disabled = true;
+      status.textContent = "讀取公開盤口中…";
+      try {
+        const tag = document.getElementById("tag").value;
+        const limit = Number(document.getElementById("limit").value) || 8;
+        const events = await fetchJson("https://gamma-api.polymarket.com/events?active=true&closed=false&limit=" + Math.max(limit * 4, 24) + "&tag_slug=" + encodeURIComponent(tag));
+        const now = Date.now();
+        for (const ev of events || []) {
+          const market = (ev.markets || [])[0];
+          if (!market || !market.clobTokenIds) continue;
+          if (market.closed || ev.closed || market.acceptingOrders === false) continue;
+          const end = Date.parse(market.endDate || ev.endDate || "");
+          if (end && end < now) continue;
+          if (tbody.rows.length >= limit) break;
+          const tokens = JSON.parse(market.clobTokenIds);
+          if (tokens.length < 2) continue;
+          const [yesBook, noBook] = await Promise.all([
+            fetchJson("https://clob.polymarket.com/book?token_id=" + tokens[0]),
+            fetchJson("https://clob.polymarket.com/book?token_id=" + tokens[1])
+          ]);
+          const [upAsk, upSz] = bestAsk(yesBook);
+          const [dnAsk, dnSz] = bestAsk(noBook);
+          const tr = document.createElement("tr");
+          if (upAsk == null || dnAsk == null) {
+            tr.innerHTML = "<td>" + (ev.title || ev.slug) + "</td><td class='num'>" + (upAsk ?? "—") + "</td><td class='num'>" + (dnAsk ?? "—") + "</td><td colspan='5'>單邊或空盤，缺口唔可成交</td>";
+            tbody.appendChild(tr);
+            continue;
+          }
+          const pair = upAsk + dnAsk;
+          const gross = 1 - pair;
+          const fill = Math.min(upSz, dnSz);
+          const fees = takerFee(fill, upAsk, 0.07) + takerFee(fill, dnAsk, 0.07);
+          const net = gross * fill - fees;
+          const ok = net > 0 && gross > 0;
+          tr.innerHTML = "<td>" + (ev.title || ev.slug) + "</td>" +
+            "<td class='num'>" + upAsk.toFixed(3) + "</td>" +
+            "<td class='num'>" + dnAsk.toFixed(3) + "</td>" +
+            "<td class='num'>" + pair.toFixed(3) + "</td>" +
+            "<td class='num'>" + (gross * 100).toFixed(1) + "¢</td>" +
+            "<td class='num'>" + fill.toFixed(1) + "</td>" +
+            "<td class='num " + (ok ? "good" : "bad") + "'>$" + net.toFixed(2) + "</td>" +
+            "<td>" + (ok ? "taker 可活" : (gross > 0 ? "費後死亡" : "無缺口")) + "</td>";
+          tbody.appendChild(tr);
+        }
+        status.textContent = "完成 " + tbody.rows.length + " 個仍接受訂單嘅市場。數字係當下頂檔，下一秒就會變。Crypto feeRate 假設 0.07。";
+      } catch (err) {
+        status.textContent = "掃描失敗：" + err.message + "。用 python3 research/scan_books.py。";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
 </body>
 </html>

@@ -1,0 +1,135 @@
+{
+  "strategy_rev": 55,
+  "ship": true,
+  "researched_at_utc": "2026-09-01T13:22:12Z",
+  "elapsed_s": 20.24,
+  "source": "research/high_wr.py first_dump_by90_h2 on 18-day print cache",
+  "question": "Increase fills without cutting the shipped BTC+ETH take win rate.",
+  "answer": "Unlock BTC and ETH on the same 5m unix. Keep per-asset lock: one horizon per coin, and after fill/dump that coin's unix stays taken until T1 (no same-slug reverse). Entry sleeve unchanged: first-cross 6bps 45\u201355, 120\u2013280s, 90s unconfirmed dump. Independent n=593 take WR 93.8% +$543 vs lead-ranked one-per-unix n=485 WR 94.8% +$494: +108 dual-window takes, overall WR \u22121.0pp because clock cherry-picks the stronger lead, PnL still higher. Live clock is first-fill not lead-rank. BTC and ETH own WR are both 93.8%.",
+  "independent": {
+    "n": 593,
+    "pnl_usd": 543.31,
+    "take_win_rate": 0.9378,
+    "ev_ok": true,
+    "robust": true,
+    "train": {
+      "n": 244,
+      "pnl_usd": 149.8,
+      "take_win_rate": 0.8953,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 349,
+      "pnl_usd": 393.51,
+      "take_win_rate": 0.964,
+      "ev_ok": true
+    },
+    "by_asset": {
+      "btc": {
+        "n": 244,
+        "pnl_usd": 222.75,
+        "take_win_rate": 0.9375,
+        "ev_ok": true
+      },
+      "eth": {
+        "n": 349,
+        "pnl_usd": 320.56,
+        "take_win_rate": 0.938,
+        "ev_ok": true
+      }
+    }
+  },
+  "clock_lock_lead": {
+    "n": 485,
+    "pnl_usd": 494.16,
+    "take_win_rate": 0.9479,
+    "ev_ok": true,
+    "robust": true,
+    "train": {
+      "n": 195,
+      "pnl_usd": 136.08,
+      "take_win_rate": 0.9028,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 290,
+      "pnl_usd": 358.08,
+      "take_win_rate": 0.975,
+      "ev_ok": true
+    },
+    "by_asset": {
+      "eth": {
+        "n": 299,
+        "pnl_usd": 292.59,
+        "take_win_rate": 0.955,
+        "ev_ok": true
+      },
+      "btc": {
+        "n": 186,
+        "pnl_usd": 201.58,
+        "take_win_rate": 0.9383,
+        "ev_ok": true
+      }
+    }
+  },
+  "overlap": {
+    "n_takes": 593,
+    "n_windows": 485,
+    "dual_btc_eth_windows": 108,
+    "extra_takes_vs_clock": 108,
+    "clock_keeps_frac": 0.8179
+  },
+  "wr_delta_all": -0.0101,
+  "wr_delta_holdout": -0.011,
+  "n_delta": 108,
+  "rejected": [
+    {
+      "lever": "restore_alts",
+      "why": "Live leftover 45\u00a2 FOK last-look; month dump overlays invalid."
+    },
+    {
+      "lever": "min_left_below_120",
+      "why": "BTC/ETH min_left 180 already worse than 120; 90s is the late gate we do not reopen."
+    },
+    {
+      "lever": "bps_4",
+      "why": "6bps is the ship sleeve; 4bps adds weaker lead."
+    },
+    {
+      "lever": "band_40_60",
+      "why": "45\u201355 is the +EV band; 40\u201360 dilutes WR."
+    },
+    {
+      "lever": "chase_cheaper_leftover",
+      "why": "First-cross is the WR lift; leftover 45\u00a2 is the live bleed."
+    },
+    {
+      "lever": "dump_mid90",
+      "why": "Clips live winners sitting ~59\u00a2 after 62 already printed."
+    },
+    {
+      "lever": "twap_reverse",
+      "why": "Fade tape \u2212EV; reverse skips BM/confirm."
+    },
+    {
+      "lever": "price_sl_8c",
+      "why": "\u2212EV vs BM scratch on the same tape."
+    },
+    {
+      "lever": "fok_up_requote_after_miss",
+      "why": "Filling 0.55 after a 0.47 miss is a worse in-band take, not more of the same sleeve."
+    }
+  ],
+  "do_not": [
+    "restore_alts",
+    "min_left_below_120",
+    "bps_4",
+    "band_40_60",
+    "chase_cheaper_leftover",
+    "dump_mid90",
+    "twap_reverse_on",
+    "price_sl_8c",
+    "wipe_telegram_assets",
+    "flip_live_trading"
+  ]
+}

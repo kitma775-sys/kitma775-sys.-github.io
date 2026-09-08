@@ -1,0 +1,42 @@
+{
+  "ts": "2026-08-31T07:05:00Z",
+  "strategy_rev": 36,
+  "mode": "paper",
+  "starting": 500.0,
+  "cash": 484.631971,
+  "inventory_value": 30.000026,
+  "equity": 514.631997,
+  "total_pnl": 14.631997,
+  "realized_pnl_before_fix": 0.0,
+  "identity": "cash + inventory_value = equity; starting - buys + credits = cash",
+  "open": [
+    {"slug": "eth-updown-5m-1788159600", "up": 18.9576, "down": 0.0, "cost": 10.000006},
+    {"slug": "xrp-updown-5m-1788159300", "up": 0.0, "down": 19.3237, "cost": 10.00001},
+    {"slug": "sol-updown-5m-1788159300", "up": 0.0, "down": 19.3237, "cost": 10.00001}
+  ],
+  "closed_nets_sum": 14.631997,
+  "closed": {
+    "sol-updown-5m-1788158100": {"kind": "settle", "payout": 0.0, "cost": 7.91241, "net": -7.91241},
+    "btc-updown-5m-1788158100": {"kind": "settle", "payout": 15.0, "cost": 7.7625, "net": 7.2375},
+    "xrp-updown-5m-1788158700": {"kind": "settle", "payout": 18.9576, "cost": 10.000006, "net": 8.957594},
+    "bnb-updown-5m-1788158700": {"kind": "settle", "payout": 18.9576, "cost": 10.000006, "net": 8.957594},
+    "btc-updown-5m-1788159000": {"kind": "dump", "proceeds": 9.130583, "cost": 10.00001, "net": -0.869427, "dump_px": 0.49},
+    "sol-updown-5m-1788159000": {"kind": "dump", "proceeds": 9.130583, "cost": 10.00001, "net": -0.869427, "dump_px": 0.49},
+    "doge-updown-5m-1788159000": {"kind": "dump", "proceeds": 9.130583, "cost": 10.00001, "net": -0.869427, "dump_px": 0.49}
+  },
+  "buy_cost_sum": 95.674978,
+  "credit_sum": 80.306949,
+  "cash_check": 500.0 - 95.674978 + 80.306949,
+  "findings": {
+    "cash_book": "ok",
+    "buy": "ok official taker fee C*0.07*p*(1-p) on shares",
+    "scratch_dump": "ok proceeds = shares*bid - fee; pnl vs inventory cost",
+    "redeem": "ok wait for Gamma 0/1; winner shares*$1; loser $0 no credit",
+    "reporting_bugs_fixed": [
+      "realized_pnl stayed 0 because only merge updated it",
+      "dashboard subtitle said 可 merge 倉 for TWAP cost basis",
+      "paper_dumped trade price was cost/shares not dump VWAP",
+      "redeem log rounded shares to 1 decimal"
+    ]
+  }
+}

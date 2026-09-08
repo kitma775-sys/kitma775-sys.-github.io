@@ -1,0 +1,48 @@
+{
+  "researched_at_utc": "2026-08-26T14:59:09Z",
+  "question": "Why does rev 6 print zero trades, and what can create +EV fills without last-window maker?",
+  "live_bot": {
+    "strategy_rev": 6,
+    "ws": "connected",
+    "signals": 0,
+    "fills": 0,
+    "maker_window_seconds": 0,
+    "max_book_age_ms": 2000,
+    "tape_example": "16 markets, 5 fresh WS pairs, 11 stale, min ask_sum 1.001, max taker_net -0.001"
+  },
+  "findings": [
+    {
+      "id": "rest_state_overround",
+      "result": "ATM YES+NO still quotes ask_sum ≥ 1.001 after fees. Lowering min_edge does not create a take. Same as universe_findings.json."
+    },
+    {
+      "id": "ws_age_skips_the_race",
+      "result": "pair() required BOTH legs younger than 2s. Quiet books do not tick every 2s. The MM requote race is: one ask moves, the other sits. Rev 6 treated the sitting leg as stale and skipped the only moment a taker complement could exist."
+    },
+    {
+      "id": "tail_winning_ask_pulled",
+      "result": "At ~51s to expiry on 2026-08-26 14:59Z, 13/14 liquid 15M+1H windows had Up ask 0.001–0.01 and Down asks empty. Completing the $1 set is impossible: you can buy the dying side, not the winner. 0.97+0.01 only exists while BOTH asks are still posted. Empty winning book is not a bug in hunt(); taking the 0.001 side alone is directional and −EV if it expires at 0."
+    },
+    {
+      "id": "gamma_0.99_skip",
+      "result": "looks_empty(bestAsk≥0.99) is meant to drop 1.00/1.00 alts. True tails where YES is 0.99 (Up winning) were also dropped. Snapshot at 14:59Z had Gamma YES at 0.001 (Up losing), so this skip did not fire then, but it will drop the opposite tail."
+    },
+    {
+      "id": "http_off_while_ws_up",
+      "result": "Hunt set http_ok=not connected, so a token missing from the WS dump was never backfilled from CLOB REST."
+    },
+    {
+      "id": "maker_still_toxic",
+      "result": "6h replay: last-window maker 7 quotes, 0 two-sided fills, −$4.79. Re-enabling it would create 'trades' that lose money. Not used."
+    }
+  ],
+  "rev7": {
+    "strategy_rev": 7,
+    "max_book_age_ms": 60000,
+    "ws_hold": "While the market socket is up, hunt with the last in-memory book of both legs (60s hold). A price_change on one leg uses the other leg's last snapshot.",
+    "http_gap_fill": "If a token has no cache, or seconds_left≤120, fetch CLOB REST at most once per second per slug.",
+    "keep_0.99_tails": "looks_empty only treats bestAsk≥1.0 as empty; bestAsk≥0.99 is kept when ≤180s remain.",
+    "still": "maker_window=0, min_edge=0.02, FORCE_PAPER, no live, no paper reset"
+  },
+  "honest_expectation": "Rev 7 makes the bot able to take a two-ask underround if it appears. It does not invent rest-state edge. Many expiries will still print zero fills because the winning ask is gone. Dashboard tape will show empty_ask_legs so that looks like a market fact, not a hung engine."
+}

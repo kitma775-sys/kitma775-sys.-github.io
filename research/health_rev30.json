@@ -1,0 +1,79 @@
+{
+  "researched_at_utc": "2026-08-31T04:30:26Z",
+  "live_rev": 29,
+  "ship_rev": 30,
+  "mode": "paper",
+  "force_paper": true,
+  "live_trading": false,
+  "paper": {
+    "equity": 516.677776,
+    "cash": 511.884101,
+    "starting": 500.0,
+    "total_pnl": 16.677776,
+    "today_pnl": 7.512285
+  },
+  "engine": {
+    "ok": true,
+    "ws": "connected",
+    "chainlink": "connected",
+    "chainlink_live": 7,
+    "markets": 34,
+    "ws_pairs": 34,
+    "stale_pairs": 0,
+    "scan_limit": 40,
+    "tags": ["5M", "15M"],
+    "assets": ["btc", "eth", "sol", "hype", "bnb", "xrp", "doge"]
+  },
+  "holes": {
+    "clob_ws_1013": {
+      "boot_event": "ws connected 70 tokens",
+      "then": "ConnectionClosedError 1013 slow consumer: send buffer full",
+      "why": "universe set_wanted all scanned up+down tokens (35 markets x 2)",
+      "fix": "subscribe hunt-window (left <= max_left+45, not future_listing) + inventory/resting only; reconnect on wanted change"
+    },
+    "twap_gate_nearest_lie": {
+      "example": "hype-updown-5m ask 1.00 twap_band while sol-updown-5m Down 0.45 filled",
+      "why": "gate picked smallest left among all skips, including locked 1.00 and 15m no_ptb",
+      "fix": "rank signal/ready/lead/edge before band/window/no_ptb; prefer in-band + larger |lead|"
+    },
+    "silent_future_listing": {
+      "why": "next 5m left>305 skipped before skip counters",
+      "fix": "count future_listing / twap_conflict / twap_budget in twap_skips"
+    },
+    "ptb_lost_on_restart": {
+      "why": "15m window 1788149700 opened ~332s before Rev 29 boot; KEEP_SECONDS ticks have no pre-T0 print",
+      "fix": "persist ensure_ptb to sqlite; reload on boot; still never invent PTB from a mid-window first tick"
+    }
+  },
+  "live_fill_this_window": {
+    "slug": "sol-updown-5m-1788150300",
+    "leg": "down",
+    "ask": 0.45,
+    "shares": 10.2577,
+    "cost": 4.793675,
+    "book": "ws",
+    "note": "engine is not dead; first FOK short at 0.55 then fill at 0.45"
+  },
+  "clob_probe_0430z": {
+    "t5": 1788150600,
+    "left_5m": 274,
+    "t15": 1788150600,
+    "left_15m": 874,
+    "hunt_window_inband": [
+      {"slug": "btc-updown-5m-1788150600", "up_ask": 0.49, "dn_ask": 0.52},
+      {"slug": "eth-updown-5m-1788150600", "up_ask": 0.47, "dn_ask": 0.53}
+    ],
+    "rev30_ws_books_if_no_inventory": 7,
+    "rev30_ws_tokens_if_no_inventory": 14,
+    "do_not": [
+      "raise 15m max_left without a 15m tape grid",
+      "copy pair-lock as $5 taker (7% fee -EV)",
+      "drop 6bps / widen 45-55 / raise $5",
+      "enable live or reset paper"
+    ]
+  },
+  "top_bots": {
+    "pair_lock_harvester": "staggered both legs, lock 2-4c; maker/fee-exempt; not this engine",
+    "directional_twap": "median leftover ~165s, size $50-300, almost no sells; shippable copy is already 12-280s + 6bps + 45-55 + scratch"
+  }
+}

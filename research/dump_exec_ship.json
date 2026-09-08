@@ -1,0 +1,52 @@
+{
+  "strategy_rev": 60,
+  "ship": true,
+  "pick": "hot_books_last90",
+  "researched_at_utc": "2026-09-03T18:18:10Z",
+  "source": "research/dump_exec.json",
+  "question": "When unconfirmed/oracle must dump, why does a sellable \u226522\u00a2 bid sit to $0?",
+  "why": "Unconfirmed/oracle dump is already shipped. Live ETH 00:10 px90=22\u00a2 was sellable under the floor; the miss was a 60s WS cache + 15s rescore during a CLOB disconnect, so FAK min_price sat on a stale 50\u00a2. Last 90s: HTTP if cache >2s, rescore 3s, keep last-seen ev, must-dump may sell below min_shares. Not dump_mid90. Not lower 22\u00a2.",
+  "floor": {
+    "ship": false,
+    "pick": "must_dump_floor_01",
+    "delta": {
+      "all": -19.68,
+      "train": -25.03,
+      "holdout": 5.36
+    },
+    "blocked22_n": 96,
+    "blocked22_orig_wr": 0.0938,
+    "why": "Dumping unconfirmed px90<22\u00a2 is \u2212EV vs hold on tape (train -25.03, holdout 5.36). Orig WR in that bucket is ~9%; a 1\u00a2 dump destroys those winners. Keep 22\u00a2 floor and last-8s late gate."
+  },
+  "params": {
+    "twap_scratch_dump_floor": 0.22,
+    "twap_scratch_left_min": 8.0,
+    "twap_scratch_hot_ms": 2000.0,
+    "twap_rescore_hot_seconds": 3.0,
+    "twap_rescore_seconds": 15.0,
+    "must_reasons": [
+      "twap_scratch_unconfirmed",
+      "twap_scratch_oracle",
+      "twap_scratch_no_fair",
+      "twap_scratch_flip",
+      "twap_scratch_weak",
+      "twap_scratch_wild"
+    ]
+  },
+  "do_not": [
+    "dump_mid90",
+    "twap_reverse_on",
+    "price_sl_8c",
+    "chase_leftover",
+    "lead_4bps",
+    "band_40_60",
+    "htf_pick_side",
+    "lower_soft_dump_floor_22",
+    "skip_scratch_left_min_8"
+  ],
+  "live_fingerprint": {
+    "note": "ETH 00:10 HKT Sep 4 eth-updown-5m-1788451800 Up never printed 62 (max 54\u00a2), px90=22\u00a2, held to $0. Floor 0.22 does not block 0.22.",
+    "px90": 0.22,
+    "blocked_by_floor": false
+  }
+}

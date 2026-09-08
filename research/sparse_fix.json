@@ -1,0 +1,600 @@
+{
+  "researched_at_utc": "2026-09-06T16:49:04Z",
+  "elapsed_s": 278.14,
+  "question": "Why so few live TWAP fills, and which fix is +EV?",
+  "ship": false,
+  "pick": null,
+  "recommend_ops": "ws_max_queue",
+  "tape_candidate": "lead_5_5",
+  "why": "Few live fills = rare 6bps∩45–55 coincidence plus live FOK conversion. Weekend/拉盤 windows print lead while the taker ask is already 60¢+. 5.5bps extras are +EV on tape (orig-hold 92%) but do not buy a 71¢ ask. Leftover unlock would raise conversion of already-seen prints by chasing cheaper second looks — forbidden. Ship conversion ops (WS 1013 queue), not autodial of 6bps.",
+  "live": {
+    "engine": true,
+    "halted": false,
+    "gate": {
+      "slug": "btc-updown-5m-1788712800",
+      "left": 203.0,
+      "lead_bps": 1.543,
+      "ask": 0.71,
+      "fair": 0.8374,
+      "reason": "twap_band",
+      "side": "up",
+      "reverse": false
+    },
+    "last_fill": {
+      "hkt": "2026-09-07 00:07:17",
+      "slug": "eth-updown-5m-1788710700",
+      "hours_ago": 0.57,
+      "lead": 8.065801913941158
+    },
+    "last_attempt": {
+      "hkt": "2026-09-07 00:08:19",
+      "slug": "eth-updown-5m-1788710700",
+      "st": "dumped",
+      "fok": null,
+      "hours_ago": 0.56,
+      "lead": null
+    },
+    "funnel_36h": {
+      "attempted": 14,
+      "filled_slugs": 2,
+      "killed_only": 8,
+      "err_only": 4,
+      "fill_rate": 0.1429,
+      "fill_rows": 2,
+      "fok_reasons": {
+        "twap_no_cheaper": 8,
+        "fok_short": 1
+      },
+      "err_kinds": {
+        "unmatched": 8,
+        "other": 1
+      }
+    },
+    "funnel_72h": {
+      "attempted": 49,
+      "filled_slugs": 10,
+      "killed_only": 27,
+      "err_only": 12,
+      "fill_rate": 0.2041,
+      "fill_rows": 10,
+      "fok_reasons": {
+        "twap_no_cheaper": 43,
+        "twap_no_up_requote": 24,
+        "fok_short": 2
+      },
+      "err_kinds": {
+        "disabled": 1,
+        "unmatched": 22,
+        "other": 1
+      }
+    },
+    "by_hkt_day": {
+      "2026-08-31": {
+        "attempted": 31,
+        "filled_slugs": 10,
+        "killed_only": 6,
+        "err_only": 15,
+        "fill_rate": 0.3226,
+        "fill_rows": 10,
+        "fok_reasons": {
+          "clob_rtt_miss": 6,
+          "twap_no_up_requote": 13,
+          "fok_short": 12
+        },
+        "err_kinds": {
+          "disabled": 66,
+          "unmatched": 16,
+          "other": 2
+        }
+      },
+      "2026-09-01": {
+        "attempted": 27,
+        "filled_slugs": 9,
+        "killed_only": 12,
+        "err_only": 6,
+        "fill_rate": 0.3333,
+        "fill_rows": 9,
+        "fok_reasons": {
+          "twap_no_up_requote": 8,
+          "fok_short": 8,
+          "clob_rtt_miss": 8,
+          "twap_no_cheaper": 8
+        },
+        "err_kinds": {
+          "unmatched": 8,
+          "other": 1,
+          "disabled": 2
+        }
+      },
+      "2026-09-02": {
+        "attempted": 68,
+        "filled_slugs": 22,
+        "killed_only": 23,
+        "err_only": 23,
+        "fill_rate": 0.3235,
+        "fill_rows": 22,
+        "fok_reasons": {
+          "twap_no_cheaper": 31,
+          "fok_short": 21,
+          "twap_no_up_requote": 10
+        },
+        "err_kinds": {
+          "unmatched": 27,
+          "other": 2,
+          "disabled": 15
+        }
+      },
+      "2026-09-03": {
+        "attempted": 37,
+        "filled_slugs": 23,
+        "killed_only": 10,
+        "err_only": 4,
+        "fill_rate": 0.6216,
+        "fill_rows": 23,
+        "fok_reasons": {
+          "twap_no_cheaper": 15,
+          "fok_short": 1,
+          "twap_no_up_requote": 26
+        },
+        "err_kinds": {
+          "unmatched": 11,
+          "other": 1,
+          "disabled": 1
+        }
+      },
+      "2026-09-04": {
+        "attempted": 35,
+        "filled_slugs": 10,
+        "killed_only": 17,
+        "err_only": 8,
+        "fill_rate": 0.2857,
+        "fill_rows": 10,
+        "fok_reasons": {
+          "twap_no_cheaper": 34,
+          "twap_no_up_requote": 24,
+          "fok_short": 1
+        },
+        "err_kinds": {
+          "unmatched": 15,
+          "disabled": 1
+        }
+      },
+      "2026-09-05": {
+        "attempted": 5,
+        "filled_slugs": 0,
+        "killed_only": 5,
+        "err_only": 0,
+        "fill_rate": 0.0,
+        "fill_rows": 0,
+        "fok_reasons": {
+          "twap_no_cheaper": 5
+        },
+        "err_kinds": {
+          "unmatched": 2
+        }
+      },
+      "2026-09-06": {
+        "attempted": 11,
+        "filled_slugs": 1,
+        "killed_only": 6,
+        "err_only": 4,
+        "fill_rate": 0.0909,
+        "fill_rows": 1,
+        "fok_reasons": {
+          "twap_no_cheaper": 6,
+          "fok_short": 1
+        },
+        "err_kinds": {
+          "unmatched": 7,
+          "other": 1
+        }
+      },
+      "2026-09-07": {
+        "attempted": 1,
+        "filled_slugs": 1,
+        "killed_only": 0,
+        "err_only": 0,
+        "fill_rate": 1.0,
+        "fill_rows": 1,
+        "fok_reasons": {},
+        "err_kinds": {}
+      }
+    },
+    "ws_1013_36h": 30
+  },
+  "long_tape": {
+    "windows": 8829,
+    "valid_n": 594,
+    "valid_share": 0.0673,
+    "per_day": 37.12,
+    "ever_lead6": 0.473,
+    "ever_inband_side": 0.7537,
+    "lead6_never_inband": 0.1665,
+    "inband_never_lead6": 0.4472,
+    "lead6_and_inband_but_not_same_tick": 0.2392,
+    "pullback_share_of_valid": 0.8434,
+    "t0_sensitive_share_of_valid": 0.1094,
+    "leftover_1s_share_of_valid": 0.3451,
+    "valid_by_hkt_hour": {
+      "0": 44,
+      "1": 32,
+      "2": 18,
+      "3": 12,
+      "4": 11,
+      "5": 33,
+      "6": 28,
+      "7": 17,
+      "8": 15,
+      "9": 22,
+      "10": 20,
+      "11": 12,
+      "12": 9,
+      "13": 23,
+      "14": 15,
+      "15": 8,
+      "16": 27,
+      "17": 27,
+      "18": 19,
+      "19": 23,
+      "20": 26,
+      "21": 46,
+      "22": 53,
+      "23": 54
+    },
+    "valid_by_hkt_day": {
+      "2026-08-14": 2,
+      "2026-08-17": 7,
+      "2026-08-18": 4,
+      "2026-08-19": 18,
+      "2026-08-20": 88,
+      "2026-08-21": 113,
+      "2026-08-22": 76,
+      "2026-08-23": 26,
+      "2026-08-24": 70,
+      "2026-08-25": 78,
+      "2026-08-26": 29,
+      "2026-08-27": 35,
+      "2026-08-28": 34,
+      "2026-08-29": 14
+    },
+    "valid_by_dow": {
+      "0": 26,
+      "1": 77,
+      "2": 82,
+      "3": 47,
+      "4": 123,
+      "5": 149,
+      "6": 90
+    },
+    "windows_by_hkt_day": {
+      "2026-08-14": 382,
+      "2026-08-15": 576,
+      "2026-08-16": 576,
+      "2026-08-17": 576,
+      "2026-08-18": 576,
+      "2026-08-19": 501,
+      "2026-08-20": 576,
+      "2026-08-21": 576,
+      "2026-08-22": 568,
+      "2026-08-23": 576,
+      "2026-08-24": 576,
+      "2026-08-25": 576,
+      "2026-08-26": 484,
+      "2026-08-27": 576,
+      "2026-08-28": 576,
+      "2026-08-29": 558
+    }
+  },
+  "weekend_vs_weekday": {
+    "weekend": {
+      "windows": 2854,
+      "valid_n": 116,
+      "valid_share": 0.0406,
+      "per_day": 23.2,
+      "ever_lead6": 0.336,
+      "ever_inband_side": 0.7568,
+      "lead6_never_inband": 0.1223,
+      "inband_never_lead6": 0.5431,
+      "lead6_and_inband_but_not_same_tick": 0.1731,
+      "pullback_share_of_valid": 0.8276,
+      "t0_sensitive_share_of_valid": 0.1034,
+      "leftover_1s_share_of_valid": 0.2845,
+      "valid_by_hkt_hour": {
+        "0": 18,
+        "1": 5,
+        "2": 5,
+        "3": 2,
+        "4": 5,
+        "5": 8,
+        "6": 8,
+        "7": 6,
+        "8": 1,
+        "9": 4,
+        "10": 3,
+        "11": 2,
+        "12": 2,
+        "13": 15,
+        "14": 7,
+        "15": 1,
+        "16": 3,
+        "17": 2,
+        "18": 1,
+        "19": 3,
+        "20": 3,
+        "21": 4,
+        "22": 3,
+        "23": 5
+      },
+      "valid_by_hkt_day": {
+        "2026-08-22": 76,
+        "2026-08-23": 26,
+        "2026-08-29": 14
+      },
+      "valid_by_dow": {
+        "0": 26,
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 90
+      },
+      "windows_by_hkt_day": {
+        "2026-08-15": 576,
+        "2026-08-16": 576,
+        "2026-08-22": 568,
+        "2026-08-23": 576,
+        "2026-08-29": 558
+      }
+    },
+    "weekday": {
+      "windows": 5975,
+      "valid_n": 478,
+      "valid_share": 0.08,
+      "per_day": 43.45,
+      "ever_lead6": 0.5384,
+      "ever_inband_side": 0.7521,
+      "lead6_never_inband": 0.1876,
+      "inband_never_lead6": 0.4013,
+      "lead6_and_inband_but_not_same_tick": 0.2708,
+      "pullback_share_of_valid": 0.8473,
+      "t0_sensitive_share_of_valid": 0.1109,
+      "leftover_1s_share_of_valid": 0.3598,
+      "valid_by_hkt_hour": {
+        "0": 26,
+        "1": 27,
+        "2": 13,
+        "3": 10,
+        "4": 6,
+        "5": 25,
+        "6": 20,
+        "7": 11,
+        "8": 14,
+        "9": 18,
+        "10": 17,
+        "11": 10,
+        "12": 7,
+        "13": 8,
+        "14": 8,
+        "15": 7,
+        "16": 24,
+        "17": 25,
+        "18": 18,
+        "19": 20,
+        "20": 23,
+        "21": 42,
+        "22": 50,
+        "23": 49
+      },
+      "valid_by_hkt_day": {
+        "2026-08-14": 2,
+        "2026-08-17": 7,
+        "2026-08-18": 4,
+        "2026-08-19": 18,
+        "2026-08-20": 88,
+        "2026-08-21": 113,
+        "2026-08-24": 70,
+        "2026-08-25": 78,
+        "2026-08-26": 29,
+        "2026-08-27": 35,
+        "2026-08-28": 34
+      },
+      "valid_by_dow": {
+        "0": 0,
+        "1": 77,
+        "2": 82,
+        "3": 47,
+        "4": 123,
+        "5": 149,
+        "6": 0
+      },
+      "windows_by_hkt_day": {
+        "2026-08-14": 382,
+        "2026-08-17": 576,
+        "2026-08-18": 576,
+        "2026-08-19": 501,
+        "2026-08-20": 576,
+        "2026-08-21": 576,
+        "2026-08-24": 576,
+        "2026-08-25": 576,
+        "2026-08-26": 484,
+        "2026-08-27": 576,
+        "2026-08-28": 576
+      }
+    }
+  },
+  "recent_tape": {
+    "windows": 2699,
+    "valid_n": 86,
+    "valid_share": 0.0319,
+    "per_day": 14.33,
+    "ever_lead6": 0.4339,
+    "ever_inband_side": 0.708,
+    "lead6_never_inband": 0.1938,
+    "inband_never_lead6": 0.468,
+    "lead6_and_inband_but_not_same_tick": 0.2082,
+    "pullback_share_of_valid": 0.907,
+    "t0_sensitive_share_of_valid": 0.0581,
+    "leftover_1s_share_of_valid": 0.2791,
+    "valid_by_hkt_hour": {
+      "0": 6,
+      "1": 4,
+      "2": 3,
+      "3": 1,
+      "4": 4,
+      "5": 3,
+      "6": 1,
+      "7": 1,
+      "8": 3,
+      "9": 5,
+      "10": 1,
+      "11": 1,
+      "12": 0,
+      "13": 0,
+      "14": 1,
+      "15": 2,
+      "16": 3,
+      "17": 4,
+      "18": 2,
+      "19": 2,
+      "20": 3,
+      "21": 16,
+      "22": 16,
+      "23": 4
+    },
+    "valid_by_hkt_day": {
+      "2026-09-02": 25,
+      "2026-09-03": 27,
+      "2026-09-04": 30,
+      "2026-09-05": 1,
+      "2026-09-06": 3
+    },
+    "valid_by_dow": {
+      "0": 3,
+      "1": 0,
+      "2": 0,
+      "3": 25,
+      "4": 27,
+      "5": 30,
+      "6": 1
+    },
+    "windows_by_hkt_day": {
+      "2026-09-02": 459,
+      "2026-09-03": 568,
+      "2026-09-04": 502,
+      "2026-09-05": 576,
+      "2026-09-06": 576,
+      "2026-09-07": 18
+    }
+  },
+  "live_vs_tape": {
+    "2026-09-02": {
+      "tape_valid": 25,
+      "live_attempted": 68,
+      "live_filled": 22,
+      "live_fill_rate": 0.3235,
+      "gap_attempts": -43
+    },
+    "2026-09-03": {
+      "tape_valid": 27,
+      "live_attempted": 37,
+      "live_filled": 23,
+      "live_fill_rate": 0.6216,
+      "gap_attempts": -10
+    },
+    "2026-09-04": {
+      "tape_valid": 30,
+      "live_attempted": 35,
+      "live_filled": 10,
+      "live_fill_rate": 0.2857,
+      "gap_attempts": -5
+    },
+    "2026-09-05": {
+      "tape_valid": 1,
+      "live_attempted": 5,
+      "live_filled": 0,
+      "live_fill_rate": 0.0,
+      "gap_attempts": -4
+    },
+    "2026-09-06": {
+      "tape_valid": 3,
+      "live_attempted": 11,
+      "live_filled": 1,
+      "live_fill_rate": 0.0909,
+      "gap_attempts": -8
+    }
+  },
+  "solutions": {
+    "ws_max_queue": {
+      "kind": "ops",
+      "ship_code": true,
+      "why": "36h had many 1013 slow-consumer kicks at window open; tape already assumes first 6bps 45–55 fill. Recover conversion without easing the sleeve."
+    },
+    "lead_5_5": {
+      "kind": "param",
+      "ship": false,
+      "delta_n": 124,
+      "d_holdout": 63.35,
+      "extra_orig_hold_wr_holdout": 0.92,
+      "why": "Tape extras pass orig-hold bar. Does not fill 71–96¢ 拉盤. Owner decides."
+    },
+    "chase_leftover": {
+      "kind": "param",
+      "ship": false,
+      "forbidden": true,
+      "why": "Raises conversion of the same first-cross window by taking cheaper leftover. Last-look family. Keep kill."
+    },
+    "band_40_60": {
+      "kind": "param",
+      "ship": false,
+      "forbidden": true,
+      "why": "Buys already-decided books. Same family as 97–98."
+    },
+    "max_left_300": {
+      "kind": "param",
+      "ship": false,
+      "delta_n": 0,
+      "why": "Adds 0 tape takes."
+    },
+    "up_tick_2c": {
+      "kind": "param",
+      "ship": false,
+      "why": "Recovers some twap_no_up_requote still inside 55¢, but 0.54→0.56 leaves the band. Keep 1¢ cap."
+    }
+  },
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "autodial_5_5bps",
+    "band_40_60",
+    "chase_leftover",
+    "up_requote_2ticks",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "favorite_97_98"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_no_cheaper": true,
+    "twap_up_tick": 0.01
+  },
+  "findings": {
+    "headline": "少交易主要係 6bps∩45–55 稀 + live leftover/WS 轉換差，唔係引擎停咗。",
+    "long_valid_per_day": 37.12,
+    "weekend_valid_share": 0.0406,
+    "weekday_valid_share": 0.08,
+    "sep5_tape_valid": 1,
+    "sep6_tape_valid": 3,
+    "pullback_share_of_valid": 0.8434
+  }
+}

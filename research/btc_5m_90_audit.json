@@ -1,0 +1,542 @@
+{
+  "researched_at_utc": "2026-08-27T17:10:29Z",
+  "sample_hours": 36,
+  "markets": 431,
+  "errors": 0,
+  "error_samples": [],
+  "capped_page0_ge_1000": 377,
+  "capped_rate": 0.8747,
+  "page0_span_s_p50": 255,
+  "page0_oldest_left_p50": 203,
+  "volume_p50": 52942.6,
+  "notional_usd": 5.0,
+  "notional_usd_study": 25.0,
+  "combos": {
+    "90_only_last300s": {
+      "capped_page0": {
+        "n": 394,
+        "win": 380,
+        "lose": 14,
+        "reverse": 0.035533,
+        "reverse_ci95": [
+          0.021282,
+          0.058754
+        ],
+        "pnl_usd": 127.51,
+        "pnl_usd_25": 637.56,
+        "avg_left_s": 126.9,
+        "avg_px": 0.8999,
+        "looked_50": 34,
+        "looked_90": 13,
+        "looked_50_rate": 0.086294,
+        "looked_90_rate": 0.032995,
+        "disagree_vs_capped": 65,
+        "vs_fee_breakeven_9_37pct": -0.058167
+      },
+      "full_tape": {
+        "n": 394,
+        "win": 367,
+        "lose": 27,
+        "reverse": 0.068528,
+        "reverse_ci95": [
+          0.04752,
+          0.097868
+        ],
+        "pnl_usd": 55.25,
+        "pnl_usd_25": 276.24,
+        "avg_left_s": 142.5,
+        "avg_px": 0.8999,
+        "looked_50": 65,
+        "looked_90": 29,
+        "looked_50_rate": 0.164975,
+        "looked_90_rate": 0.073604,
+        "disagree_vs_capped": 65,
+        "vs_fee_breakeven_9_37pct": -0.025172
+      },
+      "fill_identity_disagreements": 65,
+      "full_loss_hidden_by_cap": 16
+    },
+    "90_only_last180s": {
+      "capped_page0": {
+        "n": 352,
+        "win": 338,
+        "lose": 14,
+        "reverse": 0.039773,
+        "reverse_ci95": [
+          0.023837,
+          0.065646
+        ],
+        "pnl_usd": 105.65,
+        "pnl_usd_25": 528.24,
+        "avg_left_s": 108.7,
+        "avg_px": 0.8999,
+        "looked_50": 34,
+        "looked_90": 13,
+        "looked_50_rate": 0.096591,
+        "looked_90_rate": 0.036932,
+        "disagree_vs_capped": 49,
+        "vs_fee_breakeven_9_37pct": -0.053927
+      },
+      "full_tape": {
+        "n": 352,
+        "win": 330,
+        "lose": 22,
+        "reverse": 0.0625,
+        "reverse_ci95": [
+          0.041633,
+          0.092814
+        ],
+        "pnl_usd": 61.12,
+        "pnl_usd_25": 305.62,
+        "avg_left_s": 119.5,
+        "avg_px": 0.9,
+        "looked_50": 57,
+        "looked_90": 24,
+        "looked_50_rate": 0.161932,
+        "looked_90_rate": 0.068182,
+        "disagree_vs_capped": 49,
+        "vs_fee_breakeven_9_37pct": -0.0312
+      },
+      "fill_identity_disagreements": 49,
+      "full_loss_hidden_by_cap": 11
+    },
+    "90_only_last30s": {
+      "capped_page0": {
+        "n": 32,
+        "win": 29,
+        "lose": 3,
+        "reverse": 0.09375,
+        "reverse_ci95": [
+          0.032401,
+          0.242185
+        ],
+        "pnl_usd": 0.08,
+        "pnl_usd_25": 0.4,
+        "avg_left_s": 21.6,
+        "avg_px": 0.8995,
+        "looked_50": 9,
+        "looked_90": 2,
+        "looked_50_rate": 0.28125,
+        "looked_90_rate": 0.0625,
+        "disagree_vs_capped": 0,
+        "vs_fee_breakeven_9_37pct": 5e-05
+      },
+      "full_tape": {
+        "n": 32,
+        "win": 29,
+        "lose": 3,
+        "reverse": 0.09375,
+        "reverse_ci95": [
+          0.032401,
+          0.242185
+        ],
+        "pnl_usd": 0.08,
+        "pnl_usd_25": 0.4,
+        "avg_left_s": 21.6,
+        "avg_px": 0.8995,
+        "looked_50": 9,
+        "looked_90": 2,
+        "looked_50_rate": 0.28125,
+        "looked_90_rate": 0.0625,
+        "disagree_vs_capped": 0,
+        "vs_fee_breakeven_9_37pct": 5e-05
+      },
+      "fill_identity_disagreements": 0,
+      "full_loss_hidden_by_cap": 0
+    },
+    "90_98_last180s": {
+      "capped_page0": {
+        "n": 393,
+        "win": 378,
+        "lose": 15,
+        "reverse": 0.038168,
+        "reverse_ci95": [
+          0.023264,
+          0.062013
+        ],
+        "pnl_usd": 87.39,
+        "pnl_usd_25": 436.95,
+        "avg_left_s": 117.8,
+        "avg_px": 0.916,
+        "looked_50": 39,
+        "looked_90": 14,
+        "looked_50_rate": 0.099237,
+        "looked_90_rate": 0.035623,
+        "disagree_vs_capped": 49,
+        "vs_fee_breakeven_9_37pct": -0.055532
+      },
+      "full_tape": {
+        "n": 393,
+        "win": 371,
+        "lose": 22,
+        "reverse": 0.05598,
+        "reverse_ci95": [
+          0.037255,
+          0.083301
+        ],
+        "pnl_usd": 51.21,
+        "pnl_usd_25": 256.03,
+        "avg_left_s": 127.1,
+        "avg_px": 0.9148,
+        "looked_50": 58,
+        "looked_90": 24,
+        "looked_50_rate": 0.147583,
+        "looked_90_rate": 0.061069,
+        "disagree_vs_capped": 49,
+        "vs_fee_breakeven_9_37pct": -0.03772
+      },
+      "fill_identity_disagreements": 49,
+      "full_loss_hidden_by_cap": 10
+    },
+    "96_98_last180s": {
+      "capped_page0": {
+        "n": 393,
+        "win": 390,
+        "lose": 3,
+        "reverse": 0.007634,
+        "reverse_ci95": [
+          0.002599,
+          0.0222
+        ],
+        "pnl_usd": 52.1,
+        "pnl_usd_25": 260.5,
+        "avg_left_s": 93.8,
+        "avg_px": 0.9645,
+        "looked_50": 15,
+        "looked_90": 2,
+        "looked_50_rate": 0.038168,
+        "looked_90_rate": 0.005089,
+        "disagree_vs_capped": 11,
+        "vs_fee_breakeven_9_37pct": -0.086066
+      },
+      "full_tape": {
+        "n": 393,
+        "win": 387,
+        "lose": 6,
+        "reverse": 0.015267,
+        "reverse_ci95": [
+          0.007015,
+          0.032904
+        ],
+        "pnl_usd": 36.82,
+        "pnl_usd_25": 184.13,
+        "avg_left_s": 96.5,
+        "avg_px": 0.9643,
+        "looked_50": 22,
+        "looked_90": 7,
+        "looked_50_rate": 0.05598,
+        "looked_90_rate": 0.017812,
+        "disagree_vs_capped": 11,
+        "vs_fee_breakeven_9_37pct": -0.078433
+      },
+      "fill_identity_disagreements": 11,
+      "full_loss_hidden_by_cap": 3
+    }
+  },
+  "left_buckets_full_90_last300s": {
+    "left_240_300": {
+      "n": 18,
+      "win": 15,
+      "lose": 3,
+      "reverse": 0.166667,
+      "reverse_ci95": [
+        0.058365,
+        0.392225
+      ],
+      "pnl_usd": -7.3,
+      "pnl_usd_25": -36.48,
+      "avg_left_s": 261.2,
+      "avg_px": 0.9,
+      "looked_50": 4,
+      "looked_90": 3,
+      "looked_50_rate": 0.222222,
+      "looked_90_rate": 0.166667,
+      "disagree_vs_capped": 0,
+      "vs_fee_breakeven_9_37pct": 0.072967
+    },
+    "left_180_240": {
+      "n": 99,
+      "win": 91,
+      "lose": 8,
+      "reverse": 0.080808,
+      "reverse_ci95": [
+        0.041514,
+        0.15142
+      ],
+      "pnl_usd": 7.1,
+      "pnl_usd_25": 35.52,
+      "avg_left_s": 211.1,
+      "avg_px": 0.9,
+      "looked_50": 19,
+      "looked_90": 9,
+      "looked_50_rate": 0.191919,
+      "looked_90_rate": 0.090909,
+      "disagree_vs_capped": 0,
+      "vs_fee_breakeven_9_37pct": -0.012892
+    },
+    "left_120_180": {
+      "n": 121,
+      "win": 113,
+      "lose": 8,
+      "reverse": 0.066116,
+      "reverse_ci95": [
+        0.033879,
+        0.125055
+      ],
+      "pnl_usd": 18.59,
+      "pnl_usd_25": 92.94,
+      "avg_left_s": 152.8,
+      "avg_px": 0.8999,
+      "looked_50": 18,
+      "looked_90": 10,
+      "looked_50_rate": 0.14876,
+      "looked_90_rate": 0.082645,
+      "disagree_vs_capped": 0,
+      "vs_fee_breakeven_9_37pct": -0.027584
+    },
+    "left_60_120": {
+      "n": 103,
+      "win": 98,
+      "lose": 5,
+      "reverse": 0.048544,
+      "reverse_ci95": [
+        0.020911,
+        0.108642
+      ],
+      "pnl_usd": 25.92,
+      "pnl_usd_25": 129.59,
+      "avg_left_s": 92.7,
+      "avg_px": 0.8999,
+      "looked_50": 17,
+      "looked_90": 4,
+      "looked_50_rate": 0.165049,
+      "looked_90_rate": 0.038835,
+      "disagree_vs_capped": 0,
+      "vs_fee_breakeven_9_37pct": -0.045156
+    },
+    "left_30_60": {
+      "n": 47,
+      "win": 44,
+      "lose": 3,
+      "reverse": 0.06383,
+      "reverse_ci95": [
+        0.021945,
+        0.171629
+      ],
+      "pnl_usd": 7.81,
+      "pnl_usd_25": 39.06,
+      "avg_left_s": 50.6,
+      "avg_px": 0.9,
+      "looked_50": 5,
+      "looked_90": 3,
+      "looked_50_rate": 0.106383,
+      "looked_90_rate": 0.06383,
+      "disagree_vs_capped": 0,
+      "vs_fee_breakeven_9_37pct": -0.02987
+    },
+    "left_0_30": {
+      "n": 6,
+      "win": 6,
+      "lose": 0,
+      "reverse": 0.0,
+      "reverse_ci95": [
+        0.0,
+        0.390343
+      ],
+      "pnl_usd": 3.12,
+      "pnl_usd_25": 15.62,
+      "avg_left_s": 20.7,
+      "avg_px": 0.9,
+      "looked_50": 2,
+      "looked_90": 0,
+      "looked_50_rate": 0.333333,
+      "looked_90_rate": 0.0,
+      "disagree_vs_capped": 0,
+      "vs_fee_breakeven_9_37pct": -0.0937
+    }
+  },
+  "original_30d_headline_capped_tape": {
+    "buy_0.90_last300s_reverse": 0.056529,
+    "buy_0.90_last180s_reverse": 0.060264,
+    "buy_0.90_last30s_reverse": 0.09292,
+    "fee_breakeven_reverse_at_90c": 0.0937,
+    "circuit_clipped_usd_30d_at_25": 7268.26,
+    "note": "Those numbers used one newest-first /trades page (limit=1000). Last-30s is the most complete slice."
+  },
+  "why_this_matters": [
+    "Original 30d study used one /trades page (limit=1000, newest first).",
+    "On liquid BTC 5m that page is the last ~2 minutes, not the whole 5m.",
+    "90c full-session PnL in that study is therefore not a true first-90-of-the-window backtest.",
+    "Last-30s 90c in the original file is the most complete slice and sat near fee breakeven."
+  ],
+  "examples_full_90_losses": [
+    {
+      "slug": "btc-updown-5m-1787847900",
+      "bought": "Up",
+      "winner": "Down",
+      "left_s": 51,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787841000",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 77,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787831400",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 234,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787830200",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 230,
+      "opp_max_after": 0.999
+    },
+    {
+      "slug": "btc-updown-5m-1787829000",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 114,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787818200",
+      "bought": "Up",
+      "winner": "Down",
+      "left_s": 242,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787817900",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 251,
+      "opp_max_after": 0.999
+    },
+    {
+      "slug": "btc-updown-5m-1787815200",
+      "bought": "Up",
+      "winner": "Down",
+      "left_s": 93,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787811300",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 210,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787810100",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 200,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787808300",
+      "bought": "Up",
+      "winner": "Down",
+      "left_s": 293,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787806200",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 98,
+      "opp_max_after": 0.8
+    },
+    {
+      "slug": "btc-updown-5m-1787800500",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 137,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787793300",
+      "bought": "Down",
+      "winner": "Up",
+      "left_s": 138,
+      "opp_max_after": 0.99
+    },
+    {
+      "slug": "btc-updown-5m-1787790000",
+      "bought": "Up",
+      "winner": "Down",
+      "left_s": 150,
+      "opp_max_after": 0.999
+    }
+  ],
+  "full_90_last300s_on_capped_books": {
+    "n": 374,
+    "win": 347,
+    "lose": 27,
+    "reverse": 0.072193,
+    "reverse_ci95": [
+      0.050086,
+      0.102998
+    ],
+    "pnl_usd": 44.82,
+    "pnl_usd_25": 224.08,
+    "avg_left_s": 139.1,
+    "avg_px": 0.8999,
+    "looked_50": 65,
+    "looked_90": 29,
+    "looked_50_rate": 0.173797,
+    "looked_90_rate": 0.07754,
+    "disagree_vs_capped": 0,
+    "vs_fee_breakeven_9_37pct": -0.021507
+  },
+  "full_90_last300s_on_uncapped_books": {
+    "n": 20,
+    "win": 20,
+    "lose": 0,
+    "reverse": 0.0,
+    "reverse_ci95": [
+      0.0,
+      0.16113
+    ],
+    "pnl_usd": 10.43,
+    "pnl_usd_25": 52.16,
+    "avg_left_s": 204.6,
+    "avg_px": 0.8998,
+    "looked_50": 0,
+    "looked_90": 0,
+    "looked_50_rate": 0.0,
+    "looked_90_rate": 0.0,
+    "disagree_vs_capped": 0,
+    "vs_fee_breakeven_9_37pct": -0.0937
+  },
+  "first90_left_shift_full_minus_page0_s_p50": 0,
+  "verdict": {
+    "original_90_full_5m_pnl_trust": "overstated_do_not_scale_7k",
+    "reason": "Full-tape 90c last300s reverse 6.85% is still under 9.37% on this 36h sample (CI [0.04752, 0.097868]), so we cannot call it minus-EV yet. Capped reverse this sample was 3.55% vs full 6.85%; visible losses were about half the true losses (14 vs 27). Do not scale the original +$7k / 30d headline; last-30s 90c was already ~fee breakeven.",
+    "do_not_silently_retarget_bot": true,
+    "current_bot_is_90_98_last180s": true,
+    "eye_test": "After a 90c buy, the other side printing >=50c is common (scare). The other side printing >=90c almost matches actual resolve losses. Early 90s (3-5 min left) reverse more than late 90s.",
+    "current_bot_full_tape": {
+      "90_98_last180s_reverse": 0.05598,
+      "90_98_last180s_pnl_usd_5": 51.21,
+      "96_98_last180s_reverse": 0.015267,
+      "96_98_last180s_pnl_usd_5": 36.82,
+      "90_only_last30s_reverse": 0.09375
+    },
+    "how_to_read_last30s_vs_left_0_30": "90_only_last30s = first 90c print inside the last 30s, even if 90 already printed earlier. left_0_30 bucket = the first 90c of the whole 5m window happened in the last 30s (rare).",
+    "extrapolation_note": "This 36h capped reverse (3.55%) was luckier than the 30d capped 5.65%. If the same hidden-loss gap (~+3.3 to +4.1pp reverse) applies to the 30d file, true 90 last300s reverse sits near 9-10%, i.e. around the 9.37% fee breakeven. 36h CI still includes both +EV and breakeven; 30d +$7268 is not a usable forecast.",
+    "early_90_left_240_300s": {
+      "n": 18,
+      "reverse": 0.166667,
+      "pnl_usd_5": -7.3,
+      "note": "Small n, but this is the slice the newest-1000 page usually deletes."
+    }
+  }
+}

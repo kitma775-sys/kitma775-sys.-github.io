@@ -1,0 +1,103 @@
+{
+  "strategy_rev": 60,
+  "ship": false,
+  "pick": null,
+  "recommend": null,
+  "recommend_plus_one": null,
+  "passing_alts": [],
+  "fail_reasons": {
+    "sol": [
+      "train_-EV",
+      "holdout_-EV",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ],
+    "xrp": [
+      "train_-EV",
+      "holdout_-EV",
+      "holdout_wr_below_85_or_no_holds",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ],
+    "doge": [
+      "train_-EV",
+      "holdout_-EV",
+      "holdout_wr_below_85_or_no_holds",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ],
+    "bnb": [
+      "train_-EV",
+      "holdout_-EV",
+      "holdout_wr_below_85_or_no_holds",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ]
+  },
+  "researched_at_utc": "2026-09-04T12:10:35Z",
+  "source": "research/two_alts.json",
+  "question": "Open two more 5m coins on the frozen BTC+ETH TWAP sleeve?",
+  "why": "Shipped first-cross + dump90 + oracle, independent clocks, 7d holdout. BTC+ETH stay +EV. SOL/XRP/DOGE/BNB are train and holdout \u2212EV on this sleeve: they rarely print 62\u00a2 so dump90 fires on ~90%+ of fills and donates spread instead of holding. BM-only print-tape orig_hold_wr still looks 75\u201395% (SOL 94.6%) but that is NOT live \u2014 Rev 47/48 alt holds hit 14%, SOL \u2212$8.49. Do not skip dump90 on alts to chase that tape. 4 coins need 16 WS tokens (overflow 2). 3 coins fit 12/14 but no single alt passes. HYPE 0 CLOB prints. BNB n=79 is too thin. Owner decides; do not pin twap_assets.",
+  "core_holdout": {
+    "n": 199,
+    "pnl5": 79.3735,
+    "take_wr": 0.9701,
+    "ev_ok": true
+  },
+  "ws_plus_two_fits": false,
+  "ws_plus_one_fits": true,
+  "hype_prints": 0,
+  "live_alt_bleed_net": -8.87,
+  "closest_plus_one": {
+    "asset": "bnb",
+    "d_holdout": -26.8,
+    "each_ok": false
+  },
+  "closest_pair": {
+    "pair": [
+      "doge",
+      "bnb"
+    ],
+    "d_holdout": -151.12,
+    "each_ok": false
+  },
+  "alt_dump_share": {
+    "sol": 0.9786,
+    "xrp": 0.9966,
+    "doge": 0.9971,
+    "bnb": 0.9747
+  },
+  "alt_confirm_62": {
+    "sol": 0.0814,
+    "xrp": 0.0511,
+    "doge": 0.0233,
+    "bnb": 0.038
+  },
+  "do_not": [
+    "pin_twap_assets_without_owner",
+    "15m",
+    "1h_binance",
+    "hype_no_prints",
+    "bnb_thin",
+    "twap_reverse_on",
+    "dump_mid90",
+    "lead_4bps",
+    "band_40_60",
+    "chase_leftover",
+    "clock_lock_one_coin",
+    "raise_btc_eth_min_left_180",
+    "skip_dump90_on_alts_to_chase_print_hold_wr"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_confirm_px": 0.62,
+    "twap_confirm_fair": 0.6,
+    "independent_clocks": true
+  }
+}

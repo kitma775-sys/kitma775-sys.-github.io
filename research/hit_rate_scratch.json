@@ -1,0 +1,418 @@
+{
+  "researched_at_utc": "2026-08-31T16:03:36Z",
+  "gates": [
+    {
+      "name": "base_15s_bid38_adv0",
+      "all": {
+        "n": 749,
+        "pnl_usd": 845.37,
+        "win": 305,
+        "lose": 47,
+        "held": 352,
+        "scratch_n": 397,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.8665,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 272.55,
+        "win": 112,
+        "lose": 22,
+        "held": 134,
+        "scratch_n": 163,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.8358,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 572.82,
+        "win": 193,
+        "lose": 25,
+        "held": 218,
+        "scratch_n": 234,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.8853,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 352,
+        "twap_scratch_better": 218,
+        "twap_scratch_flip": 63,
+        "twap_scratch_weak": 116
+      }
+    },
+    {
+      "name": "bid32_15s_adv0",
+      "all": {
+        "n": 749,
+        "pnl_usd": 845.37,
+        "win": 305,
+        "lose": 47,
+        "held": 352,
+        "scratch_n": 397,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.8665,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 272.55,
+        "win": 112,
+        "lose": 22,
+        "held": 134,
+        "scratch_n": 163,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.8358,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 572.82,
+        "win": 193,
+        "lose": 25,
+        "held": 218,
+        "scratch_n": 234,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.8853,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 352,
+        "twap_scratch_better": 218,
+        "twap_scratch_flip": 63,
+        "twap_scratch_weak": 116
+      }
+    },
+    {
+      "name": "bid32_15s_adv08",
+      "all": {
+        "n": 749,
+        "pnl_usd": 753.83,
+        "win": 289,
+        "lose": 40,
+        "held": 329,
+        "scratch_n": 420,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.8784,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 261.02,
+        "win": 109,
+        "lose": 17,
+        "held": 126,
+        "scratch_n": 171,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.8651,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 492.81,
+        "win": 180,
+        "lose": 23,
+        "held": 203,
+        "scratch_n": 249,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.8867,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 329,
+        "twap_scratch_better": 147,
+        "twap_scratch_flip": 26,
+        "twap_scratch_stop": 204,
+        "twap_scratch_weak": 43
+      }
+    },
+    {
+      "name": "bid32_8s_adv08",
+      "all": {
+        "n": 749,
+        "pnl_usd": 777.24,
+        "win": 273,
+        "lose": 20,
+        "held": 293,
+        "scratch_n": 456,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.9317,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 276.47,
+        "win": 101,
+        "lose": 7,
+        "held": 108,
+        "scratch_n": 189,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.9352,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 500.78,
+        "win": 172,
+        "lose": 13,
+        "held": 185,
+        "scratch_n": 267,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.9297,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 293,
+        "twap_scratch_better": 134,
+        "twap_scratch_flip": 35,
+        "twap_scratch_stop": 233,
+        "twap_scratch_weak": 54
+      }
+    },
+    {
+      "name": "bid38_15s_adv08",
+      "all": {
+        "n": 749,
+        "pnl_usd": 753.83,
+        "win": 289,
+        "lose": 40,
+        "held": 329,
+        "scratch_n": 420,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.8784,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 261.02,
+        "win": 109,
+        "lose": 17,
+        "held": 126,
+        "scratch_n": 171,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.8651,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 492.81,
+        "win": 180,
+        "lose": 23,
+        "held": 203,
+        "scratch_n": 249,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.8867,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 329,
+        "twap_scratch_better": 147,
+        "twap_scratch_flip": 26,
+        "twap_scratch_stop": 204,
+        "twap_scratch_weak": 43
+      }
+    },
+    {
+      "name": "p52_bid32_adv08",
+      "all": {
+        "n": 749,
+        "pnl_usd": 791.98,
+        "win": 289,
+        "lose": 32,
+        "held": 321,
+        "scratch_n": 428,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.9003,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 271.89,
+        "win": 109,
+        "lose": 15,
+        "held": 124,
+        "scratch_n": 173,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.879,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 520.09,
+        "win": 180,
+        "lose": 17,
+        "held": 197,
+        "scratch_n": 255,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.9137,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 321,
+        "twap_scratch_better": 132,
+        "twap_scratch_stop": 201,
+        "twap_scratch_weak": 95
+      }
+    },
+    {
+      "name": "bid28_8s_adv10",
+      "all": {
+        "n": 749,
+        "pnl_usd": 818.31,
+        "win": 280,
+        "lose": 23,
+        "held": 303,
+        "scratch_n": 446,
+        "avg_px": 0.5122,
+        "avg_left": 153.4,
+        "avg_lead": 7.93,
+        "take_win_rate": 0.9241,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 297,
+        "pnl_usd": 289.82,
+        "win": 102,
+        "lose": 7,
+        "held": 109,
+        "scratch_n": 188,
+        "avg_px": 0.5133,
+        "avg_left": 155.2,
+        "avg_lead": 8.13,
+        "take_win_rate": 0.9358,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 452,
+        "pnl_usd": 528.49,
+        "win": 178,
+        "lose": 16,
+        "held": 194,
+        "scratch_n": 258,
+        "avg_px": 0.5115,
+        "avg_left": 152.3,
+        "avg_lead": 7.79,
+        "take_win_rate": 0.9175,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 303,
+        "twap_scratch_better": 161,
+        "twap_scratch_flip": 53,
+        "twap_scratch_stop": 160,
+        "twap_scratch_weak": 72
+      }
+    },
+    {
+      "name": "rev46entry_bid32_8s_adv08",
+      "all": {
+        "n": 594,
+        "pnl_usd": 454.21,
+        "win": 186,
+        "lose": 9,
+        "held": 195,
+        "scratch_n": 399,
+        "avg_px": 0.5146,
+        "avg_left": 187.0,
+        "avg_lead": 7.98,
+        "take_win_rate": 0.9538,
+        "ev_ok": true
+      },
+      "train": {
+        "n": 245,
+        "pnl_usd": 161.04,
+        "win": 71,
+        "lose": 3,
+        "held": 74,
+        "scratch_n": 171,
+        "avg_px": 0.5173,
+        "avg_left": 187.9,
+        "avg_lead": 8.21,
+        "take_win_rate": 0.9595,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 349,
+        "pnl_usd": 293.18,
+        "win": 115,
+        "lose": 6,
+        "held": 121,
+        "scratch_n": 228,
+        "avg_px": 0.5127,
+        "avg_left": 186.4,
+        "avg_lead": 7.83,
+        "take_win_rate": 0.9504,
+        "ev_ok": true
+      },
+      "robust": true,
+      "hit70": true,
+      "hit80": true,
+      "why": {
+        "settle": 195,
+        "twap_scratch_better": 100,
+        "twap_scratch_flip": 32,
+        "twap_scratch_stop": 223,
+        "twap_scratch_weak": 44
+      }
+    }
+  ]
+}

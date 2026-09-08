@@ -1,0 +1,33 @@
+{
+  "strategy_rev": 59,
+  "ship": false,
+  "pick": null,
+  "researched_at_utc": "2026-09-02T13:48:29Z",
+  "source": "research/freq_params.json",
+  "question": "Raise fill count without cutting shipped take WR.",
+  "why": "max_left 280→300 adds 0 takes. 5.5bps / 5bps / 44–56¢ add prints on the tape because Rev 59 dump keeps residual-hold WR ~100%, but those extras are windows that never made 6bps or 45–55 — same last-look family as forbidden 4bps / 40–60. Live FOK already converts 6bps worse than the print tape. Keep 6bps, 45–55, 120–280, leftover kill, reverse off.",
+  "baseline_n": 593,
+  "levers": {
+    "max_left_300": {"delta_n": 0, "ship": false},
+    "lead_5_5": {"delta_n": 124, "ship": false, "why": "windows that never reached 6bps"},
+    "lead_5": {"delta_n": 290, "ship": false},
+    "lead_4": {"delta_n": 707, "ship": false, "why": "forbidden"},
+    "band_44_56": {"delta_n": 87, "ship": false},
+    "min_left_90": {"delta_n": 67, "ship": false, "why": "reopens 90s dump gate"},
+    "edge_03": {"delta_n": 3, "ship": false}
+  },
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "lead_5_5bps",
+    "band_40_60",
+    "band_44_56",
+    "chase_leftover",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c"
+  ]
+}

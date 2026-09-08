@@ -1,0 +1,48 @@
+{
+  "strategy_rev": 60,
+  "ship": false,
+  "pick": null,
+  "recommend_ops": "ws_max_queue",
+  "tape_candidate": "lead_5_5",
+  "researched_at_utc": "2026-09-06T16:49:04Z",
+  "source": "research/sparse_fix.json",
+  "question": "Why so few live TWAP fills, and which fix is +EV?",
+  "why": "Few live fills = rare 6bps\u222945\u201355 coincidence plus live FOK conversion. Weekend/\u62c9\u76e4 windows print lead while the taker ask is already 60\u00a2+. 5.5bps extras are +EV on tape (orig-hold 92%) but do not buy a 71\u00a2 ask. Leftover unlock would raise conversion of already-seen prints by chasing cheaper second looks \u2014 forbidden. Ship conversion ops (WS 1013 queue), not autodial of 6bps.",
+  "long_valid_share": 0.0673,
+  "recent_valid_share": 0.0319,
+  "live_36h_fill_rate": 0.1429,
+  "live_36h_attempted": 14,
+  "ws_1013_36h": 30,
+  "weekend_valid_share": 0.0406,
+  "weekday_valid_share": 0.08,
+  "sep5_tape_valid": 1,
+  "sep6_tape_valid": 3,
+  "pullback_share_of_valid": 0.8434,
+  "recent_per_day": 14.33,
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "autodial_5_5bps",
+    "band_40_60",
+    "chase_leftover",
+    "up_requote_2ticks",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "favorite_97_98"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_no_cheaper": true,
+    "twap_up_tick": 0.01
+  }
+}

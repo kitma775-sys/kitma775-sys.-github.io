@@ -1,0 +1,46 @@
+{
+  "strategy_rev": 60,
+  "ship": true,
+  "researched_at_utc": "2026-09-02T14:08:35Z",
+  "source": "research/rev60_fok.json",
+  "pick": "up1_tick_plus_unmatched_reconfirm",
+  "why": "Convert FOK 殺單 without leftover chase. After 250ms, allow 1-tick UP requote still ≤55¢ (never cheaper than first-cross). Live unmatched FAK reconfirms delay=0 and sends one more same-sleeve FAK. Tape n=599 held WR is the side not the cent; +1 tick does not flip Up/Down. 35% print leftover within 1s so keep 250ms + no_cheaper. Do not 2-tick (0.54→0.56 leaves the band).",
+  "params": {
+    "twap_up_tick": 0.01,
+    "twap_no_cheaper": true,
+    "fok_delay_ms": 250,
+    "twap_min_lead_bps": 6.0,
+    "band": [0.45, 0.55],
+    "twap_reverse": false
+  },
+  "tape": {
+    "n": 599,
+    "held_wr_side": 0.8455,
+    "up1_within_1s_before_cheap": 0.1252,
+    "cheap_within_1s": 0.3506,
+    "up2_first": 0.1052,
+    "pnl_fill_at_first": 175.41,
+    "pnl_fill_at_plus_1tick": 124.81
+  },
+  "live_btc_eth_since_rev56": {
+    "filled": 18,
+    "fok_killed": 57,
+    "unmatched": 24,
+    "slugs_fok_short_dead": 9,
+    "slugs_unmatched_dead": 13,
+    "slugs_no_cheaper_dead": 18
+  },
+  "do_not": [
+    "chase_cheaper_leftover",
+    "skip_fok_delay",
+    "up_requote_2ticks",
+    "bps_4",
+    "band_40_60",
+    "min_left_below_120",
+    "dump_mid90",
+    "twap_reverse_on",
+    "price_sl_8c",
+    "turn_taker_fok_off",
+    "flip_live_trading"
+  ]
+}

@@ -1,0 +1,865 @@
+{
+  "researched_at_utc": "2026-09-02T13:48:29Z",
+  "elapsed_s": 41.34,
+  "question": "Add takes without cutting shipped take WR. Overlay = dump_by90 + oracle fair<0.60.",
+  "windows_with_prints": 8498,
+  "windows_with_twap": 8496,
+  "baseline": {
+    "n": 593,
+    "pnl5": 374.552,
+    "pnl3": 224.7312,
+    "take_wr": 1.0,
+    "held": 160,
+    "scratch_n": 433,
+    "avg_left": 199.8,
+    "train": {
+      "n": 244,
+      "pnl5": 108.2253,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 349,
+      "pnl5": 266.3267,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "robust": true
+  },
+  "grid": {
+    "base": {
+      "n": 593,
+      "pnl5": 374.552,
+      "pnl3": 224.7312,
+      "take_wr": 1.0,
+      "held": 160,
+      "scratch_n": 433,
+      "avg_left": 199.8,
+      "train": {
+        "n": 244,
+        "pnl5": 108.2253,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 349,
+        "pnl5": 266.3267,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": false,
+      "forbidden": false
+    },
+    "max_left_290": {
+      "n": 593,
+      "pnl5": 374.6213,
+      "pnl3": 224.77278,
+      "take_wr": 1.0,
+      "held": 160,
+      "scratch_n": 433,
+      "avg_left": 199.9,
+      "train": {
+        "n": 244,
+        "pnl5": 108.2946,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 349,
+        "pnl5": 266.3267,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 290.0,
+        "min_edge": 0.04,
+        "t0": 5
+      },
+      "beats": false,
+      "forbidden": false,
+      "delta_n": 0,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 0.0,
+      "extra": {
+        "n": 0,
+        "pnl5": 0.0,
+        "pnl3": 0.0,
+        "take_wr": null,
+        "held": 0,
+        "scratch_n": 0,
+        "avg_left": null,
+        "train": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false
+      }
+    },
+    "max_left_295": {
+      "n": 593,
+      "pnl5": 374.6213,
+      "pnl3": 224.77278,
+      "take_wr": 1.0,
+      "held": 160,
+      "scratch_n": 433,
+      "avg_left": 199.9,
+      "train": {
+        "n": 244,
+        "pnl5": 108.2946,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 349,
+        "pnl5": 266.3267,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 295.0,
+        "min_edge": 0.04,
+        "t0": 5
+      },
+      "beats": false,
+      "forbidden": false,
+      "delta_n": 0,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 0.0,
+      "extra": {
+        "n": 0,
+        "pnl5": 0.0,
+        "pnl3": 0.0,
+        "take_wr": null,
+        "held": 0,
+        "scratch_n": 0,
+        "avg_left": null,
+        "train": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false
+      }
+    },
+    "max_left_300": {
+      "n": 593,
+      "pnl5": 374.6213,
+      "pnl3": 224.77278,
+      "take_wr": 1.0,
+      "held": 160,
+      "scratch_n": 433,
+      "avg_left": 199.9,
+      "train": {
+        "n": 244,
+        "pnl5": 108.2946,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 349,
+        "pnl5": 266.3267,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 300.0,
+        "min_edge": 0.04,
+        "t0": 5
+      },
+      "beats": false,
+      "forbidden": false,
+      "delta_n": 0,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 0.0,
+      "extra": {
+        "n": 0,
+        "pnl5": 0.0,
+        "pnl3": 0.0,
+        "take_wr": null,
+        "held": 0,
+        "scratch_n": 0,
+        "avg_left": null,
+        "train": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false
+      }
+    },
+    "lead_5_5": {
+      "n": 717,
+      "pnl5": 464.0475,
+      "pnl3": 278.4285,
+      "take_wr": 1.0,
+      "held": 195,
+      "scratch_n": 522,
+      "avg_left": 201.0,
+      "train": {
+        "n": 305,
+        "pnl5": 134.3712,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 412,
+        "pnl5": 329.6763,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": false,
+      "delta_n": 124,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 63.35,
+      "extra": {
+        "n": 124,
+        "pnl5": 88.5909,
+        "pnl3": 53.15454,
+        "take_wr": 1.0,
+        "held": 34,
+        "scratch_n": 90,
+        "avg_left": 200.0,
+        "train": {
+          "n": 52,
+          "pnl5": 27.1047,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 72,
+          "pnl5": 61.4862,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    },
+    "lead_5": {
+      "n": 883,
+      "pnl5": 520.6229,
+      "pnl3": 312.37374,
+      "take_wr": 0.9957,
+      "held": 232,
+      "scratch_n": 651,
+      "avg_left": 201.9,
+      "train": {
+        "n": 447,
+        "pnl5": 198.5559,
+        "take_wr": 0.9907,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 436,
+        "pnl5": 322.067,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 5.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": false,
+      "delta_n": 290,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 55.74,
+      "extra": {
+        "n": 290,
+        "pnl5": 148.3025,
+        "pnl3": 88.9815,
+        "take_wr": 0.9857,
+        "held": 70,
+        "scratch_n": 220,
+        "avg_left": 201.7,
+        "train": {
+          "n": 141,
+          "pnl5": 82.7083,
+          "take_wr": 0.9737,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 149,
+          "pnl5": 65.5942,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    },
+    "lead_4": {
+      "n": 1300,
+      "pnl5": 773.0477,
+      "pnl3": 463.82862,
+      "take_wr": 0.9943,
+      "held": 349,
+      "scratch_n": 951,
+      "avg_left": 205.3,
+      "train": {
+        "n": 634,
+        "pnl5": 277.1144,
+        "take_wr": 0.987,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 666,
+        "pnl5": 495.9333,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 4.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": true,
+      "delta_n": 707,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 229.61,
+      "extra": {
+        "n": 707,
+        "pnl5": 419.401,
+        "pnl3": 251.6406,
+        "take_wr": 0.9896,
+        "held": 192,
+        "scratch_n": 515,
+        "avg_left": 205.2,
+        "train": {
+          "n": 327,
+          "pnl5": 161.6585,
+          "take_wr": 0.9765,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 380,
+          "pnl5": 257.7424,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    },
+    "band_44_56": {
+      "n": 680,
+      "pnl5": 438.7663,
+      "pnl3": 263.25978,
+      "take_wr": 0.9949,
+      "held": 196,
+      "scratch_n": 484,
+      "avg_left": 200.5,
+      "train": {
+        "n": 279,
+        "pnl5": 164.6235,
+        "take_wr": 0.9875,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 401,
+        "pnl5": 274.1428,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.44,
+        "hi": 0.56,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": false,
+      "delta_n": 87,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 7.82,
+      "extra": {
+        "n": 87,
+        "pnl5": 82.8646,
+        "pnl3": 49.71876,
+        "take_wr": 0.973,
+        "held": 37,
+        "scratch_n": 50,
+        "avg_left": 196.3,
+        "train": {
+          "n": 35,
+          "pnl5": 61.327,
+          "take_wr": 0.9524,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 52,
+          "pnl5": 21.5376,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    },
+    "band_43_57": {
+      "n": 784,
+      "pnl5": 535.8833,
+      "pnl3": 321.52998,
+      "take_wr": 0.9959,
+      "held": 246,
+      "scratch_n": 538,
+      "avg_left": 202.5,
+      "train": {
+        "n": 305,
+        "pnl5": 198.4364,
+        "take_wr": 0.9896,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 479,
+        "pnl5": 337.4469,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.43,
+        "hi": 0.57,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": false,
+      "delta_n": 191,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 71.12,
+      "extra": {
+        "n": 191,
+        "pnl5": 221.8245,
+        "pnl3": 133.0947,
+        "take_wr": 0.9888,
+        "held": 89,
+        "scratch_n": 102,
+        "avg_left": 200.7,
+        "train": {
+          "n": 61,
+          "pnl5": 112.3965,
+          "take_wr": 0.9737,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 130,
+          "pnl5": 109.428,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    },
+    "band_40_60": {
+      "n": 1198,
+      "pnl5": 1036.9574,
+      "pnl3": 622.17444,
+      "take_wr": 0.996,
+      "held": 499,
+      "scratch_n": 699,
+      "avg_left": 210.4,
+      "train": {
+        "n": 495,
+        "pnl5": 442.5082,
+        "take_wr": 0.9952,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 703,
+        "pnl5": 594.4493,
+        "take_wr": 0.9965,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.4,
+        "hi": 0.6,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": true,
+      "delta_n": 605,
+      "delta_ho_wr": -0.0035,
+      "delta_ho_pnl5": 328.12,
+      "extra": {
+        "n": 605,
+        "pnl5": 856.902,
+        "pnl3": 514.1412,
+        "take_wr": 0.9971,
+        "held": 341,
+        "scratch_n": 264,
+        "avg_left": 207.2,
+        "train": {
+          "n": 242,
+          "pnl5": 405.6615,
+          "take_wr": 0.9934,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 363,
+          "pnl5": 451.2405,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    },
+    "min_left_100": {
+      "n": 638,
+      "pnl5": 385.4522,
+      "pnl3": 231.27132,
+      "take_wr": 1.0,
+      "held": 166,
+      "scratch_n": 472,
+      "avg_left": 193.4,
+      "train": {
+        "n": 260,
+        "pnl5": 113.1891,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 378,
+        "pnl5": 272.2631,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 100.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": true,
+      "delta_n": 45,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 5.94,
+      "extra": {
+        "n": 45,
+        "pnl5": 10.9002,
+        "pnl3": 6.54012,
+        "take_wr": 1.0,
+        "held": 6,
+        "scratch_n": 39,
+        "avg_left": 108.4,
+        "train": {
+          "n": 16,
+          "pnl5": 4.9638,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 29,
+          "pnl5": 5.9364,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": false
+      }
+    },
+    "min_left_90": {
+      "n": 660,
+      "pnl5": 385.9656,
+      "pnl3": 231.57936,
+      "take_wr": 1.0,
+      "held": 167,
+      "scratch_n": 493,
+      "avg_left": 190.1,
+      "train": {
+        "n": 267,
+        "pnl5": 112.2216,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 393,
+        "pnl5": 273.7441,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 90.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": true,
+      "delta_n": 67,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 7.42,
+      "extra": {
+        "n": 67,
+        "pnl5": 11.4136,
+        "pnl3": 6.84816,
+        "take_wr": 1.0,
+        "held": 7,
+        "scratch_n": 60,
+        "avg_left": 103.5,
+        "train": {
+          "n": 23,
+          "pnl5": 3.9962,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 44,
+          "pnl5": 7.4174,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": false
+      }
+    },
+    "edge_03": {
+      "n": 596,
+      "pnl5": 375.5332,
+      "pnl3": 225.31992,
+      "take_wr": 1.0,
+      "held": 161,
+      "scratch_n": 435,
+      "avg_left": 200.3,
+      "train": {
+        "n": 246,
+        "pnl5": 106.2816,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 350,
+        "pnl5": 269.2515,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.03,
+        "t0": 15
+      },
+      "beats": true,
+      "forbidden": false,
+      "delta_n": 3,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 2.92,
+      "extra": {
+        "n": 3,
+        "pnl5": 2.7018,
+        "pnl3": 1.62108,
+        "take_wr": 1.0,
+        "held": 1,
+        "scratch_n": 2,
+        "avg_left": 228.3,
+        "train": {
+          "n": 0,
+          "pnl5": 0.0,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 3,
+          "pnl5": 2.7018,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": false
+      }
+    },
+    "max300_lead55": {
+      "n": 717,
+      "pnl5": 464.1168,
+      "pnl3": 278.47008,
+      "take_wr": 1.0,
+      "held": 195,
+      "scratch_n": 522,
+      "avg_left": 201.0,
+      "train": {
+        "n": 305,
+        "pnl5": 134.4405,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 412,
+        "pnl5": 329.6763,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 300.0,
+        "min_edge": 0.04,
+        "t0": 5
+      },
+      "beats": true,
+      "forbidden": false,
+      "delta_n": 124,
+      "delta_ho_wr": 0.0,
+      "delta_ho_pnl5": 63.35,
+      "extra": {
+        "n": 124,
+        "pnl5": 88.5909,
+        "pnl3": 53.15454,
+        "take_wr": 1.0,
+        "held": 34,
+        "scratch_n": 90,
+        "avg_left": 200.0,
+        "train": {
+          "n": 52,
+          "pnl5": 27.1047,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 72,
+          "pnl5": 61.4862,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      }
+    }
+  },
+  "winners": [],
+  "pick": null,
+  "ship": false,
+  "forbidden": [
+    "band_40_60",
+    "chase_leftover",
+    "dump_mid90",
+    "lead_4",
+    "min_left_100",
+    "min_left_90",
+    "twap_reverse_on"
+  ],
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "lead_5_5bps",
+    "band_40_60",
+    "band_44_56",
+    "band_43_57",
+    "chase_leftover",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c"
+  ],
+  "why_live_sparse": "Research first-cross BTC+ETH is ~7% of printed windows under 6bps 45\u201355 120\u2013280 (593 takes / 8498 windows, ~34 prints/day). Live is FOK: miss the first 45\u201355 ask and leftover chase is banned, so the window dies. Rev 59's first 2.3h only produced 2 windows that even passed the gate. Health skips are twap_band / twap_lead / twap_window. max_left 280\u2192300 adds 0 takes: 6bps almost never prints in the first 20s. Tape n-levers (5.5bps, 5bps, 44\u201356\u00a2) are windows that never made 6bps/45\u201355 \u2014 same last-look family as forbidden 4bps / 40\u201360. Keep the floor.",
+  "findings": {
+    "headline": "Ship none. max_left 300 +0. 5.5bps tape +124 / 5bps +290 / 44\u201356\u00a2 +87 are last-look extras, not live-safe WR. Keep 6bps 45\u201355 120\u2013280."
+  },
+  "tape_winners": [
+    "band_43_57",
+    "lead_5_5",
+    "max300_lead55",
+    "lead_5",
+    "band_44_56",
+    "edge_03"
+  ],
+  "why_not": "Do not relax 6bps or 45\u201355. Print-tape extras stay ~100% hold WR only because Rev 59 dump_by90+oracle removes residual losers; live FOK last-look already converts 6bps prints worse than this tape. max_left 300 / min_edge 0.03 add nothing. min_left <120 reopens the 90s dump gate. Dual BTC+ETH is already on.",
+  "live_since_rev59": {
+    "hours": 2.3,
+    "gate_pass_unix": 2,
+    "filled": 1,
+    "fok_killed": 7,
+    "note": "scans table only logs gate-pass FOK attempts, not band/lead skips"
+  }
+}

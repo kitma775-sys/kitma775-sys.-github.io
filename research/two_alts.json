@@ -1,0 +1,2192 @@
+{
+  "researched_at_utc": "2026-09-04T12:10:35Z",
+  "elapsed_s": 12.69,
+  "question": "Open two more 5m coins on the frozen BTC+ETH TWAP sleeve?",
+  "holdout_days": 7,
+  "n_joined": 2075,
+  "hype_prints": 0,
+  "core": {
+    "n": 599,
+    "pnl5": 118.433,
+    "pnl3": 71.0598,
+    "take_wr": 0.9479,
+    "held": 192,
+    "scratch_n": 407,
+    "train": {
+      "n": 400,
+      "pnl5": 39.0595,
+      "take_wr": 0.936,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 199,
+      "pnl5": 79.3735,
+      "take_wr": 0.9701,
+      "ev_ok": true
+    },
+    "robust": true,
+    "cheap_1s": 0.3506,
+    "up1_before_cheap": 0.3255,
+    "orig_hold_wr": 0.8455,
+    "orig_hold_n": 220,
+    "orig_hold_wr_holdout": 0.8481,
+    "orig_hold_n_holdout": 79,
+    "confirm_62_by90": 0.7462,
+    "dump_share": 0.6795,
+    "exit_why": {
+      "twap_scratch_better": 146,
+      "settle": 192,
+      "twap_scratch_weak": 187,
+      "unconfirmed_by90": 18,
+      "twap_scratch_flip": 46,
+      "twap_scratch_oracle": 10
+    }
+  },
+  "per_asset": {
+    "btc": {
+      "n": 238,
+      "pnl5": 48.2654,
+      "pnl3": 28.95924,
+      "take_wr": 0.9186,
+      "held": 86,
+      "scratch_n": 152,
+      "train": {
+        "n": 158,
+        "pnl5": 1.849,
+        "take_wr": 0.9074,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 80,
+        "pnl5": 46.4164,
+        "take_wr": 0.9375,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cheap_1s": 0.5,
+      "up1_before_cheap": 0.4202,
+      "orig_hold_wr": 0.8163,
+      "orig_hold_n": 98,
+      "orig_hold_wr_holdout": 0.8158,
+      "orig_hold_n_holdout": 38,
+      "confirm_62_by90": 0.7605,
+      "dump_share": 0.6387,
+      "exit_why": {
+        "twap_scratch_better": 49,
+        "settle": 86,
+        "twap_scratch_weak": 74,
+        "unconfirmed_by90": 7,
+        "twap_scratch_flip": 17,
+        "twap_scratch_oracle": 5
+      }
+    },
+    "eth": {
+      "n": 361,
+      "pnl5": 70.1676,
+      "pnl3": 42.10056,
+      "take_wr": 0.9717,
+      "held": 106,
+      "scratch_n": 255,
+      "train": {
+        "n": 239,
+        "pnl5": 28.1276,
+        "take_wr": 0.9565,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 122,
+        "pnl5": 42.04,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "cheap_1s": 0.2521,
+      "up1_before_cheap": 0.2632,
+      "orig_hold_wr": 0.8689,
+      "orig_hold_n": 122,
+      "orig_hold_wr_holdout": 0.8837,
+      "orig_hold_n_holdout": 43,
+      "confirm_62_by90": 0.7368,
+      "dump_share": 0.7064,
+      "exit_why": {
+        "twap_scratch_better": 97,
+        "twap_scratch_flip": 29,
+        "twap_scratch_weak": 113,
+        "settle": 106,
+        "unconfirmed_by90": 11,
+        "twap_scratch_oracle": 5
+      }
+    },
+    "sol": {
+      "n": 467,
+      "pnl5": -405.8943,
+      "pnl3": -243.53658,
+      "take_wr": 1.0,
+      "held": 10,
+      "scratch_n": 457,
+      "train": {
+        "n": 228,
+        "pnl5": -209.5804,
+        "take_wr": 1.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 239,
+        "pnl5": -196.314,
+        "take_wr": 1.0,
+        "ev_ok": false
+      },
+      "robust": false,
+      "cheap_1s": 0.0792,
+      "up1_before_cheap": 0.0835,
+      "orig_hold_wr": 0.9463,
+      "orig_hold_n": 149,
+      "orig_hold_wr_holdout": 0.9136,
+      "orig_hold_n_holdout": 81,
+      "confirm_62_by90": 0.0814,
+      "dump_share": 0.9786,
+      "exit_why": {
+        "twap_scratch_book": 31,
+        "twap_scratch_better": 120,
+        "unconfirmed_by90": 137,
+        "twap_scratch_flip": 48,
+        "twap_scratch_weak": 117,
+        "settle": 10,
+        "twap_scratch_wild": 2,
+        "twap_scratch_oracle": 2
+      }
+    },
+    "xrp": {
+      "n": 587,
+      "pnl5": -549.5734,
+      "pnl3": -329.74404,
+      "take_wr": 1.0,
+      "held": 2,
+      "scratch_n": 585,
+      "train": {
+        "n": 378,
+        "pnl5": -341.1512,
+        "take_wr": 1.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 209,
+        "pnl5": -208.4222,
+        "take_wr": null,
+        "ev_ok": false
+      },
+      "robust": false,
+      "cheap_1s": 0.046,
+      "up1_before_cheap": 0.0477,
+      "orig_hold_wr": 0.8865,
+      "orig_hold_n": 229,
+      "orig_hold_wr_holdout": 0.8493,
+      "orig_hold_n_holdout": 73,
+      "confirm_62_by90": 0.0511,
+      "dump_share": 0.9966,
+      "exit_why": {
+        "twap_scratch_better": 127,
+        "unconfirmed_by90": 227,
+        "twap_scratch_weak": 138,
+        "twap_scratch_book": 45,
+        "twap_scratch_flip": 43,
+        "twap_scratch_wild": 5,
+        "settle": 2
+      }
+    },
+    "doge": {
+      "n": 343,
+      "pnl5": -321.4614,
+      "pnl3": -192.87684,
+      "take_wr": 1.0,
+      "held": 1,
+      "scratch_n": 342,
+      "train": {
+        "n": 209,
+        "pnl5": -195.3617,
+        "take_wr": 1.0,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 134,
+        "pnl5": -126.0997,
+        "take_wr": null,
+        "ev_ok": false
+      },
+      "robust": false,
+      "cheap_1s": 0.035,
+      "up1_before_cheap": 0.0466,
+      "orig_hold_wr": 0.8603,
+      "orig_hold_n": 136,
+      "orig_hold_wr_holdout": 0.8475,
+      "orig_hold_n_holdout": 59,
+      "confirm_62_by90": 0.0233,
+      "dump_share": 0.9971,
+      "exit_why": {
+        "unconfirmed_by90": 135,
+        "twap_scratch_flip": 40,
+        "twap_scratch_book": 26,
+        "twap_scratch_weak": 69,
+        "twap_scratch_better": 71,
+        "twap_scratch_wild": 1,
+        "settle": 1
+      }
+    },
+    "bnb": {
+      "n": 79,
+      "pnl5": -85.9147,
+      "pnl3": -51.54882,
+      "take_wr": 0.5,
+      "held": 2,
+      "scratch_n": 77,
+      "train": {
+        "n": 49,
+        "pnl5": -55.0614,
+        "take_wr": 0.5,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 30,
+        "pnl5": -30.8533,
+        "take_wr": null,
+        "ev_ok": false
+      },
+      "robust": false,
+      "cheap_1s": 0.0759,
+      "up1_before_cheap": 0.0253,
+      "orig_hold_wr": 0.775,
+      "orig_hold_n": 40,
+      "orig_hold_wr_holdout": 0.75,
+      "orig_hold_n_holdout": 16,
+      "confirm_62_by90": 0.038,
+      "dump_share": 0.9747,
+      "exit_why": {
+        "twap_scratch_weak": 23,
+        "twap_scratch_flip": 3,
+        "unconfirmed_by90": 38,
+        "twap_scratch_book": 7,
+        "twap_scratch_better": 6,
+        "settle": 2
+      }
+    }
+  },
+  "overlay_cf": {
+    "btc": {
+      "bm_only": {
+        "n": 238,
+        "pnl5": 44.7643,
+        "pnl3": 26.85858,
+        "take_wr": 0.8163,
+        "held": 98,
+        "scratch_n": 140,
+        "train": {
+          "n": 158,
+          "pnl5": -1.9067,
+          "take_wr": 0.8167,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 80,
+          "pnl5": 46.671,
+          "take_wr": 0.8158,
+          "ev_ok": true
+        },
+        "robust": false,
+        "cheap_1s": 0.5,
+        "up1_before_cheap": 0.4202,
+        "orig_hold_wr": 0.8163,
+        "orig_hold_n": 98,
+        "orig_hold_wr_holdout": 0.8158,
+        "orig_hold_n_holdout": 38,
+        "confirm_62_by90": 0.7605,
+        "dump_share": 0.5882,
+        "exit_why": {
+          "bm": 140,
+          "hold": 98
+        }
+      },
+      "dump90": {
+        "n": 238,
+        "pnl5": 42.569,
+        "pnl3": 25.5414,
+        "take_wr": 0.8681,
+        "held": 91,
+        "scratch_n": 147,
+        "train": {
+          "n": 158,
+          "pnl5": -0.7669,
+          "take_wr": 0.8596,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 80,
+          "pnl5": 43.3359,
+          "take_wr": 0.8824,
+          "ev_ok": true
+        },
+        "robust": false,
+        "cheap_1s": 0.5,
+        "up1_before_cheap": 0.4202,
+        "orig_hold_wr": 0.8163,
+        "orig_hold_n": 98,
+        "orig_hold_wr_holdout": 0.8158,
+        "orig_hold_n_holdout": 38,
+        "confirm_62_by90": 0.7605,
+        "dump_share": 0.6176,
+        "exit_why": {
+          "twap_scratch_better": 49,
+          "settle": 91,
+          "twap_scratch_weak": 74,
+          "unconfirmed_by90": 7,
+          "twap_scratch_flip": 17
+        }
+      },
+      "dump90_oracle": {
+        "n": 238,
+        "pnl5": 48.2654,
+        "pnl3": 28.95924,
+        "take_wr": 0.9186,
+        "held": 86,
+        "scratch_n": 152,
+        "train": {
+          "n": 158,
+          "pnl5": 1.849,
+          "take_wr": 0.9074,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 80,
+          "pnl5": 46.4164,
+          "take_wr": 0.9375,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.5,
+        "up1_before_cheap": 0.4202,
+        "orig_hold_wr": 0.8163,
+        "orig_hold_n": 98,
+        "orig_hold_wr_holdout": 0.8158,
+        "orig_hold_n_holdout": 38,
+        "confirm_62_by90": 0.7605,
+        "dump_share": 0.6387,
+        "exit_why": {
+          "twap_scratch_better": 49,
+          "settle": 86,
+          "twap_scratch_weak": 74,
+          "unconfirmed_by90": 7,
+          "twap_scratch_flip": 17,
+          "twap_scratch_oracle": 5
+        }
+      },
+      "note": "bm_only is print-tape BM scratch without dump90. Not a live candidate: live alt holds hit 14%."
+    },
+    "eth": {
+      "bm_only": {
+        "n": 361,
+        "pnl5": 72.7751,
+        "pnl3": 43.66506,
+        "take_wr": 0.8689,
+        "held": 122,
+        "scratch_n": 239,
+        "train": {
+          "n": 239,
+          "pnl5": 33.9079,
+          "take_wr": 0.8608,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 122,
+          "pnl5": 38.8672,
+          "take_wr": 0.8837,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.2521,
+        "up1_before_cheap": 0.2632,
+        "orig_hold_wr": 0.8689,
+        "orig_hold_n": 122,
+        "orig_hold_wr_holdout": 0.8837,
+        "orig_hold_n_holdout": 43,
+        "confirm_62_by90": 0.7368,
+        "dump_share": 0.662,
+        "exit_why": {
+          "bm": 239,
+          "hold": 122
+        }
+      },
+      "dump90": {
+        "n": 361,
+        "pnl5": 68.1912,
+        "pnl3": 40.91472,
+        "take_wr": 0.9369,
+        "held": 111,
+        "scratch_n": 250,
+        "train": {
+          "n": 239,
+          "pnl5": 30.9543,
+          "take_wr": 0.9306,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 122,
+          "pnl5": 37.2369,
+          "take_wr": 0.9487,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.2521,
+        "up1_before_cheap": 0.2632,
+        "orig_hold_wr": 0.8689,
+        "orig_hold_n": 122,
+        "orig_hold_wr_holdout": 0.8837,
+        "orig_hold_n_holdout": 43,
+        "confirm_62_by90": 0.7368,
+        "dump_share": 0.6925,
+        "exit_why": {
+          "twap_scratch_better": 97,
+          "twap_scratch_flip": 29,
+          "twap_scratch_weak": 113,
+          "settle": 111,
+          "unconfirmed_by90": 11
+        }
+      },
+      "dump90_oracle": {
+        "n": 361,
+        "pnl5": 70.1676,
+        "pnl3": 42.10056,
+        "take_wr": 0.9717,
+        "held": 106,
+        "scratch_n": 255,
+        "train": {
+          "n": 239,
+          "pnl5": 28.1276,
+          "take_wr": 0.9565,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 122,
+          "pnl5": 42.04,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.2521,
+        "up1_before_cheap": 0.2632,
+        "orig_hold_wr": 0.8689,
+        "orig_hold_n": 122,
+        "orig_hold_wr_holdout": 0.8837,
+        "orig_hold_n_holdout": 43,
+        "confirm_62_by90": 0.7368,
+        "dump_share": 0.7064,
+        "exit_why": {
+          "twap_scratch_better": 97,
+          "twap_scratch_flip": 29,
+          "twap_scratch_weak": 113,
+          "settle": 106,
+          "unconfirmed_by90": 11,
+          "twap_scratch_oracle": 5
+        }
+      },
+      "note": "bm_only is print-tape BM scratch without dump90. Not a live candidate: live alt holds hit 14%."
+    },
+    "sol": {
+      "bm_only": {
+        "n": 467,
+        "pnl5": 193.5944,
+        "pnl3": 116.15664,
+        "take_wr": 0.9463,
+        "held": 149,
+        "scratch_n": 318,
+        "train": {
+          "n": 228,
+          "pnl5": 76.8081,
+          "take_wr": 0.9853,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 239,
+          "pnl5": 116.7863,
+          "take_wr": 0.9136,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.0792,
+        "up1_before_cheap": 0.0835,
+        "orig_hold_wr": 0.9463,
+        "orig_hold_n": 149,
+        "orig_hold_wr_holdout": 0.9136,
+        "orig_hold_n_holdout": 81,
+        "confirm_62_by90": 0.0814,
+        "dump_share": 0.6809,
+        "exit_why": {
+          "bm": 318,
+          "hold": 149
+        }
+      },
+      "dump90": {
+        "n": 467,
+        "pnl5": -409.2748,
+        "pnl3": -245.56488,
+        "take_wr": 0.8333,
+        "held": 12,
+        "scratch_n": 455,
+        "train": {
+          "n": 228,
+          "pnl5": -211.3037,
+          "take_wr": 0.8571,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 239,
+          "pnl5": -197.9711,
+          "take_wr": 0.8,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0792,
+        "up1_before_cheap": 0.0835,
+        "orig_hold_wr": 0.9463,
+        "orig_hold_n": 149,
+        "orig_hold_wr_holdout": 0.9136,
+        "orig_hold_n_holdout": 81,
+        "confirm_62_by90": 0.0814,
+        "dump_share": 0.9743,
+        "exit_why": {
+          "twap_scratch_book": 31,
+          "twap_scratch_better": 120,
+          "unconfirmed_by90": 137,
+          "twap_scratch_flip": 48,
+          "twap_scratch_weak": 117,
+          "settle": 12,
+          "twap_scratch_wild": 2
+        }
+      },
+      "dump90_oracle": {
+        "n": 467,
+        "pnl5": -405.8943,
+        "pnl3": -243.53658,
+        "take_wr": 1.0,
+        "held": 10,
+        "scratch_n": 457,
+        "train": {
+          "n": 228,
+          "pnl5": -209.5804,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 239,
+          "pnl5": -196.314,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0792,
+        "up1_before_cheap": 0.0835,
+        "orig_hold_wr": 0.9463,
+        "orig_hold_n": 149,
+        "orig_hold_wr_holdout": 0.9136,
+        "orig_hold_n_holdout": 81,
+        "confirm_62_by90": 0.0814,
+        "dump_share": 0.9786,
+        "exit_why": {
+          "twap_scratch_book": 31,
+          "twap_scratch_better": 120,
+          "unconfirmed_by90": 137,
+          "twap_scratch_flip": 48,
+          "twap_scratch_weak": 117,
+          "settle": 10,
+          "twap_scratch_wild": 2,
+          "twap_scratch_oracle": 2
+        }
+      },
+      "note": "bm_only is print-tape BM scratch without dump90. Not a live candidate: live alt holds hit 14%."
+    },
+    "xrp": {
+      "bm_only": {
+        "n": 587,
+        "pnl5": 345.3535,
+        "pnl3": 207.2121,
+        "take_wr": 0.8865,
+        "held": 229,
+        "scratch_n": 358,
+        "train": {
+          "n": 378,
+          "pnl5": 296.6243,
+          "take_wr": 0.9038,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 209,
+          "pnl5": 48.7292,
+          "take_wr": 0.8493,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.046,
+        "up1_before_cheap": 0.0477,
+        "orig_hold_wr": 0.8865,
+        "orig_hold_n": 229,
+        "orig_hold_wr_holdout": 0.8493,
+        "orig_hold_n_holdout": 73,
+        "confirm_62_by90": 0.0511,
+        "dump_share": 0.6099,
+        "exit_why": {
+          "bm": 358,
+          "hold": 229
+        }
+      },
+      "dump90": {
+        "n": 587,
+        "pnl5": -549.5734,
+        "pnl3": -329.74404,
+        "take_wr": 1.0,
+        "held": 2,
+        "scratch_n": 585,
+        "train": {
+          "n": 378,
+          "pnl5": -341.1512,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 209,
+          "pnl5": -208.4222,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.046,
+        "up1_before_cheap": 0.0477,
+        "orig_hold_wr": 0.8865,
+        "orig_hold_n": 229,
+        "orig_hold_wr_holdout": 0.8493,
+        "orig_hold_n_holdout": 73,
+        "confirm_62_by90": 0.0511,
+        "dump_share": 0.9966,
+        "exit_why": {
+          "twap_scratch_better": 127,
+          "unconfirmed_by90": 227,
+          "twap_scratch_weak": 138,
+          "twap_scratch_book": 45,
+          "twap_scratch_flip": 43,
+          "twap_scratch_wild": 5,
+          "settle": 2
+        }
+      },
+      "dump90_oracle": {
+        "n": 587,
+        "pnl5": -549.5734,
+        "pnl3": -329.74404,
+        "take_wr": 1.0,
+        "held": 2,
+        "scratch_n": 585,
+        "train": {
+          "n": 378,
+          "pnl5": -341.1512,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 209,
+          "pnl5": -208.4222,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.046,
+        "up1_before_cheap": 0.0477,
+        "orig_hold_wr": 0.8865,
+        "orig_hold_n": 229,
+        "orig_hold_wr_holdout": 0.8493,
+        "orig_hold_n_holdout": 73,
+        "confirm_62_by90": 0.0511,
+        "dump_share": 0.9966,
+        "exit_why": {
+          "twap_scratch_better": 127,
+          "unconfirmed_by90": 227,
+          "twap_scratch_weak": 138,
+          "twap_scratch_book": 45,
+          "twap_scratch_flip": 43,
+          "twap_scratch_wild": 5,
+          "settle": 2
+        }
+      },
+      "note": "bm_only is print-tape BM scratch without dump90. Not a live candidate: live alt holds hit 14%."
+    },
+    "doge": {
+      "bm_only": {
+        "n": 343,
+        "pnl5": 186.3667,
+        "pnl3": 111.82002,
+        "take_wr": 0.8603,
+        "held": 136,
+        "scratch_n": 207,
+        "train": {
+          "n": 209,
+          "pnl5": 93.574,
+          "take_wr": 0.8701,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 134,
+          "pnl5": 92.7927,
+          "take_wr": 0.8475,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.035,
+        "up1_before_cheap": 0.0466,
+        "orig_hold_wr": 0.8603,
+        "orig_hold_n": 136,
+        "orig_hold_wr_holdout": 0.8475,
+        "orig_hold_n_holdout": 59,
+        "confirm_62_by90": 0.0233,
+        "dump_share": 0.6035,
+        "exit_why": {
+          "hold": 136,
+          "bm": 207
+        }
+      },
+      "dump90": {
+        "n": 343,
+        "pnl5": -321.4614,
+        "pnl3": -192.87684,
+        "take_wr": 1.0,
+        "held": 1,
+        "scratch_n": 342,
+        "train": {
+          "n": 209,
+          "pnl5": -195.3617,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 134,
+          "pnl5": -126.0997,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.035,
+        "up1_before_cheap": 0.0466,
+        "orig_hold_wr": 0.8603,
+        "orig_hold_n": 136,
+        "orig_hold_wr_holdout": 0.8475,
+        "orig_hold_n_holdout": 59,
+        "confirm_62_by90": 0.0233,
+        "dump_share": 0.9971,
+        "exit_why": {
+          "unconfirmed_by90": 135,
+          "twap_scratch_flip": 40,
+          "twap_scratch_book": 26,
+          "twap_scratch_weak": 69,
+          "twap_scratch_better": 71,
+          "twap_scratch_wild": 1,
+          "settle": 1
+        }
+      },
+      "dump90_oracle": {
+        "n": 343,
+        "pnl5": -321.4614,
+        "pnl3": -192.87684,
+        "take_wr": 1.0,
+        "held": 1,
+        "scratch_n": 342,
+        "train": {
+          "n": 209,
+          "pnl5": -195.3617,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 134,
+          "pnl5": -126.0997,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.035,
+        "up1_before_cheap": 0.0466,
+        "orig_hold_wr": 0.8603,
+        "orig_hold_n": 136,
+        "orig_hold_wr_holdout": 0.8475,
+        "orig_hold_n_holdout": 59,
+        "confirm_62_by90": 0.0233,
+        "dump_share": 0.9971,
+        "exit_why": {
+          "unconfirmed_by90": 135,
+          "twap_scratch_flip": 40,
+          "twap_scratch_book": 26,
+          "twap_scratch_weak": 69,
+          "twap_scratch_better": 71,
+          "twap_scratch_wild": 1,
+          "settle": 1
+        }
+      },
+      "note": "bm_only is print-tape BM scratch without dump90. Not a live candidate: live alt holds hit 14%."
+    },
+    "bnb": {
+      "bm_only": {
+        "n": 79,
+        "pnl5": 23.0347,
+        "pnl3": 13.82082,
+        "take_wr": 0.775,
+        "held": 40,
+        "scratch_n": 39,
+        "train": {
+          "n": 49,
+          "pnl5": 14.5644,
+          "take_wr": 0.7917,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 30,
+          "pnl5": 8.4703,
+          "take_wr": 0.75,
+          "ev_ok": true
+        },
+        "robust": true,
+        "cheap_1s": 0.0759,
+        "up1_before_cheap": 0.0253,
+        "orig_hold_wr": 0.775,
+        "orig_hold_n": 40,
+        "orig_hold_wr_holdout": 0.75,
+        "orig_hold_n_holdout": 16,
+        "confirm_62_by90": 0.038,
+        "dump_share": 0.4937,
+        "exit_why": {
+          "bm": 39,
+          "hold": 40
+        }
+      },
+      "dump90": {
+        "n": 79,
+        "pnl5": -85.9147,
+        "pnl3": -51.54882,
+        "take_wr": 0.5,
+        "held": 2,
+        "scratch_n": 77,
+        "train": {
+          "n": 49,
+          "pnl5": -55.0614,
+          "take_wr": 0.5,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 30,
+          "pnl5": -30.8533,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0759,
+        "up1_before_cheap": 0.0253,
+        "orig_hold_wr": 0.775,
+        "orig_hold_n": 40,
+        "orig_hold_wr_holdout": 0.75,
+        "orig_hold_n_holdout": 16,
+        "confirm_62_by90": 0.038,
+        "dump_share": 0.9747,
+        "exit_why": {
+          "twap_scratch_weak": 23,
+          "twap_scratch_flip": 3,
+          "unconfirmed_by90": 38,
+          "twap_scratch_book": 7,
+          "twap_scratch_better": 6,
+          "settle": 2
+        }
+      },
+      "dump90_oracle": {
+        "n": 79,
+        "pnl5": -85.9147,
+        "pnl3": -51.54882,
+        "take_wr": 0.5,
+        "held": 2,
+        "scratch_n": 77,
+        "train": {
+          "n": 49,
+          "pnl5": -55.0614,
+          "take_wr": 0.5,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 30,
+          "pnl5": -30.8533,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0759,
+        "up1_before_cheap": 0.0253,
+        "orig_hold_wr": 0.775,
+        "orig_hold_n": 40,
+        "orig_hold_wr_holdout": 0.75,
+        "orig_hold_n_holdout": 16,
+        "confirm_62_by90": 0.038,
+        "dump_share": 0.9747,
+        "exit_why": {
+          "twap_scratch_weak": 23,
+          "twap_scratch_flip": 3,
+          "unconfirmed_by90": 38,
+          "twap_scratch_book": 7,
+          "twap_scratch_better": 6,
+          "settle": 2
+        }
+      },
+      "note": "bm_only is print-tape BM scratch without dump90. Not a live candidate: live alt holds hit 14%."
+    }
+  },
+  "fail_reasons": {
+    "sol": [
+      "train_-EV",
+      "holdout_-EV",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ],
+    "xrp": [
+      "train_-EV",
+      "holdout_-EV",
+      "holdout_wr_below_85_or_no_holds",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ],
+    "doge": [
+      "train_-EV",
+      "holdout_-EV",
+      "holdout_wr_below_85_or_no_holds",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ],
+    "bnb": [
+      "train_-EV",
+      "holdout_-EV",
+      "holdout_wr_below_85_or_no_holds",
+      "dump_share_ge_90",
+      "confirm_62_rare"
+    ]
+  },
+  "passing_alts": [],
+  "occupancy": {
+    "btc_eth": {
+      "assets": [
+        "btc",
+        "eth"
+      ],
+      "unix_with_take": 489,
+      "hist": {
+        "1": 379,
+        "2": 110
+      },
+      "share_ge2": 0.2249,
+      "share_ge3": 0.0,
+      "n_eq4": 0,
+      "max_concurrent": 2,
+      "stake_if_all_print": 6.0
+    },
+    "all_six": {
+      "assets": [
+        "btc",
+        "eth",
+        "sol",
+        "xrp",
+        "doge",
+        "bnb"
+      ],
+      "unix_with_take": 1294,
+      "hist": {
+        "1": 803,
+        "2": 292,
+        "3": 134,
+        "4": 42,
+        "5": 20,
+        "6": 3
+      },
+      "share_ge2": 0.3794,
+      "share_ge3": 0.1538,
+      "n_eq4": 42,
+      "max_concurrent": 6,
+      "stake_if_all_print": 18.0
+    }
+  },
+  "plus_one": [
+    {
+      "asset": "bnb",
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -59.11,
+      "d_holdout": -26.8,
+      "combo": {
+        "n": 678,
+        "pnl5": 32.5183,
+        "pnl3": 19.51098,
+        "take_wr": 0.9433,
+        "held": 194,
+        "scratch_n": 484,
+        "train": {
+          "n": 456,
+          "pnl5": -20.0535,
+          "take_wr": 0.9291,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 222,
+          "pnl5": 52.5717,
+          "take_wr": 0.9701,
+          "ev_ok": true
+        },
+        "robust": false,
+        "cheap_1s": 0.3186,
+        "up1_before_cheap": 0.2906,
+        "orig_hold_wr": 0.8346,
+        "orig_hold_n": 260,
+        "orig_hold_wr_holdout": 0.8444,
+        "orig_hold_n_holdout": 90,
+        "confirm_62_by90": 0.6637,
+        "dump_share": 0.7139,
+        "exit_why": {
+          "twap_scratch_better": 152,
+          "settle": 194,
+          "twap_scratch_weak": 210,
+          "unconfirmed_by90": 56,
+          "twap_scratch_flip": 49,
+          "twap_scratch_oracle": 10,
+          "twap_scratch_book": 7
+        }
+      },
+      "alts_only": {
+        "n": 79,
+        "pnl5": -85.9147,
+        "pnl3": -51.54882,
+        "take_wr": 0.5,
+        "held": 2,
+        "scratch_n": 77,
+        "train": {
+          "n": 49,
+          "pnl5": -55.0614,
+          "take_wr": 0.5,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 30,
+          "pnl5": -30.8533,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0759,
+        "up1_before_cheap": 0.0253,
+        "orig_hold_wr": 0.775,
+        "orig_hold_n": 40,
+        "orig_hold_wr_holdout": 0.75,
+        "orig_hold_n_holdout": 16,
+        "confirm_62_by90": 0.038,
+        "dump_share": 0.9747,
+        "exit_why": {
+          "twap_scratch_weak": 23,
+          "twap_scratch_flip": 3,
+          "unconfirmed_by90": 38,
+          "twap_scratch_book": 7,
+          "twap_scratch_better": 6,
+          "settle": 2
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 79,
+        "both": 40,
+        "share_of_alts": 0.5063,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -48.61,
+        "d_holdout": -26.8,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 149,
+          "pnl5": 70.9414,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "asset": "doge",
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -197.14,
+      "d_holdout": -124.32,
+      "combo": {
+        "n": 942,
+        "pnl5": -203.0284,
+        "pnl3": -121.81704,
+        "take_wr": 0.9482,
+        "held": 193,
+        "scratch_n": 749,
+        "train": {
+          "n": 611,
+          "pnl5": -158.0838,
+          "take_wr": 0.9365,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 331,
+          "pnl5": -44.9446,
+          "take_wr": 0.9701,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.2357,
+        "up1_before_cheap": 0.224,
+        "orig_hold_wr": 0.8511,
+        "orig_hold_n": 356,
+        "orig_hold_wr_holdout": 0.8467,
+        "orig_hold_n_holdout": 137,
+        "confirm_62_by90": 0.483,
+        "dump_share": 0.7951,
+        "exit_why": {
+          "twap_scratch_better": 217,
+          "settle": 193,
+          "twap_scratch_weak": 256,
+          "unconfirmed_by90": 153,
+          "twap_scratch_flip": 86,
+          "twap_scratch_oracle": 10,
+          "twap_scratch_book": 26,
+          "twap_scratch_wild": 1
+        }
+      },
+      "alts_only": {
+        "n": 343,
+        "pnl5": -321.4614,
+        "pnl3": -192.87684,
+        "take_wr": 1.0,
+        "held": 1,
+        "scratch_n": 342,
+        "train": {
+          "n": 209,
+          "pnl5": -195.3617,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 134,
+          "pnl5": -126.0997,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.035,
+        "up1_before_cheap": 0.0466,
+        "orig_hold_wr": 0.8603,
+        "orig_hold_n": 136,
+        "orig_hold_wr_holdout": 0.8475,
+        "orig_hold_n_holdout": 59,
+        "confirm_62_by90": 0.0233,
+        "dump_share": 0.9971,
+        "exit_why": {
+          "unconfirmed_by90": 135,
+          "twap_scratch_flip": 40,
+          "twap_scratch_book": 26,
+          "twap_scratch_weak": 69,
+          "twap_scratch_better": 71,
+          "twap_scratch_wild": 1,
+          "settle": 1
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 343,
+        "both": 124,
+        "share_of_alts": 0.3615,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -186.93,
+        "d_holdout": -116.29,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 252,
+          "pnl5": -18.5513,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "asset": "sol",
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -212.44,
+      "d_holdout": -193.46,
+      "combo": {
+        "n": 1066,
+        "pnl5": -287.4613,
+        "pnl3": -172.47678,
+        "take_wr": 0.9505,
+        "held": 202,
+        "scratch_n": 864,
+        "train": {
+          "n": 642,
+          "pnl5": -173.3787,
+          "take_wr": 0.9389,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 424,
+          "pnl5": -114.0826,
+          "take_wr": 0.9718,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.2317,
+        "up1_before_cheap": 0.2195,
+        "orig_hold_wr": 0.8862,
+        "orig_hold_n": 369,
+        "orig_hold_wr_holdout": 0.875,
+        "orig_hold_n_holdout": 152,
+        "confirm_62_by90": 0.455,
+        "dump_share": 0.8105,
+        "exit_why": {
+          "twap_scratch_better": 266,
+          "settle": 202,
+          "twap_scratch_weak": 304,
+          "unconfirmed_by90": 155,
+          "twap_scratch_flip": 94,
+          "twap_scratch_oracle": 12,
+          "twap_scratch_book": 31,
+          "twap_scratch_wild": 2
+        }
+      },
+      "alts_only": {
+        "n": 467,
+        "pnl5": -405.8943,
+        "pnl3": -243.53658,
+        "take_wr": 1.0,
+        "held": 10,
+        "scratch_n": 457,
+        "train": {
+          "n": 228,
+          "pnl5": -209.5804,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 239,
+          "pnl5": -196.314,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0792,
+        "up1_before_cheap": 0.0835,
+        "orig_hold_wr": 0.9463,
+        "orig_hold_n": 149,
+        "orig_hold_wr_holdout": 0.9136,
+        "orig_hold_n_holdout": 81,
+        "confirm_62_by90": 0.0814,
+        "dump_share": 0.9786,
+        "exit_why": {
+          "twap_scratch_book": 31,
+          "twap_scratch_better": 120,
+          "unconfirmed_by90": 137,
+          "twap_scratch_flip": 48,
+          "twap_scratch_weak": 117,
+          "settle": 10,
+          "twap_scratch_wild": 2,
+          "twap_scratch_oracle": 2
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 467,
+        "both": 153,
+        "share_of_alts": 0.3276,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -190.48,
+        "d_holdout": -178.46,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 343,
+          "pnl5": -80.7193,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "asset": "xrp",
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -343.08,
+      "d_holdout": -206.49,
+      "combo": {
+        "n": 1186,
+        "pnl5": -431.1404,
+        "pnl3": -258.68424,
+        "take_wr": 0.9485,
+        "held": 194,
+        "scratch_n": 992,
+        "train": {
+          "n": 780,
+          "pnl5": -304.0206,
+          "take_wr": 0.937,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 406,
+          "pnl5": -127.1198,
+          "take_wr": 0.9701,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.1998,
+        "up1_before_cheap": 0.188,
+        "orig_hold_wr": 0.8664,
+        "orig_hold_n": 449,
+        "orig_hold_wr_holdout": 0.8487,
+        "orig_hold_n_holdout": 152,
+        "confirm_62_by90": 0.4022,
+        "dump_share": 0.8364,
+        "exit_why": {
+          "twap_scratch_better": 273,
+          "settle": 194,
+          "twap_scratch_weak": 325,
+          "unconfirmed_by90": 245,
+          "twap_scratch_flip": 89,
+          "twap_scratch_oracle": 10,
+          "twap_scratch_book": 45,
+          "twap_scratch_wild": 5
+        }
+      },
+      "alts_only": {
+        "n": 587,
+        "pnl5": -549.5734,
+        "pnl3": -329.74404,
+        "take_wr": 1.0,
+        "held": 2,
+        "scratch_n": 585,
+        "train": {
+          "n": 378,
+          "pnl5": -341.1512,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 209,
+          "pnl5": -208.4222,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.046,
+        "up1_before_cheap": 0.0477,
+        "orig_hold_wr": 0.8865,
+        "orig_hold_n": 229,
+        "orig_hold_wr_holdout": 0.8493,
+        "orig_hold_n_holdout": 73,
+        "confirm_62_by90": 0.0511,
+        "dump_share": 0.9966,
+        "exit_why": {
+          "twap_scratch_better": 127,
+          "unconfirmed_by90": 227,
+          "twap_scratch_weak": 138,
+          "twap_scratch_book": 45,
+          "twap_scratch_flip": 43,
+          "twap_scratch_wild": 5,
+          "settle": 2
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 587,
+        "both": 156,
+        "share_of_alts": 0.2658,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -324.46,
+        "d_holdout": -193.78,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 323,
+          "pnl5": -96.0325,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "pair": [
+        "doge",
+        "bnb"
+      ],
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -256.26,
+      "d_holdout": -151.12,
+      "combo": {
+        "n": 1021,
+        "pnl5": -288.9431,
+        "pnl3": -173.36586,
+        "take_wr": 0.9436,
+        "held": 195,
+        "scratch_n": 826,
+        "train": {
+          "n": 667,
+          "pnl5": -217.1968,
+          "take_wr": 0.9297,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 354,
+          "pnl5": -71.7464,
+          "take_wr": 0.9701,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.2233,
+        "up1_before_cheap": 0.2086,
+        "orig_hold_wr": 0.8434,
+        "orig_hold_n": 396,
+        "orig_hold_wr_holdout": 0.8446,
+        "orig_hold_n_holdout": 148,
+        "confirm_62_by90": 0.4486,
+        "dump_share": 0.809,
+        "exit_why": {
+          "twap_scratch_better": 223,
+          "settle": 195,
+          "twap_scratch_weak": 279,
+          "unconfirmed_by90": 191,
+          "twap_scratch_flip": 89,
+          "twap_scratch_oracle": 10,
+          "twap_scratch_book": 33,
+          "twap_scratch_wild": 1
+        }
+      },
+      "alts_only": {
+        "n": 422,
+        "pnl5": -407.3761,
+        "pnl3": -244.42566,
+        "take_wr": 0.6667,
+        "held": 3,
+        "scratch_n": 419,
+        "train": {
+          "n": 264,
+          "pnl5": -253.61,
+          "take_wr": 0.6667,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 158,
+          "pnl5": -153.7662,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0427,
+        "up1_before_cheap": 0.0427,
+        "orig_hold_wr": 0.8409,
+        "orig_hold_n": 176,
+        "orig_hold_wr_holdout": 0.831,
+        "orig_hold_n_holdout": 71,
+        "confirm_62_by90": 0.0261,
+        "dump_share": 0.9929,
+        "exit_why": {
+          "unconfirmed_by90": 173,
+          "twap_scratch_flip": 43,
+          "twap_scratch_book": 33,
+          "twap_scratch_weak": 92,
+          "twap_scratch_better": 77,
+          "twap_scratch_wild": 1,
+          "settle": 3
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 395,
+        "both": 146,
+        "share_of_alts": 0.3696,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -235.54,
+        "d_holdout": -143.1,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 275,
+          "pnl5": -45.353,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "pair": [
+        "sol",
+        "bnb"
+      ],
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -271.55,
+      "d_holdout": -220.26,
+      "combo": {
+        "n": 1145,
+        "pnl5": -373.376,
+        "pnl3": -224.0256,
+        "take_wr": 0.9461,
+        "held": 204,
+        "scratch_n": 941,
+        "train": {
+          "n": 698,
+          "pnl5": -232.4916,
+          "take_wr": 0.9323,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 447,
+          "pnl5": -140.8844,
+          "take_wr": 0.9718,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.221,
+        "up1_before_cheap": 0.2061,
+        "orig_hold_wr": 0.8753,
+        "orig_hold_n": 409,
+        "orig_hold_wr_holdout": 0.8712,
+        "orig_hold_n_holdout": 163,
+        "confirm_62_by90": 0.4262,
+        "dump_share": 0.8218,
+        "exit_why": {
+          "twap_scratch_better": 272,
+          "settle": 204,
+          "twap_scratch_weak": 327,
+          "unconfirmed_by90": 193,
+          "twap_scratch_flip": 97,
+          "twap_scratch_oracle": 12,
+          "twap_scratch_book": 38,
+          "twap_scratch_wild": 2
+        }
+      },
+      "alts_only": {
+        "n": 546,
+        "pnl5": -491.809,
+        "pnl3": -295.0854,
+        "take_wr": 0.9167,
+        "held": 12,
+        "scratch_n": 534,
+        "train": {
+          "n": 283,
+          "pnl5": -267.8286,
+          "take_wr": 0.875,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 263,
+          "pnl5": -223.9804,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0788,
+        "up1_before_cheap": 0.0751,
+        "orig_hold_wr": 0.9101,
+        "orig_hold_n": 189,
+        "orig_hold_wr_holdout": 0.8925,
+        "orig_hold_n_holdout": 93,
+        "confirm_62_by90": 0.0751,
+        "dump_share": 0.978,
+        "exit_why": {
+          "twap_scratch_book": 38,
+          "twap_scratch_better": 126,
+          "unconfirmed_by90": 175,
+          "twap_scratch_flip": 51,
+          "twap_scratch_weak": 140,
+          "settle": 12,
+          "twap_scratch_wild": 2,
+          "twap_scratch_oracle": 2
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 517,
+        "both": 176,
+        "share_of_alts": 0.3404,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -239.09,
+        "d_holdout": -205.26,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 366,
+          "pnl5": -107.521,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "pair": [
+        "xrp",
+        "bnb"
+      ],
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -402.19,
+      "d_holdout": -233.3,
+      "combo": {
+        "n": 1265,
+        "pnl5": -517.0552,
+        "pnl3": -310.23312,
+        "take_wr": 0.9439,
+        "held": 196,
+        "scratch_n": 1069,
+        "train": {
+          "n": 836,
+          "pnl5": -363.1336,
+          "take_wr": 0.9302,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 429,
+          "pnl5": -153.9216,
+          "take_wr": 0.9701,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.1921,
+        "up1_before_cheap": 0.1779,
+        "orig_hold_wr": 0.8589,
+        "orig_hold_n": 489,
+        "orig_hold_wr_holdout": 0.8466,
+        "orig_hold_n_holdout": 163,
+        "confirm_62_by90": 0.3794,
+        "dump_share": 0.8451,
+        "exit_why": {
+          "twap_scratch_better": 279,
+          "settle": 196,
+          "twap_scratch_weak": 348,
+          "unconfirmed_by90": 283,
+          "twap_scratch_flip": 92,
+          "twap_scratch_oracle": 10,
+          "twap_scratch_book": 52,
+          "twap_scratch_wild": 5
+        }
+      },
+      "alts_only": {
+        "n": 666,
+        "pnl5": -635.4882,
+        "pnl3": -381.29292,
+        "take_wr": 0.75,
+        "held": 4,
+        "scratch_n": 662,
+        "train": {
+          "n": 433,
+          "pnl5": -399.3994,
+          "take_wr": 0.75,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 233,
+          "pnl5": -236.0887,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0495,
+        "up1_before_cheap": 0.045,
+        "orig_hold_wr": 0.8699,
+        "orig_hold_n": 269,
+        "orig_hold_wr_holdout": 0.8353,
+        "orig_hold_n_holdout": 85,
+        "confirm_62_by90": 0.0495,
+        "dump_share": 0.994,
+        "exit_why": {
+          "twap_scratch_better": 133,
+          "unconfirmed_by90": 265,
+          "twap_scratch_weak": 161,
+          "twap_scratch_book": 52,
+          "twap_scratch_flip": 46,
+          "twap_scratch_wild": 5,
+          "settle": 4
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 629,
+        "both": 175,
+        "share_of_alts": 0.2782,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -373.07,
+        "d_holdout": -220.58,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 346,
+          "pnl5": -122.8342,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "pair": [
+        "sol",
+        "doge"
+      ],
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -409.58,
+      "d_holdout": -317.77,
+      "combo": {
+        "n": 1409,
+        "pnl5": -608.9227,
+        "pnl3": -365.35362,
+        "take_wr": 0.9507,
+        "held": 203,
+        "scratch_n": 1206,
+        "train": {
+          "n": 853,
+          "pnl5": -370.522,
+          "take_wr": 0.9394,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 556,
+          "pnl5": -238.4007,
+          "take_wr": 0.9718,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.1838,
+        "up1_before_cheap": 0.1774,
+        "orig_hold_wr": 0.8792,
+        "orig_hold_n": 505,
+        "orig_hold_wr_holdout": 0.8667,
+        "orig_hold_n_holdout": 210,
+        "confirm_62_by90": 0.3499,
+        "dump_share": 0.8559,
+        "exit_why": {
+          "twap_scratch_better": 337,
+          "settle": 203,
+          "twap_scratch_weak": 373,
+          "unconfirmed_by90": 290,
+          "twap_scratch_flip": 134,
+          "twap_scratch_oracle": 12,
+          "twap_scratch_book": 57,
+          "twap_scratch_wild": 3
+        }
+      },
+      "alts_only": {
+        "n": 810,
+        "pnl5": -727.3557,
+        "pnl3": -436.41342,
+        "take_wr": 1.0,
+        "held": 11,
+        "scratch_n": 799,
+        "train": {
+          "n": 437,
+          "pnl5": -404.9421,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 373,
+          "pnl5": -322.4137,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0605,
+        "up1_before_cheap": 0.0679,
+        "orig_hold_wr": 0.9053,
+        "orig_hold_n": 285,
+        "orig_hold_wr_holdout": 0.8857,
+        "orig_hold_n_holdout": 140,
+        "confirm_62_by90": 0.0568,
+        "dump_share": 0.9864,
+        "exit_why": {
+          "twap_scratch_book": 57,
+          "twap_scratch_better": 191,
+          "unconfirmed_by90": 272,
+          "twap_scratch_flip": 88,
+          "twap_scratch_weak": 186,
+          "settle": 11,
+          "twap_scratch_wild": 3,
+          "twap_scratch_oracle": 2
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 707,
+        "both": 218,
+        "share_of_alts": 0.3083,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -377.41,
+        "d_holdout": -294.76,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 469,
+          "pnl5": -197.0137,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "pair": [
+        "xrp",
+        "doge"
+      ],
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -540.22,
+      "d_holdout": -330.81,
+      "combo": {
+        "n": 1529,
+        "pnl5": -752.6018,
+        "pnl3": -451.56108,
+        "take_wr": 0.9487,
+        "held": 195,
+        "scratch_n": 1334,
+        "train": {
+          "n": 991,
+          "pnl5": -501.1639,
+          "take_wr": 0.9375,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 538,
+          "pnl5": -251.4379,
+          "take_wr": 0.9701,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.1629,
+        "up1_before_cheap": 0.1563,
+        "orig_hold_wr": 0.865,
+        "orig_hold_n": 585,
+        "orig_hold_wr_holdout": 0.8476,
+        "orig_hold_n_holdout": 210,
+        "confirm_62_by90": 0.3172,
+        "dump_share": 0.8725,
+        "exit_why": {
+          "twap_scratch_better": 344,
+          "settle": 195,
+          "twap_scratch_weak": 394,
+          "unconfirmed_by90": 380,
+          "twap_scratch_flip": 129,
+          "twap_scratch_oracle": 10,
+          "twap_scratch_book": 71,
+          "twap_scratch_wild": 6
+        }
+      },
+      "alts_only": {
+        "n": 930,
+        "pnl5": -871.0348,
+        "pnl3": -522.62088,
+        "take_wr": 1.0,
+        "held": 3,
+        "scratch_n": 927,
+        "train": {
+          "n": 587,
+          "pnl5": -536.5129,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 343,
+          "pnl5": -334.5219,
+          "take_wr": null,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0419,
+        "up1_before_cheap": 0.0473,
+        "orig_hold_wr": 0.8767,
+        "orig_hold_n": 365,
+        "orig_hold_wr_holdout": 0.8485,
+        "orig_hold_n_holdout": 132,
+        "confirm_62_by90": 0.0409,
+        "dump_share": 0.9968,
+        "exit_why": {
+          "twap_scratch_better": 198,
+          "unconfirmed_by90": 362,
+          "twap_scratch_weak": 207,
+          "twap_scratch_book": 71,
+          "twap_scratch_flip": 83,
+          "twap_scratch_wild": 6,
+          "settle": 3
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 794,
+        "both": 216,
+        "share_of_alts": 0.272,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -511.38,
+        "d_holdout": -310.07,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 449,
+          "pnl5": -212.3269,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    },
+    {
+      "pair": [
+        "sol",
+        "xrp"
+      ],
+      "each_ok": false,
+      "beats_core": false,
+      "leftover_ok": true,
+      "d_train": -555.52,
+      "d_holdout": -399.95,
+      "combo": {
+        "n": 1653,
+        "pnl5": -837.0347,
+        "pnl3": -502.22082,
+        "take_wr": 0.951,
+        "held": 204,
+        "scratch_n": 1449,
+        "train": {
+          "n": 1022,
+          "pnl5": -516.4588,
+          "take_wr": 0.9398,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 631,
+          "pnl5": -320.576,
+          "take_wr": 0.9718,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.1658,
+        "up1_before_cheap": 0.1585,
+        "orig_hold_wr": 0.8863,
+        "orig_hold_n": 598,
+        "orig_hold_wr_holdout": 0.8667,
+        "orig_hold_n_holdout": 225,
+        "confirm_62_by90": 0.3116,
+        "dump_share": 0.8766,
+        "exit_why": {
+          "twap_scratch_better": 393,
+          "settle": 204,
+          "twap_scratch_weak": 442,
+          "unconfirmed_by90": 382,
+          "twap_scratch_flip": 137,
+          "twap_scratch_oracle": 12,
+          "twap_scratch_book": 76,
+          "twap_scratch_wild": 7
+        }
+      },
+      "alts_only": {
+        "n": 1054,
+        "pnl5": -955.4677,
+        "pnl3": -573.28062,
+        "take_wr": 1.0,
+        "held": 12,
+        "scratch_n": 1042,
+        "train": {
+          "n": 606,
+          "pnl5": -550.7315,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "holdout": {
+          "n": 448,
+          "pnl5": -404.7362,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "robust": false,
+        "cheap_1s": 0.0607,
+        "up1_before_cheap": 0.0636,
+        "orig_hold_wr": 0.9101,
+        "orig_hold_n": 378,
+        "orig_hold_wr_holdout": 0.8831,
+        "orig_hold_n_holdout": 154,
+        "confirm_62_by90": 0.0645,
+        "dump_share": 0.9886,
+        "exit_why": {
+          "twap_scratch_book": 76,
+          "twap_scratch_better": 247,
+          "unconfirmed_by90": 364,
+          "twap_scratch_flip": 91,
+          "twap_scratch_weak": 255,
+          "settle": 12,
+          "twap_scratch_wild": 7,
+          "twap_scratch_oracle": 2
+        }
+      },
+      "overlap": {
+        "core_unix": 489,
+        "alt_unix": 913,
+        "both": 249,
+        "share_of_alts": 0.2727,
+        "note": "Independent clocks: both>0 means extra stake on the same 5m unix, not extra independent windows."
+      },
+      "fillable_no_cheap_1s": {
+        "d_train": -514.93,
+        "d_holdout": -372.24,
+        "beats_core": false,
+        "combo_holdout": {
+          "n": 540,
+          "pnl5": -274.4949,
+          "take_wr": 1.0,
+          "ev_ok": false
+        },
+        "note": "Drop prints that walked cheaper within 1s \u2014 live leftover kill proxy, not a fill model."
+      }
+    }
+  ],
+  "recommend": null,
+  "recommend_plus_one": null,
+  "ship": false,
+  "pick": null,
+  "why": "Shipped first-cross + dump90 + oracle, independent clocks, 7d holdout. BTC+ETH stay +EV. SOL/XRP/DOGE/BNB are train and holdout \u2212EV on this sleeve: they rarely print 62\u00a2 so dump90 fires on ~90%+ of fills and donates spread instead of holding. BM-only print-tape orig_hold_wr still looks 75\u201395% (SOL 94.6%) but that is NOT live \u2014 Rev 47/48 alt holds hit 14%, SOL \u2212$8.49. Do not skip dump90 on alts to chase that tape. 4 coins need 16 WS tokens (overflow 2). 3 coins fit 12/14 but no single alt passes. HYPE 0 CLOB prints. BNB n=79 is too thin. Owner decides; do not pin twap_assets.",
+  "ws_slots": {
+    "btc_eth": {
+      "coins": 2,
+      "tokens_current": 4,
+      "tokens_prewarm": 4,
+      "tokens_needed": 8,
+      "ws_max_tokens": 14,
+      "fits": true,
+      "overflow": 0,
+      "note": "3 coins fit 12/14. BTC+ETH only uses 8."
+    },
+    "plus_one": {
+      "coins": 3,
+      "tokens_current": 6,
+      "tokens_prewarm": 6,
+      "tokens_needed": 12,
+      "ws_max_tokens": 14,
+      "fits": true,
+      "overflow": 0,
+      "note": "3 coins fit 12/14. BTC+ETH only uses 8."
+    },
+    "plus_two": {
+      "coins": 4,
+      "tokens_current": 8,
+      "tokens_prewarm": 8,
+      "tokens_needed": 16,
+      "ws_max_tokens": 14,
+      "fits": false,
+      "overflow": 2,
+      "note": "14 tokens on two sockets. Inventory always. T-45 prewarm next 5m. 4 coins need 16 tokens so one next-window pair is cold at T0."
+    }
+  },
+  "live_fingerprint": {
+    "source": "research/rev48_live.json",
+    "note": "Post-Rev47 closed alts before dump90+oracle+first-cross pin. Not this sleeve.",
+    "alts_n": 13,
+    "alts_net_usd": -8.87,
+    "alt_hold_hit": 0.14,
+    "sol_n": 4,
+    "sol_net_usd": -8.49,
+    "alt_120_180_hold_hit": 0.0
+  },
+  "do_not": [
+    "pin_twap_assets_without_owner",
+    "15m",
+    "1h_binance",
+    "hype_no_prints",
+    "bnb_thin",
+    "twap_reverse_on",
+    "dump_mid90",
+    "lead_4bps",
+    "band_40_60",
+    "chase_leftover",
+    "clock_lock_one_coin",
+    "raise_btc_eth_min_left_180",
+    "skip_dump90_on_alts_to_chase_print_hold_wr"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_confirm_px": 0.62,
+    "twap_confirm_fair": 0.6,
+    "independent_clocks": true
+  },
+  "findings": {
+    "headline": "Do not open two more coins yet.",
+    "best_pair": [
+      "doge",
+      "bnb"
+    ],
+    "best_d_holdout_pair": [
+      "doge",
+      "bnb"
+    ],
+    "recommend_plus_one": null,
+    "fail_reasons": {
+      "sol": [
+        "train_-EV",
+        "holdout_-EV",
+        "dump_share_ge_90",
+        "confirm_62_rare"
+      ],
+      "xrp": [
+        "train_-EV",
+        "holdout_-EV",
+        "holdout_wr_below_85_or_no_holds",
+        "dump_share_ge_90",
+        "confirm_62_rare"
+      ],
+      "doge": [
+        "train_-EV",
+        "holdout_-EV",
+        "holdout_wr_below_85_or_no_holds",
+        "dump_share_ge_90",
+        "confirm_62_rare"
+      ],
+      "bnb": [
+        "train_-EV",
+        "holdout_-EV",
+        "holdout_wr_below_85_or_no_holds",
+        "dump_share_ge_90",
+        "confirm_62_rare"
+      ]
+    },
+    "mechanism": "Dump90+oracle that saves BTC/ETH steamrollers fires on almost every alt fill because alts rarely print 62\u00a2. Residual hold WR looks 100% because almost nothing is held. BM-only tape looks +EV; live alt holds did not."
+  }
+}

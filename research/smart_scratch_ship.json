@@ -1,0 +1,117 @@
+{
+  "strategy_rev": 61,
+  "ship": true,
+  "pick": "keep_late_dump",
+  "tape_candidate": "keep_late_dump",
+  "researched_at_utc": "2026-09-07T00:19:53Z",
+  "source": "research/smart_scratch.json",
+  "question": "Smarter live scratch + other PnL overlays without changing entry?",
+  "why": "Owner confirmed keep_late_dump 2026-09-08. Entry stays 6bps first-cross. BM scratch is -EV because scratch_better sells ~71% WR winners. Unconfirmed + oracle are the +EV dumps. Rev 61 defaults twap_late_dump=True.",
+  "n_takes": 558,
+  "shipped_holdout_pnl5": -25.5691,
+  "shipped_holdout_take_wr": 0.0,
+  "shipped_scratch_n": 516,
+  "hold_only_holdout_take_wr": 0.574,
+  "hold_only_holdout_ev_ok": true,
+  "keep_late_dump_holdout_pnl5": 84.6148,
+  "keep_late_dump_holdout_ev_ok": true,
+  "keep_late_dump_holdout_take_wr": 0.64,
+  "keep_late_dump_held": 373,
+  "keep_late_dump_beats": true,
+  "scratch_better_would_win_wr": 0.7123,
+  "scratch_better_delta_hc_vs_hold": -146.99,
+  "unconfirmed_delta_hc_vs_hold": 13.14,
+  "oracle_delta_hc_vs_hold": 14.57,
+  "settle_would_win_wr": 0.0,
+  "persist2_scratch_delta": -19,
+  "persist_fights_live_leak": true,
+  "adverse_08_beats": false,
+  "live_redeem_wr": 0.2128,
+  "live_underdumps": true,
+  "winners": [
+    "keep_late_dump"
+  ],
+  "dump_more_names": [
+    "tp_80",
+    "oracle_70",
+    "confirm_left_120",
+    "weak_p_052",
+    "last30_need_80",
+    "last45_need_70"
+  ],
+  "other_sleeves_ship": {
+    "dump_exec": {
+      "ship": true,
+      "pick": "hot_books_last90"
+    },
+    "cheap_bounce": {
+      "ship": false,
+      "pick": null
+    },
+    "two_alts": {
+      "ship": false,
+      "pick": null
+    },
+    "trend_side": {
+      "ship": false,
+      "pick": null
+    },
+    "always_in": {
+      "ship": false,
+      "pick": null
+    },
+    "easy_entry": {
+      "ship": false,
+      "pick": "lead_5_5"
+    },
+    "learn_fail": {
+      "ship": false,
+      "pick": null
+    },
+    "reverse_fade": {
+      "ship": false,
+      "pick": null
+    },
+    "sparse_fix": {
+      "ship": false,
+      "pick": null
+    },
+    "freq_params": {
+      "ship": false,
+      "pick": null
+    }
+  },
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "autodial_5_5bps",
+    "band_40_60",
+    "chase_leftover",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "scratch_adverse_0.08",
+    "favorite_97_98",
+    "persist_when_live_underdumps",
+    "always_in_live",
+    "cheap_bounce_20_30"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_no_cheaper": true,
+    "twap_scratch_dump_floor": 0.22,
+    "twap_scratch_adverse": 0.0,
+    "twap_confirm_fair": 0.6,
+    "twap_confirm_px": 0.62,
+    "twap_tp_bid": 0.87
+  }
+}

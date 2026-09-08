@@ -1,0 +1,31 @@
+{
+  "researched_at_utc": "2026-09-02T10:40:00Z",
+  "question": "Live BTC/ETH first-cross after Rev 57: does CLOB 拉盤 justify flipping to fade?",
+  "ship": false,
+  "change_direction": false,
+  "live_at": "2026-09-02T10:37:50Z",
+  "strategy_rev": 58,
+  "twap_reverse": false,
+  "since_rev57": {
+    "n": 11,
+    "actual_pnl": -11.86,
+    "fade_every_cf": 24.65,
+    "holds": {"n": 6, "wins": 0, "pnl": -17.35},
+    "scratches": {"n": 5, "pnl": 5.4, "saved_loser": 3, "cut_winner": 2},
+    "note": "Fade CF is not a live rule. Two winner scratches (ETH Down TP +$4.17, BTC Up +$0.61) would be fade losses. 2/6 holds never printed 62¢ — dump_by90 should have cut them."
+  },
+  "holds": [
+    {"slug": "btc-updown-5m-1788276600", "leg": "down", "px": 0.51, "max": 0.775, "dt62": 18, "ever85": false, "by90": true, "winner": "Up", "net": -2.90, "class": "confirm_then_fade"},
+    {"slug": "btc-updown-5m-1788279300", "leg": "up", "px": 0.55, "max": 0.63, "dt62": 0, "ever85": false, "by90": true, "winner": "Down", "net": -2.90, "class": "weak_confirm_63"},
+    {"slug": "eth-updown-5m-1788291600", "leg": "up", "px": 0.53, "max": 0.55, "dt62": null, "ever85": false, "by90": false, "winner": "Down", "net": -2.90, "class": "dump_miss_never62"},
+    {"slug": "eth-updown-5m-1788309600", "leg": "down", "px": 0.55, "max": 0.58, "dt62": null, "ever85": false, "by90": false, "winner": "Up", "net": -2.90, "class": "dump_miss_never62"},
+    {"slug": "btc-updown-5m-1788326700", "leg": "down", "px": 0.54, "max": 0.72, "dt62": 9, "ever85": false, "by90": true, "winner": "Up", "net": -2.90, "class": "confirm_then_fade"},
+    {"slug": "eth-updown-5m-1788342300", "leg": "down", "px": 0.55, "max": 0.62, "dt62": 1, "ever85": false, "by90": true, "winner": "Up", "net": -2.75, "class": "knife_confirm_62"}
+  ],
+  "tape_lock": {
+    "follow_shipped_holdout_pnl5": 94.94,
+    "follow_shipped_holdout_wr": 0.9155,
+    "fade_every_holdout_pnl5": -162.27,
+    "fade_every_holdout_wr": 0.4221
+  }
+}

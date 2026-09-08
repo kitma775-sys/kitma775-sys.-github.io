@@ -1,0 +1,74 @@
+{
+  "researched_at_utc": "2026-08-27T05:05:00Z",
+  "question": "Switch from YES+NO complement arb to buying 97–99¢ 'almost certain' winners on all 5M/15M/1H books. New bot vs patch vs mode switch?",
+  "verdict": "Keep this process. Add a strategy_mode switch (complement | favorite | auto). Do not rewrite. Do not deploy a second bot. Do not turn favorite on until paper-only last-30s rules are in. Default stays complement.",
+  "why_not_new_bot": [
+    "5M/15M/1H Gamma tags are almost entirely crypto Up/Down. '不論 updown' does not add sports or a new venue. 1H also lists *-above-on-* with empty 1.00 asks — skip, as today.",
+    "Same itode 250ms, same 7% crypto fee, same WS/HTTP books, same Telegram/dashboard/Zeabur/paper sqlite. A second bot duplicates keys, WS slots, and will fight the same books.",
+    "A greenfield rewrite throws away Rev 6–10 lessons (empty 0.99 books, pair confirm, no assumed maker fills)."
+  ],
+  "why_not_rewrite_in_place": [
+    "Complement hunt, pair FAK/requote, merge-to-$1, and two-sided inventory are the opposite of a one-leg hold-to-settle book.",
+    "Paper cost today is shares-net on a pair. Favorite cost is price+fee, payout $1 or $0 at resolution. Mixing in one hunter will mark $0.17 snapshot ghosts as directional PnL or auto-merge a naked leg."
+  ],
+  "why_mode_switch": [
+    "Share universe, WS, fees, FOK delay, dashboard, Telegram, FORCE_PAPER.",
+    "Isolate hunter + paper path + risk + inventory marking behind strategy_mode.",
+    "Only one mode may trade. Never run complement and favorite on the same capital at once.",
+    "auto = try complement (both asks +EV) first; else favorite if last-30s 97–99¢ ask still there after 250ms."
+  ],
+  "live_universe_2026_08_27T05:00Z": {
+    "5M": {"n": 100, "kinds": {"updown": 100}, "fav_asks_97_99": "12, all zec 0.99/0.01 empty-looking books"},
+    "15M": {"n": 64, "kinds": {"updown": 64}, "fav_asks_97_99": "8, all zec"},
+    "1H": {"n": 16, "kinds": {"updown": 14, "above": 2}, "fav_asks_97_99": 0, "above_ask": 1.0},
+    "note": "ZEC 0.99 bid 0.01 is a locked empty book, not a 99¢ favorite you can lift. Current bot already skips it. Favorite mode must skip it too."
+  },
+  "math": {
+    "fee": "C × 0.07 × p × (1-p)",
+    "breakeven_true_p": {"0.97": 0.97204, "0.98": 0.98137, "0.99": 0.99069},
+    "win_if_yes_after_fee": {"0.97": 0.02796, "0.98": 0.01863, "0.99": 0.00931},
+    "lose_if_no": "≈ −p − fee (about −$0.97 to −$0.99 per share)",
+    "payoff": "At 0.99, one $25 blowup needs ~107 winning $25 fills (~+$0.23 each) to break even."
+  },
+  "tape_study": {
+    "window": "closed 5M, last ~6h, skip zec, 120 markets sampled",
+    "rule": "Per market, first public BUY print in [0.97, 0.99] during last T seconds. Size min(print, $25). Fee 0.07.",
+    "T_30s": {"n": 19, "win": 19, "lose": 0, "wr": 1.0, "pnl_per_share_sizew": 0.02036, "caveat": "tiny n; this is exactly when MMs pull the winning ask"},
+    "T_60s": {"n": 62, "win": 61, "lose": 1, "wr": 0.9839, "pnl_per_share_sizew": 0.01392, "blowup": "hype-updown-5m-1787803500 Down@0.99 with 54s left"},
+    "T_90s": {"n": 89, "win": 87, "lose": 2, "wr": 0.9775, "pnl_per_share_sizew": -0.01117, "note": "below breakeven; 30-share HYPE loss dominates"},
+    "T_120s": {"n": 114, "win": 112, "lose": 2, "wr": 0.9825, "pnl_per_share_sizew": -0.00293},
+    "honest": "Prints that already filled are not your FAK after 250ms itode. Last-90s 97–99¢ is −EV size-weighted. Last-30s looks +EV on a small sample but is the same race as complement, with leftover directional blowup."
+  },
+  "vs_complement": {
+    "if_both_asks": "0.97+0.01 gross 2¢, fees ~0.27¢, locked +1.73¢/share if both fill. No steamroller. Complement strictly dominates buying only 0.97.",
+    "favorite_only_is_the_gap": "When the cheap ask is gone and a 0.97–0.99 ask remains. That is leftover MM size on the favorite, usually pulled inside itode.",
+    "do_not_buy_the_dog": "0.01–0.03 alone remains −EV / lottery. Unchanged."
+  },
+  "if_built": {
+    "strategy_mode": "complement (default) | favorite | auto",
+    "favorite_gates": [
+      "seconds_left in (3, 30]",
+      "best ask in [favorite_min, favorite_max] default [0.95, 0.99]",
+      "same-token bid not ≤0.05 while ask ≥0.97 (skip 0.99/0.01 zec ghosts)",
+      "depth ≥ min_shares after 250ms FAK on that one leg",
+      "not zec; still skip *-above-on-*",
+      "FORCE_PAPER; mark favorite inventory at cost until official resolve; never merge or hedge a naked favorite",
+      "daily loss cap counts a 0.99 blowup as ~full stake"
+    ],
+    "auto": "complement first if two-ask net>0 after fees and min_edge; else favorite gates",
+    "maker_limit": {
+      "question": "Does a 95¢ rest capture more than lifting 97–99¢?",
+      "yes_if_filled": "Maker fee 0. A 95¢ fill vs lifting 99¢ is ~4¢/share extra, and vs 97¢ taker also skips the p(1-p) fee.",
+      "no_free_lunch": "Last-second dumps trade through that bid (steamroller). Paper never assume-fills; fill only on ask <= bid. Never hedge the other leg; hold to official settle.",
+      "payoff": "Win at 95¢ ≈ +$1.25/share on $25; lose ≈ −$23.75. One blowup still needs many 95–99¢ wins. Toggle favorite_maker off to only lift asks.",
+      "default": "ON in Rev 11, Telegram 大熱定價掛單. Complement two-sided maker stays off (maker_window=0)."
+    },
+    "do_not": [
+      "lower complement min_edge",
+      "re-enable last-window maker",
+      "buy 0.001–0.03 alone",
+      "credit snapshot 97¢ fills without delayed-book confirm",
+      "run two bots or two modes at once"
+    ]
+  }
+}

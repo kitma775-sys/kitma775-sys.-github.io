@@ -1,0 +1,29 @@
+{
+  "strategy_rev": 58,
+  "ship": true,
+  "researched_at_utc": "2026-09-02T03:52:00Z",
+  "question": "Why is the live tape almost only FOK kills and order errors?",
+  "answer": "Two different piles. (1) FOK leftover/short/requote are first-cross WR gates — keep. (2) Today 13/21 live rows are HTTP 503 trading is disabled. Halt was 300s then a real FAK every 5m for ~2h. That is not a sleeve miss; matching is paused. Rev 58: backoff 5→10→20→30m, log the first 503 only, no Telegram ❌ on repeats. Do not widen 6bps or chase leftover.",
+  "today_utc": {
+    "n": 21,
+    "fills": 2,
+    "fok_killed": 3,
+    "error_disabled": 13,
+    "error_unmatched": 1,
+    "disabled_first": "2026-09-02 01:36:28",
+    "disabled_last": "2026-09-02 03:46:45",
+    "btc_scratch": 0.6148,
+    "eth_hold": -2.9
+  },
+  "do_not": [
+    "restore_alts",
+    "chase_cheaper_leftover",
+    "bps_4",
+    "band_40_60",
+    "skip_fok_delay",
+    "turn_taker_fok_off",
+    "flip_live_trading",
+    "dump_mid90",
+    "price_sl_8c"
+  ]
+}

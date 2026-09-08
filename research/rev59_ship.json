@@ -1,0 +1,41 @@
+{
+  "strategy_rev": 59,
+  "ship": true,
+  "researched_at_utc": "2026-09-02T11:25:11Z",
+  "source": "research/rev59_oracle.json",
+  "pick": "oracle_fair_late_60",
+  "why": "Keep first-cross direction. In the last 90s, dump if Binance-proxy / live Chainlink BM fair < 0.60 even after CLOB printed 62¢. CLOB 拉盤 is not the settlement 0/1. Tape n=599: all +$236 vs shipped dump_by90 +$172; train +$118 vs +$77; holdout +$118 vs +$95; remaining-hold WR 100%. Do not fade, dump_mid90, 8¢ SL, or raise 6bps.",
+  "params": {
+    "twap_confirm_fair": 0.60,
+    "twap_confirm_px": 0.62,
+    "twap_confirm_left": 90.0,
+    "twap_reverse": false,
+    "min_lead_bps": 6.0,
+    "band": [0.45, 0.55]
+  },
+  "vs_shipped_dump90": {
+    "all_pnl5": {"base": 171.95, "pick": 236.27, "delta": 64.32},
+    "train_pnl5": {"base": 77.01, "pick": 118.24, "delta": 41.23},
+    "holdout_pnl5": {"base": 94.94, "pick": 118.03, "delta": 23.09},
+    "holdout_take_wr": {"base": 0.9155, "pick": 1.0}
+  },
+  "rejected": [
+    "fade_every",
+    "skip_knife_6_5",
+    "skip_first_touch",
+    "skip_entry_fair70",
+    "dump_mid90",
+    "oracle_fair90_70",
+    "lead_thin90_3bps"
+  ],
+  "do_not": [
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "scratch_adverse_0.08",
+    "btc_eth_min_left_180",
+    "chase_leftover",
+    "complement",
+    "favorite_97_98"
+  ]
+}

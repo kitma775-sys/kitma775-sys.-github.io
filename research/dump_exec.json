@@ -1,0 +1,206 @@
+{
+  "researched_at_utc": "2026-09-03T18:18:10Z",
+  "elapsed_s": 6.06,
+  "question": "When unconfirmed/oracle must dump, why does a sellable \u226522\u00a2 bid sit to $0?",
+  "n_joined": 599,
+  "holdout_days": 7,
+  "unconfirmed": {
+    "n": 152,
+    "orig_wr": 0.2171,
+    "hold_pnl5": -465.0758,
+    "dump_pnl5": -530.7712,
+    "blocked22_n": 96,
+    "blocked22_orig_wr": 0.0938,
+    "blocked22_hold_pnl5": -408.0707,
+    "blocked22_dump_pnl5": -427.748,
+    "sellable22_n": 56,
+    "px90_buckets": {
+      "ge22": {
+        "n": 53,
+        "pnl5": -70.6076,
+        "pnl3": -42.36456,
+        "win": 21,
+        "lose": 32,
+        "held": 53,
+        "scratch_n": 0,
+        "take_wr": 0.3962,
+        "ev_ok": false,
+        "orig_wr": 0.3962,
+        "dump_pnl5": -103.0232
+      },
+      "10-22": {
+        "n": 45,
+        "pnl5": -174.5162,
+        "pnl3": -104.70972,
+        "win": 6,
+        "lose": 39,
+        "held": 45,
+        "scratch_n": 0,
+        "take_wr": 0.1333,
+        "ev_ok": false,
+        "orig_wr": 0.1333,
+        "dump_pnl5": -177.1754
+      },
+      "01-10": {
+        "n": 51,
+        "pnl5": -233.5545,
+        "pnl3": -140.1327,
+        "win": 3,
+        "lose": 48,
+        "held": 51,
+        "scratch_n": 0,
+        "take_wr": 0.0588,
+        "ev_ok": false,
+        "orig_wr": 0.0588,
+        "dump_pnl5": -250.5727
+      },
+      "lt01": {
+        "n": 0,
+        "pnl5": 0.0,
+        "pnl3": 0.0,
+        "win": 0,
+        "lose": 0,
+        "held": 0,
+        "scratch_n": 0,
+        "take_wr": null,
+        "ev_ok": false
+      },
+      "none": {
+        "n": 3,
+        "pnl5": 13.6024,
+        "pnl3": 8.16144,
+        "win": 3,
+        "lose": 0,
+        "held": 3,
+        "scratch_n": 0,
+        "take_wr": 1.0,
+        "ev_ok": true,
+        "orig_wr": 1.0,
+        "dump_pnl5": null
+      }
+    }
+  },
+  "blocked_hold": {
+    "all": {
+      "n": 96,
+      "pnl5": -408.0707,
+      "pnl3": -244.84242,
+      "win": 9,
+      "lose": 87,
+      "held": 96,
+      "scratch_n": 0,
+      "take_wr": 0.0938,
+      "ev_ok": false
+    },
+    "train": {
+      "n": 52,
+      "pnl5": -210.2371,
+      "pnl3": -126.14226,
+      "win": 6,
+      "lose": 46,
+      "held": 52,
+      "scratch_n": 0,
+      "take_wr": 0.1154,
+      "ev_ok": false
+    },
+    "holdout": {
+      "n": 44,
+      "pnl5": -197.8335,
+      "pnl3": -118.7001,
+      "win": 3,
+      "lose": 41,
+      "held": 44,
+      "scratch_n": 0,
+      "take_wr": 0.0682,
+      "ev_ok": false
+    }
+  },
+  "blocked_dump_at_px90": {
+    "all": {
+      "n": 96,
+      "pnl5": -427.748,
+      "pnl3": -256.6488,
+      "win": 0,
+      "lose": 0,
+      "held": 0,
+      "scratch_n": 96,
+      "take_wr": null,
+      "ev_ok": false
+    },
+    "train": {
+      "n": 52,
+      "pnl5": -235.2715,
+      "pnl3": -141.1629,
+      "win": 0,
+      "lose": 0,
+      "held": 0,
+      "scratch_n": 52,
+      "take_wr": null,
+      "ev_ok": false
+    },
+    "holdout": {
+      "n": 44,
+      "pnl5": -192.4765,
+      "pnl3": -115.4859,
+      "win": 0,
+      "lose": 0,
+      "held": 0,
+      "scratch_n": 44,
+      "take_wr": null,
+      "ev_ok": false
+    }
+  },
+  "late_collapse_n": 9,
+  "late_collapse_unconf_n": 1,
+  "live_fingerprint": {
+    "note": "ETH 00:10 HKT Sep 4 eth-updown-5m-1788451800 Up never printed 62 (max 54\u00a2), px90=22\u00a2, held to $0. Floor 0.22 does not block 0.22.",
+    "px90": 0.22,
+    "blocked_by_floor": false
+  },
+  "do_not": [
+    "dump_mid90",
+    "twap_reverse_on",
+    "price_sl_8c",
+    "chase_leftover",
+    "lead_4bps",
+    "band_40_60",
+    "htf_pick_side",
+    "lower_soft_dump_floor_22",
+    "skip_scratch_left_min_8"
+  ],
+  "delta": {
+    "all": -19.68,
+    "train": -25.03,
+    "holdout": 5.36
+  },
+  "floor": {
+    "ship": false,
+    "pick": "must_dump_floor_01",
+    "delta": {
+      "all": -19.68,
+      "train": -25.03,
+      "holdout": 5.36
+    },
+    "blocked22_n": 96,
+    "blocked22_orig_wr": 0.0938,
+    "why": "Dumping unconfirmed px90<22\u00a2 is \u2212EV vs hold on tape (train -25.03, holdout 5.36). Orig WR in that bucket is ~9%; a 1\u00a2 dump destroys those winners. Keep 22\u00a2 floor and last-8s late gate."
+  },
+  "ship": true,
+  "pick": "hot_books_last90",
+  "why": "Unconfirmed/oracle dump is already shipped. Live ETH 00:10 px90=22\u00a2 was sellable under the floor; the miss was a 60s WS cache + 15s rescore during a CLOB disconnect, so FAK min_price sat on a stale 50\u00a2. Last 90s: HTTP if cache >2s, rescore 3s, keep last-seen ev, must-dump may sell below min_shares. Not dump_mid90. Not lower 22\u00a2.",
+  "params": {
+    "twap_scratch_dump_floor": 0.22,
+    "twap_scratch_left_min": 8.0,
+    "twap_scratch_hot_ms": 2000.0,
+    "twap_rescore_hot_seconds": 3.0,
+    "twap_rescore_seconds": 15.0,
+    "must_reasons": [
+      "twap_scratch_unconfirmed",
+      "twap_scratch_oracle",
+      "twap_scratch_no_fair",
+      "twap_scratch_flip",
+      "twap_scratch_weak",
+      "twap_scratch_wild"
+    ]
+  }
+}

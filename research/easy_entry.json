@@ -1,0 +1,1518 @@
+{
+  "researched_at_utc": "2026-09-05T05:54:51Z",
+  "elapsed_s": 46.24,
+  "question": "Ease entry without cutting holdout WR or PnL vs frozen 6bps 45\u201355.",
+  "windows_with_prints": 8498,
+  "windows_with_twap": 8496,
+  "live_drought_note": "HKT Sep 5 morning/midday skip is twap_band (ask already \u62c9\u76e4). Not a 6bps miss.",
+  "baseline": {
+    "n": 593,
+    "pnl5": 374.552,
+    "pnl3": 224.7312,
+    "take_wr": 1.0,
+    "held": 160,
+    "scratch_n": 433,
+    "avg_left": 199.8,
+    "train": {
+      "n": 244,
+      "pnl5": 108.2253,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 349,
+      "pnl5": 266.3267,
+      "take_wr": 1.0,
+      "ev_ok": true
+    },
+    "robust": true,
+    "orig_hold_wr": 0.9205,
+    "orig_hold_n": 176,
+    "orig_hold_wr_holdout": 0.9358,
+    "orig_hold_n_holdout": 109,
+    "cheap_1s": 0.3457,
+    "confirm_62_by90": 0.7757,
+    "dump_share": 0.7302
+  },
+  "grid": {
+    "base": {
+      "n": 593,
+      "pnl5": 374.552,
+      "pnl3": 224.7312,
+      "take_wr": 1.0,
+      "held": 160,
+      "scratch_n": 433,
+      "avg_left": 199.8,
+      "train": {
+        "n": 244,
+        "pnl5": 108.2253,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 349,
+        "pnl5": 266.3267,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9205,
+      "orig_hold_n": 176,
+      "orig_hold_wr_holdout": 0.9358,
+      "orig_hold_n_holdout": 109,
+      "cheap_1s": 0.3457,
+      "confirm_62_by90": 0.7757,
+      "dump_share": 0.7302,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 0,
+      "d_train": 0.0,
+      "d_holdout": 0.0,
+      "extra": {
+        "n": 593,
+        "pnl5": 374.552,
+        "pnl3": 224.7312,
+        "take_wr": 1.0,
+        "held": 160,
+        "scratch_n": 433,
+        "avg_left": 199.8,
+        "train": {
+          "n": 244,
+          "pnl5": 108.2253,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 349,
+          "pnl5": 266.3267,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_5": {
+      "n": 717,
+      "pnl5": 464.0475,
+      "pnl3": 278.4285,
+      "take_wr": 1.0,
+      "held": 195,
+      "scratch_n": 522,
+      "avg_left": 201.0,
+      "train": {
+        "n": 305,
+        "pnl5": 134.3712,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 412,
+        "pnl5": 329.6763,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9249,
+      "orig_hold_n": 213,
+      "orig_hold_wr_holdout": 0.9466,
+      "orig_hold_n_holdout": 131,
+      "cheap_1s": 0.3389,
+      "confirm_62_by90": 0.7824,
+      "dump_share": 0.728,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 124,
+      "d_train": 26.15,
+      "d_holdout": 63.35,
+      "extra": {
+        "n": 124,
+        "pnl5": 88.5909,
+        "pnl3": 53.15454,
+        "take_wr": 1.0,
+        "held": 34,
+        "scratch_n": 90,
+        "avg_left": 200.0,
+        "train": {
+          "n": 52,
+          "pnl5": 27.1047,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 72,
+          "pnl5": 61.4862,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9444,
+        "orig_hold_n": 36,
+        "orig_hold_wr_holdout": 0.92,
+        "orig_hold_n_holdout": 25,
+        "cheap_1s": 0.2661,
+        "confirm_62_by90": 0.7823,
+        "dump_share": 0.7258
+      },
+      "extra_quality": true,
+      "beats": true
+    },
+    "lead_5_5_persist8": {
+      "n": 681,
+      "pnl5": 373.0825,
+      "pnl3": 223.8495,
+      "take_wr": 1.0,
+      "held": 170,
+      "scratch_n": 511,
+      "avg_left": 198.3,
+      "train": {
+        "n": 291,
+        "pnl5": 115.7883,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 390,
+        "pnl5": 257.2942,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.929,
+      "orig_hold_n": 183,
+      "orig_hold_wr_holdout": 0.9541,
+      "orig_hold_n_holdout": 109,
+      "cheap_1s": 0.3568,
+      "confirm_62_by90": 0.7695,
+      "dump_share": 0.7504,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 8,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 88,
+      "d_train": 7.56,
+      "d_holdout": -9.03,
+      "extra": {
+        "n": 103,
+        "pnl5": 46.7955,
+        "pnl3": 28.0773,
+        "take_wr": 1.0,
+        "held": 22,
+        "scratch_n": 81,
+        "avg_left": 193.0,
+        "train": {
+          "n": 43,
+          "pnl5": 17.2305,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 60,
+          "pnl5": 29.565,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 1.0,
+        "orig_hold_n": 22,
+        "orig_hold_wr_holdout": 1.0,
+        "orig_hold_n_holdout": 14,
+        "cheap_1s": 0.3107,
+        "confirm_62_by90": 0.7379,
+        "dump_share": 0.7864
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_5_persist15": {
+      "n": 659,
+      "pnl5": 324.4352,
+      "pnl3": 194.66112,
+      "take_wr": 1.0,
+      "held": 157,
+      "scratch_n": 502,
+      "avg_left": 197.0,
+      "train": {
+        "n": 280,
+        "pnl5": 90.9097,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 379,
+        "pnl5": 233.5254,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9181,
+      "orig_hold_n": 171,
+      "orig_hold_wr_holdout": 0.951,
+      "orig_hold_n_holdout": 102,
+      "cheap_1s": 0.3566,
+      "confirm_62_by90": 0.7587,
+      "dump_share": 0.7618,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 15,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 66,
+      "d_train": -17.32,
+      "d_holdout": -32.8,
+      "extra": {
+        "n": 94,
+        "pnl5": 41.7212,
+        "pnl3": 25.03272,
+        "take_wr": 1.0,
+        "held": 20,
+        "scratch_n": 74,
+        "avg_left": 191.9,
+        "train": {
+          "n": 37,
+          "pnl5": 14.0337,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 57,
+          "pnl5": 27.6875,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 1.0,
+        "orig_hold_n": 20,
+        "orig_hold_wr_holdout": 1.0,
+        "orig_hold_n_holdout": 13,
+        "cheap_1s": 0.266,
+        "confirm_62_by90": 0.7234,
+        "dump_share": 0.7872
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_5_fair62": {
+      "n": 665,
+      "pnl5": 399.001,
+      "pnl3": 239.4006,
+      "take_wr": 1.0,
+      "held": 177,
+      "scratch_n": 488,
+      "avg_left": 195.9,
+      "train": {
+        "n": 278,
+        "pnl5": 106.9104,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 387,
+        "pnl5": 292.0906,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9227,
+      "orig_hold_n": 194,
+      "orig_hold_wr_holdout": 0.9421,
+      "orig_hold_n_holdout": 121,
+      "cheap_1s": 0.3353,
+      "confirm_62_by90": 0.7699,
+      "dump_share": 0.7338,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.62,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 72,
+      "d_train": -1.31,
+      "d_holdout": 25.76,
+      "extra": {
+        "n": 109,
+        "pnl5": 81.958,
+        "pnl3": 49.1748,
+        "take_wr": 1.0,
+        "held": 31,
+        "scratch_n": 78,
+        "avg_left": 193.5,
+        "train": {
+          "n": 43,
+          "pnl5": 25.1872,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 66,
+          "pnl5": 56.7708,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9688,
+        "orig_hold_n": 32,
+        "orig_hold_wr_holdout": 0.9545,
+        "orig_hold_n_holdout": 22,
+        "cheap_1s": 0.2661,
+        "confirm_62_by90": 0.7615,
+        "dump_share": 0.7156
+      },
+      "extra_quality": true,
+      "beats": false
+    },
+    "lead_5_5_fair65": {
+      "n": 590,
+      "pnl5": 380.3675,
+      "pnl3": 228.2205,
+      "take_wr": 1.0,
+      "held": 163,
+      "scratch_n": 427,
+      "avg_left": 191.8,
+      "train": {
+        "n": 243,
+        "pnl5": 102.1028,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 347,
+        "pnl5": 278.2647,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9167,
+      "orig_hold_n": 180,
+      "orig_hold_wr_holdout": 0.9375,
+      "orig_hold_n_holdout": 112,
+      "cheap_1s": 0.3373,
+      "confirm_62_by90": 0.7695,
+      "dump_share": 0.7237,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.65,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": -3,
+      "d_train": -6.12,
+      "d_holdout": 11.94,
+      "extra": {
+        "n": 94,
+        "pnl5": 69.5185,
+        "pnl3": 41.7111,
+        "take_wr": 1.0,
+        "held": 26,
+        "scratch_n": 68,
+        "avg_left": 188.6,
+        "train": {
+          "n": 38,
+          "pnl5": 23.0636,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 56,
+          "pnl5": 46.4548,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.963,
+        "orig_hold_n": 27,
+        "orig_hold_wr_holdout": 0.9444,
+        "orig_hold_n_holdout": 18,
+        "cheap_1s": 0.2766,
+        "confirm_62_by90": 0.7553,
+        "dump_share": 0.7234
+      },
+      "extra_quality": true,
+      "beats": false
+    },
+    "lead_5_5_fair70": {
+      "n": 423,
+      "pnl5": 306.2301,
+      "pnl3": 183.73806,
+      "take_wr": 1.0,
+      "held": 122,
+      "scratch_n": 301,
+      "avg_left": 181.6,
+      "train": {
+        "n": 173,
+        "pnl5": 83.7884,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 250,
+        "pnl5": 222.4418,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9242,
+      "orig_hold_n": 132,
+      "orig_hold_wr_holdout": 0.9518,
+      "orig_hold_n_holdout": 83,
+      "cheap_1s": 0.3712,
+      "confirm_62_by90": 0.773,
+      "dump_share": 0.7116,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.7,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": -170,
+      "d_train": -24.44,
+      "d_holdout": -43.88,
+      "extra": {
+        "n": 74,
+        "pnl5": 63.9667,
+        "pnl3": 38.38002,
+        "take_wr": 1.0,
+        "held": 21,
+        "scratch_n": 53,
+        "avg_left": 180.4,
+        "train": {
+          "n": 30,
+          "pnl5": 26.0254,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 44,
+          "pnl5": 37.9413,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 1.0,
+        "orig_hold_n": 21,
+        "orig_hold_wr_holdout": 1.0,
+        "orig_hold_n_holdout": 13,
+        "cheap_1s": 0.2973,
+        "confirm_62_by90": 0.7703,
+        "dump_share": 0.7162
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_5_p8_fair65": {
+      "n": 567,
+      "pnl5": 316.1859,
+      "pnl3": 189.71154,
+      "take_wr": 1.0,
+      "held": 145,
+      "scratch_n": 422,
+      "avg_left": 190.2,
+      "train": {
+        "n": 235,
+        "pnl5": 91.0916,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 332,
+        "pnl5": 225.0943,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9177,
+      "orig_hold_n": 158,
+      "orig_hold_wr_holdout": 0.9375,
+      "orig_hold_n_holdout": 96,
+      "cheap_1s": 0.3545,
+      "confirm_62_by90": 0.7619,
+      "dump_share": 0.7443,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 8,
+        "min_fair": 0.65,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": -26,
+      "d_train": -17.13,
+      "d_holdout": -41.23,
+      "extra": {
+        "n": 83,
+        "pnl5": 41.3524,
+        "pnl3": 24.81144,
+        "take_wr": 1.0,
+        "held": 18,
+        "scratch_n": 65,
+        "avg_left": 185.1,
+        "train": {
+          "n": 34,
+          "pnl5": 16.4032,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 49,
+          "pnl5": 24.9493,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 1.0,
+        "orig_hold_n": 18,
+        "orig_hold_wr_holdout": 1.0,
+        "orig_hold_n_holdout": 11,
+        "cheap_1s": 0.3133,
+        "confirm_62_by90": 0.7229,
+        "dump_share": 0.7831
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_5_expand15": {
+      "n": 358,
+      "pnl5": 351.2143,
+      "pnl3": 210.72858,
+      "take_wr": 1.0,
+      "held": 124,
+      "scratch_n": 234,
+      "avg_left": 223.1,
+      "train": {
+        "n": 145,
+        "pnl5": 108.1267,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 213,
+        "pnl5": 243.0876,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9265,
+      "orig_hold_n": 136,
+      "orig_hold_wr_holdout": 0.9213,
+      "orig_hold_n_holdout": 89,
+      "cheap_1s": 0.2877,
+      "confirm_62_by90": 0.8659,
+      "dump_share": 0.6536,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 15,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": -235,
+      "d_train": -0.1,
+      "d_holdout": -23.24,
+      "extra": {
+        "n": 62,
+        "pnl5": 79.655,
+        "pnl3": 47.793,
+        "take_wr": 1.0,
+        "held": 25,
+        "scratch_n": 37,
+        "avg_left": 222.2,
+        "train": {
+          "n": 24,
+          "pnl5": 11.7627,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 38,
+          "pnl5": 67.8922,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": false,
+        "orig_hold_wr": 0.9259,
+        "orig_hold_n": 27,
+        "orig_hold_wr_holdout": 0.9091,
+        "orig_hold_n_holdout": 22,
+        "cheap_1s": 0.2581,
+        "confirm_62_by90": 0.9032,
+        "dump_share": 0.5968
+      },
+      "extra_quality": true,
+      "beats": false
+    },
+    "lead_5_5_left150": {
+      "n": 612,
+      "pnl5": 419.5789,
+      "pnl3": 251.74734,
+      "take_wr": 1.0,
+      "held": 173,
+      "scratch_n": 439,
+      "avg_left": 212.5,
+      "train": {
+        "n": 265,
+        "pnl5": 125.6282,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 347,
+        "pnl5": 293.9507,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9153,
+      "orig_hold_n": 189,
+      "orig_hold_wr_holdout": 0.9391,
+      "orig_hold_n_holdout": 115,
+      "cheap_1s": 0.3317,
+      "confirm_62_by90": 0.8007,
+      "dump_share": 0.7173,
+      "cfg": {
+        "min_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 150.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 19,
+      "d_train": 17.4,
+      "d_holdout": 27.62,
+      "extra": {
+        "n": 104,
+        "pnl5": 90.119,
+        "pnl3": 54.0714,
+        "take_wr": 1.0,
+        "held": 32,
+        "scratch_n": 72,
+        "avg_left": 212.5,
+        "train": {
+          "n": 44,
+          "pnl5": 29.2638,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 60,
+          "pnl5": 60.8552,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9412,
+        "orig_hold_n": 34,
+        "orig_hold_wr_holdout": 0.913,
+        "orig_hold_n_holdout": 23,
+        "cheap_1s": 0.25,
+        "confirm_62_by90": 0.8173,
+        "dump_share": 0.6923
+      },
+      "extra_quality": true,
+      "beats": true
+    },
+    "lead_5_5_eth": {
+      "n": 663,
+      "pnl5": 411.9209,
+      "pnl3": 247.15254,
+      "take_wr": 1.0,
+      "held": 179,
+      "scratch_n": 484,
+      "avg_left": 200.8,
+      "train": {
+        "n": 284,
+        "pnl5": 125.3955,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 379,
+        "pnl5": 286.5254,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9188,
+      "orig_hold_n": 197,
+      "orig_hold_wr_holdout": 0.9412,
+      "orig_hold_n_holdout": 119,
+      "cheap_1s": 0.3243,
+      "confirm_62_by90": 0.7798,
+      "dump_share": 0.73,
+      "cfg": {
+        "min_lead": 6.0,
+        "eth_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 70,
+      "d_train": 17.17,
+      "d_holdout": 20.2,
+      "extra": {
+        "n": 70,
+        "pnl5": 40.4907,
+        "pnl3": 24.29442,
+        "take_wr": 1.0,
+        "held": 19,
+        "scratch_n": 51,
+        "avg_left": 204.0,
+        "train": {
+          "n": 31,
+          "pnl5": 17.7497,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 39,
+          "pnl5": 22.741,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9048,
+        "orig_hold_n": 21,
+        "orig_hold_wr_holdout": 0.8571,
+        "orig_hold_n_holdout": 14,
+        "cheap_1s": 0.1286,
+        "confirm_62_by90": 0.7714,
+        "dump_share": 0.7286
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_5_btc": {
+      "n": 647,
+      "pnl5": 426.6786,
+      "pnl3": 256.00716,
+      "take_wr": 1.0,
+      "held": 176,
+      "scratch_n": 471,
+      "avg_left": 200.1,
+      "train": {
+        "n": 270,
+        "pnl5": 118.0941,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 377,
+        "pnl5": 308.5845,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9271,
+      "orig_hold_n": 192,
+      "orig_hold_wr_holdout": 0.9573,
+      "orig_hold_n_holdout": 117,
+      "cheap_1s": 0.3601,
+      "confirm_62_by90": 0.779,
+      "dump_share": 0.728,
+      "cfg": {
+        "min_lead": 6.0,
+        "btc_lead": 5.5,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 54,
+      "d_train": 9.87,
+      "d_holdout": 42.26,
+      "extra": {
+        "n": 54,
+        "pnl5": 48.1002,
+        "pnl3": 28.86012,
+        "take_wr": 1.0,
+        "held": 15,
+        "scratch_n": 39,
+        "avg_left": 194.7,
+        "train": {
+          "n": 21,
+          "pnl5": 9.355,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 33,
+          "pnl5": 38.7452,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": false,
+        "orig_hold_wr": 1.0,
+        "orig_hold_n": 15,
+        "orig_hold_wr_holdout": 1.0,
+        "orig_hold_n_holdout": 11,
+        "cheap_1s": 0.4444,
+        "confirm_62_by90": 0.7963,
+        "dump_share": 0.7222
+      },
+      "extra_quality": false,
+      "beats": false
+    },
+    "lead_5_p15_fair65": {
+      "n": 676,
+      "pnl5": 300.9368,
+      "pnl3": 180.56208,
+      "take_wr": 1.0,
+      "held": 159,
+      "scratch_n": 517,
+      "avg_left": 189.9,
+      "train": {
+        "n": 323,
+        "pnl5": 108.6596,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 353,
+        "pnl5": 192.2772,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9034,
+      "orig_hold_n": 176,
+      "orig_hold_wr_holdout": 0.9255,
+      "orig_hold_n_holdout": 94,
+      "cheap_1s": 0.358,
+      "confirm_62_by90": 0.7411,
+      "dump_share": 0.7648,
+      "cfg": {
+        "min_lead": 5.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 15,
+        "min_fair": 0.65,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 83,
+      "d_train": 0.43,
+      "d_holdout": -74.05,
+      "extra": {
+        "n": 197,
+        "pnl5": 47.5019,
+        "pnl3": 28.50114,
+        "take_wr": 1.0,
+        "held": 37,
+        "scratch_n": 160,
+        "avg_left": 187.0,
+        "train": {
+          "n": 86,
+          "pnl5": 20.117,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 111,
+          "pnl5": 27.3849,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9024,
+        "orig_hold_n": 41,
+        "orig_hold_wr_holdout": 0.9091,
+        "orig_hold_n_holdout": 22,
+        "cheap_1s": 0.3401,
+        "confirm_62_by90": 0.6853,
+        "dump_share": 0.8122
+      },
+      "extra_quality": true,
+      "beats": false
+    },
+    "band_44_56": {
+      "n": 680,
+      "pnl5": 438.7663,
+      "pnl3": 263.25978,
+      "take_wr": 0.9949,
+      "held": 196,
+      "scratch_n": 484,
+      "avg_left": 200.5,
+      "train": {
+        "n": 279,
+        "pnl5": 164.6235,
+        "take_wr": 0.9875,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 401,
+        "pnl5": 274.1428,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9249,
+      "orig_hold_n": 213,
+      "orig_hold_wr_holdout": 0.936,
+      "orig_hold_n_holdout": 125,
+      "cheap_1s": 0.3279,
+      "confirm_62_by90": 0.7868,
+      "dump_share": 0.7118,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.44,
+        "hi": 0.56,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 87,
+      "d_train": 56.4,
+      "d_holdout": 7.82,
+      "extra": {
+        "n": 87,
+        "pnl5": 82.8646,
+        "pnl3": 49.71876,
+        "take_wr": 0.973,
+        "held": 37,
+        "scratch_n": 50,
+        "avg_left": 196.3,
+        "train": {
+          "n": 35,
+          "pnl5": 61.327,
+          "take_wr": 0.9524,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 52,
+          "pnl5": 21.5376,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9231,
+        "orig_hold_n": 39,
+        "orig_hold_wr_holdout": 0.8889,
+        "orig_hold_n_holdout": 18,
+        "cheap_1s": 0.2184,
+        "confirm_62_by90": 0.8506,
+        "dump_share": 0.5747
+      },
+      "extra_quality": true,
+      "beats": true
+    },
+    "band_44_56_fair65": {
+      "n": 580,
+      "pnl5": 367.3767,
+      "pnl3": 220.42602,
+      "take_wr": 1.0,
+      "held": 168,
+      "scratch_n": 412,
+      "avg_left": 191.8,
+      "train": {
+        "n": 227,
+        "pnl5": 132.2522,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 353,
+        "pnl5": 235.1246,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9189,
+      "orig_hold_n": 185,
+      "orig_hold_wr_holdout": 0.9204,
+      "orig_hold_n_holdout": 113,
+      "cheap_1s": 0.3207,
+      "confirm_62_by90": 0.781,
+      "dump_share": 0.7103,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.44,
+        "hi": 0.56,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.65,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": -13,
+      "d_train": 24.03,
+      "d_holdout": -31.2,
+      "extra": {
+        "n": 75,
+        "pnl5": 60.9825,
+        "pnl3": 36.5895,
+        "take_wr": 1.0,
+        "held": 28,
+        "scratch_n": 47,
+        "avg_left": 189.3,
+        "train": {
+          "n": 26,
+          "pnl5": 50.0098,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 49,
+          "pnl5": 10.9727,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9333,
+        "orig_hold_n": 30,
+        "orig_hold_wr_holdout": 0.8667,
+        "orig_hold_n_holdout": 15,
+        "cheap_1s": 0.2133,
+        "confirm_62_by90": 0.84,
+        "dump_share": 0.6267
+      },
+      "extra_quality": true,
+      "beats": false
+    },
+    "lead_5": {
+      "n": 883,
+      "pnl5": 520.6229,
+      "pnl3": 312.37374,
+      "take_wr": 0.9957,
+      "held": 232,
+      "scratch_n": 651,
+      "avg_left": 201.9,
+      "train": {
+        "n": 447,
+        "pnl5": 198.5559,
+        "take_wr": 0.9907,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 436,
+        "pnl5": 322.067,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9246,
+      "orig_hold_n": 252,
+      "orig_hold_wr_holdout": 0.9538,
+      "orig_hold_n_holdout": 130,
+      "cheap_1s": 0.3341,
+      "confirm_62_by90": 0.7724,
+      "dump_share": 0.7373,
+      "cfg": {
+        "min_lead": 5.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": false,
+      "delta_n": 290,
+      "d_train": 90.33,
+      "d_holdout": 55.74,
+      "extra": {
+        "n": 290,
+        "pnl5": 148.3025,
+        "pnl3": 88.9815,
+        "take_wr": 0.9857,
+        "held": 70,
+        "scratch_n": 220,
+        "avg_left": 201.7,
+        "train": {
+          "n": 141,
+          "pnl5": 82.7083,
+          "take_wr": 0.9737,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 149,
+          "pnl5": 65.5942,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9324,
+        "orig_hold_n": 74,
+        "orig_hold_wr_holdout": 0.9697,
+        "orig_hold_n_holdout": 33,
+        "cheap_1s": 0.3,
+        "confirm_62_by90": 0.7483,
+        "dump_share": 0.7586
+      },
+      "extra_quality": true,
+      "beats": true
+    },
+    "lead_4": {
+      "n": 1300,
+      "pnl5": 773.0477,
+      "pnl3": 463.82862,
+      "take_wr": 0.9943,
+      "held": 349,
+      "scratch_n": 951,
+      "avg_left": 205.3,
+      "train": {
+        "n": 634,
+        "pnl5": 277.1144,
+        "take_wr": 0.987,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 666,
+        "pnl5": 495.9333,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9134,
+      "orig_hold_n": 381,
+      "orig_hold_wr_holdout": 0.9375,
+      "orig_hold_n_holdout": 208,
+      "cheap_1s": 0.3146,
+      "confirm_62_by90": 0.7769,
+      "dump_share": 0.7315,
+      "cfg": {
+        "min_lead": 4.0,
+        "lo": 0.45,
+        "hi": 0.55,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": true,
+      "delta_n": 707,
+      "d_train": 168.89,
+      "d_holdout": 229.61,
+      "extra": {
+        "n": 707,
+        "pnl5": 419.401,
+        "pnl3": 251.6406,
+        "take_wr": 0.9896,
+        "held": 192,
+        "scratch_n": 515,
+        "avg_left": 205.2,
+        "train": {
+          "n": 327,
+          "pnl5": 161.6585,
+          "take_wr": 0.9765,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 380,
+          "pnl5": 257.7424,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9005,
+        "orig_hold_n": 211,
+        "orig_hold_wr_holdout": 0.9224,
+        "orig_hold_n_holdout": 116,
+        "cheap_1s": 0.2772,
+        "confirm_62_by90": 0.768,
+        "dump_share": 0.7284
+      },
+      "extra_quality": true,
+      "beats": false
+    },
+    "band_40_60": {
+      "n": 1198,
+      "pnl5": 1036.9574,
+      "pnl3": 622.17444,
+      "take_wr": 0.996,
+      "held": 499,
+      "scratch_n": 699,
+      "avg_left": 210.4,
+      "train": {
+        "n": 495,
+        "pnl5": 442.5082,
+        "take_wr": 0.9952,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 703,
+        "pnl5": 594.4493,
+        "take_wr": 0.9965,
+        "ev_ok": true
+      },
+      "robust": true,
+      "orig_hold_wr": 0.9595,
+      "orig_hold_n": 519,
+      "orig_hold_wr_holdout": 0.96,
+      "orig_hold_n_holdout": 300,
+      "cheap_1s": 0.1886,
+      "confirm_62_by90": 0.8998,
+      "dump_share": 0.5835,
+      "cfg": {
+        "min_lead": 6.0,
+        "lo": 0.4,
+        "hi": 0.6,
+        "min_left": 120.0,
+        "max_left": 280.0,
+        "min_edge": 0.04,
+        "t0": 15,
+        "persist": 0,
+        "min_fair": 0.0,
+        "expand_s": 0,
+        "assets": [
+          "btc",
+          "eth"
+        ]
+      },
+      "forbidden": true,
+      "delta_n": 605,
+      "d_train": 334.28,
+      "d_holdout": 328.12,
+      "extra": {
+        "n": 605,
+        "pnl5": 856.902,
+        "pnl3": 514.1412,
+        "take_wr": 0.9971,
+        "held": 341,
+        "scratch_n": 264,
+        "avg_left": 207.2,
+        "train": {
+          "n": 242,
+          "pnl5": 405.6615,
+          "take_wr": 0.9934,
+          "ev_ok": true
+        },
+        "holdout": {
+          "n": 363,
+          "pnl5": 451.2405,
+          "take_wr": 1.0,
+          "ev_ok": true
+        },
+        "robust": true,
+        "orig_hold_wr": 0.9855,
+        "orig_hold_n": 345,
+        "orig_hold_wr_holdout": 0.9845,
+        "orig_hold_n_holdout": 193,
+        "cheap_1s": 0.1273,
+        "confirm_62_by90": 0.9537,
+        "dump_share": 0.4364
+      },
+      "extra_quality": true,
+      "beats": false
+    }
+  },
+  "winners": [
+    "lead_5_5",
+    "lead_5",
+    "lead_5_5_left150",
+    "band_44_56"
+  ],
+  "pick": "lead_5_5",
+  "ship": false,
+  "why": "Frozen sleeve 6bps / 45\u201355 / dump90+oracle. Easier entry only ships if EXTRA windows (never made 6bps 45\u201355) have orig-hold WR \u22650.85 on the 7d holdout, train+holdout extra +EV, leftover 1s not worse than core+15pp, and combo holdout PnL \u2265 frozen +$5. Dump overlay can fake 100% residual WR. Live drought is twap_band (ask 68\u201396\u00a2, lead 1\u20134bps) \u2014 5.5bps does not buy a 96\u00a2 ask. 4bps / 40\u201360 / leftover chase stay forbidden.",
+  "do_not": [
+    "lead_4bps",
+    "lead_4",
+    "band_40_60",
+    "chase_leftover",
+    "up_requote_2ticks",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "favorite_97_98",
+    "autodial_bps_without_extra_orig_hold",
+    "autodial_live_without_owner"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [
+      0.45,
+      0.55
+    ],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0
+  },
+  "findings": {
+    "headline": "Tape would allow lead_5_5 on extra-quality bars; still do not autodial live. Half-day drought is twap_band 96\u00a2 / 3.7bps \u2014 5.5bps does not buy that ask.",
+    "best_nonship": "band_40_60",
+    "live_skip_at_research": {
+      "reason": "twap_band",
+      "ask": 0.96,
+      "lead_bps": 3.737
+    },
+    "why_not_live": "Print tape extras at 5.5bps orig-hold 92% and leftover 1s 27% vs core 35%. Live FOK conversion on windows that never printed 6bps is still unmeasured. Easing lead does not fill 96\u00a2 \u62c9\u76e4. Owner decides."
+  }
+}

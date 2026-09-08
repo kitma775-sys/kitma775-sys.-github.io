@@ -1,0 +1,60 @@
+{
+  "researched_at_utc": "2026-08-27T02:45:00Z",
+  "question": "After Rev 9 pair-FOK printed zero fills, what honest taker confirm still beats ghost snapshot fills without going back to assumed fills?",
+  "why_rev9_was_too_tight": [
+    "Crypto up/down CLOB sets itode=true: live takers are held 250ms then revalidated. Beating an 80–200ms MM requote is impossible. Only holes that persist ≥250ms with size are takeable.",
+    "Rev 9 required the full snapshot size at frozen limits. 26.6 shrinking to 8 still +EV was killed. Live default taker is FAK, not all-or-nothing FOK of the hunt size.",
+    "If the ask ticks 0.82→0.83 and 0.83+the other leg is still +EV after 7% fees, frozen-limit FOK kills. A live bot requotes on the delayed book.",
+    "Hunt sized to full book depth / $25 then all-or-nothing on that VWAP. Mixing junk levels can reject a real 5–10 share +EV prefix.",
+    "A 5s quote_cooldown on FOK kill blocked retries on the same 5m slug in the last minute."
+  ],
+  "rev10": {
+    "strategy_rev": 10,
+    "delay_ms": 250,
+    "first": "FAK leftover +EV size at the original snapshot limits if ≥ min_shares and net>0 with gross≥min_edge or tail.",
+    "then": "If limits are gone, hunt() the delayed HTTP books (requote). No second 250ms wait: that would model requote+itode and miss 300–400ms sticky holes. Slightly optimistic vs a live requote that eats another itode; still honest vs snapshot ghosts.",
+    "hunt": "plus_ev_fill binary-searches the largest prefix in [min_shares, max_shares] that stays +EV after fees.",
+    "kill_cooldown_s": 0.4,
+    "fill_cooldown_s": 5.0,
+    "still": "maker_window=0, min_edge=0.02, FORCE_PAPER, no live, no paper reset"
+  },
+  "four_rev8_fills_under_rev10": [
+    {
+      "slug": "sol-updown-5m-1787794500",
+      "snapshot": "0.82+0.12 × 26.6",
+      "tape": "±2s Up@0.82 size ~10",
+      "rev9": "kill (full-size FOK)",
+      "rev10": "FAK ~10 if that size is still on the delayed book at ≤0.82; else requote if the new pair is +EV; else kill"
+    },
+    {
+      "slug": "eth-updown-5m-1787787900",
+      "snapshot": "0.2408+0.68 × 27.2",
+      "tape": "same-second Up prints at 0.27",
+      "rev9": "kill",
+      "rev10": "FAK at 0.2408 likely empty; requote at 0.27+0.68=0.95 is +EV if that book is still there after 250ms; otherwise kill"
+    },
+    {
+      "slug": "btc-updown-5m-1787766600",
+      "snapshot": "0.62+0.32 × 26.6",
+      "tape": "0 public prints ±8s",
+      "rev9": "kill (ghost book)",
+      "rev10": "still kill unless a delayed book actually exists"
+    },
+    {
+      "slug": "doge-updown-5m-1787763600",
+      "snapshot": "0.58+0.36 × 26.6",
+      "tape": "nearby prints already moved",
+      "rev9": "kill",
+      "rev10": "kill unless the delayed pair is still +EV"
+    }
+  ],
+  "honest_expectation": "Rest-state ATM books stay ask_sum≥1.01 and taker_net negative. Rev 10 converts sticky partial size and 1-tick-worse holes into fills. It does not restore Rev 8 snapshot ghost PnL. Dashboard 影/成/殺 still means snapshot would have booked / confirm credited cash / confirm killed.",
+  "do_not": [
+    "lower min_edge",
+    "re-enable last-window maker",
+    "add sports/geopolitics",
+    "buy the 0.001 side alone",
+    "credit snapshot fills without the delayed-book confirm while taker_fok is on",
+    "wait a second 250ms before requote"
+  ]
+}

@@ -1,0 +1,1009 @@
+{
+  "researched_at_utc": "2026-09-02T11:25:11Z",
+  "elapsed_s": 89.26,
+  "question": "New follow overlay that beats shipped dump_by90 on train+holdout without flipping direction.",
+  "n_joined": 599,
+  "baseline": {
+    "n": 599,
+    "pnl5": 171.9549,
+    "pnl3": 103.17294,
+    "take_wr": 0.9059,
+    "held": 202,
+    "scratch_n": 397,
+    "train": {
+      "n": 400,
+      "pnl5": 77.0102,
+      "take_wr": 0.9008,
+      "ev_ok": true
+    },
+    "holdout": {
+      "n": 199,
+      "pnl5": 94.9447,
+      "take_wr": 0.9155,
+      "ev_ok": true
+    },
+    "robust": true
+  },
+  "grid": {
+    "base_dump90": {
+      "n": 599,
+      "pnl5": 171.9549,
+      "pnl3": 103.17294,
+      "take_wr": 0.9059,
+      "held": 202,
+      "scratch_n": 397,
+      "train": {
+        "n": 400,
+        "pnl5": 77.0102,
+        "take_wr": 0.9008,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 94.9447,
+        "take_wr": 0.9155,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "shipped first-cross + unconfirmed dump",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0
+    },
+    "skip_knife_6_5": {
+      "n": 478,
+      "pnl5": 133.6122,
+      "pnl3": 80.16732,
+      "take_wr": 0.9114,
+      "held": 158,
+      "scratch_n": 320,
+      "train": {
+        "n": 317,
+        "pnl5": 57.6573,
+        "take_wr": 0.9184,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 161,
+        "pnl5": 75.9549,
+        "take_wr": 0.9,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip |lead|<6.5 at first-cross",
+      "beats": false,
+      "d_ho": -18.99,
+      "d_tr": -19.35
+    },
+    "skip_first_touch": {
+      "n": 488,
+      "pnl5": 66.729,
+      "pnl3": 40.0374,
+      "take_wr": 0.9067,
+      "held": 150,
+      "scratch_n": 338,
+      "train": {
+        "n": 328,
+        "pnl5": 45.203,
+        "take_wr": 0.92,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 160,
+        "pnl5": 21.5259,
+        "take_wr": 0.88,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "require |lead|>=6 already 15s earlier; keep if no oracle",
+      "beats": false,
+      "d_ho": -73.42,
+      "d_tr": -31.81
+    },
+    "skip_entry_fair70": {
+      "n": 336,
+      "pnl5": 138.4614,
+      "pnl3": 83.07684,
+      "take_wr": 0.8806,
+      "held": 134,
+      "scratch_n": 202,
+      "train": {
+        "n": 197,
+        "pnl5": 69.1243,
+        "take_wr": 0.875,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 139,
+        "pnl5": 69.3371,
+        "take_wr": 0.8889,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip entry fair<0.70",
+      "beats": false,
+      "d_ho": -25.61,
+      "d_tr": -7.89
+    },
+    "skip_entry_fair75": {
+      "n": 211,
+      "pnl5": 141.9572,
+      "pnl3": 85.17432,
+      "take_wr": 0.9022,
+      "held": 92,
+      "scratch_n": 119,
+      "train": {
+        "n": 121,
+        "pnl5": 71.3279,
+        "take_wr": 0.9216,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 90,
+        "pnl5": 70.6294,
+        "take_wr": 0.878,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip entry fair<0.75",
+      "beats": false,
+      "d_ho": -24.32,
+      "d_tr": -5.68
+    },
+    "skip_entry_fair80": {
+      "n": 119,
+      "pnl5": 84.7308,
+      "pnl3": 50.83848,
+      "take_wr": 0.9245,
+      "held": 53,
+      "scratch_n": 66,
+      "train": {
+        "n": 69,
+        "pnl5": 52.0409,
+        "take_wr": 0.9667,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 50,
+        "pnl5": 32.69,
+        "take_wr": 0.8696,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip entry fair<0.80",
+      "beats": false,
+      "d_ho": -62.25,
+      "d_tr": -24.97
+    },
+    "skip_disagree_unix": {
+      "n": 581,
+      "pnl5": 181.0468,
+      "pnl3": 108.62808,
+      "take_wr": 0.9082,
+      "held": 196,
+      "scratch_n": 385,
+      "train": {
+        "n": 382,
+        "pnl5": 86.1021,
+        "take_wr": 0.904,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 94.9447,
+        "take_wr": 0.9155,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "skip when BTC/ETH first-cross sides differ",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 9.09
+    },
+    "btc_only": {
+      "n": 238,
+      "pnl5": 68.0425,
+      "pnl3": 40.8255,
+      "take_wr": 0.8681,
+      "held": 91,
+      "scratch_n": 147,
+      "train": {
+        "n": 158,
+        "pnl5": 12.0533,
+        "take_wr": 0.8596,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 80,
+        "pnl5": 55.9891,
+        "take_wr": 0.8824,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "",
+      "beats": false,
+      "d_ho": -38.96,
+      "d_tr": -64.96
+    },
+    "eth_only": {
+      "n": 361,
+      "pnl5": 103.9125,
+      "pnl3": 62.3475,
+      "take_wr": 0.9369,
+      "held": 111,
+      "scratch_n": 250,
+      "train": {
+        "n": 239,
+        "pnl5": 55.874,
+        "take_wr": 0.9306,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 122,
+        "pnl5": 48.0385,
+        "take_wr": 0.9487,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "",
+      "beats": false,
+      "d_ho": -46.91,
+      "d_tr": -21.14
+    },
+    "oracle_fair90_55": {
+      "n": 599,
+      "pnl5": 213.6865,
+      "pnl3": 128.2119,
+      "take_wr": 0.9482,
+      "held": 193,
+      "scratch_n": 406,
+      "train": {
+        "n": 400,
+        "pnl5": 100.1862,
+        "take_wr": 0.9365,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 113.5002,
+        "take_wr": 0.9701,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if BM fair < 0.55, even if CLOB confirmed 62",
+      "beats": true,
+      "d_ho": 18.56,
+      "d_tr": 23.18
+    },
+    "oracle_fair90_60": {
+      "n": 599,
+      "pnl5": 208.515,
+      "pnl3": 125.109,
+      "take_wr": 0.9479,
+      "held": 192,
+      "scratch_n": 407,
+      "train": {
+        "n": 400,
+        "pnl5": 95.0147,
+        "take_wr": 0.936,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 113.5002,
+        "take_wr": 0.9701,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if BM fair < 0.6, even if CLOB confirmed 62",
+      "beats": true,
+      "d_ho": 18.56,
+      "d_tr": 18.0
+    },
+    "oracle_fair90_65": {
+      "n": 599,
+      "pnl5": 187.4081,
+      "pnl3": 112.44486,
+      "take_wr": 0.9516,
+      "held": 186,
+      "scratch_n": 413,
+      "train": {
+        "n": 400,
+        "pnl5": 85.2511,
+        "take_wr": 0.935,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 102.157,
+        "take_wr": 0.9841,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if BM fair < 0.65, even if CLOB confirmed 62",
+      "beats": true,
+      "d_ho": 7.21,
+      "d_tr": 8.24
+    },
+    "oracle_fair90_70": {
+      "n": 599,
+      "pnl5": 158.9919,
+      "pnl3": 95.39514,
+      "take_wr": 0.9655,
+      "held": 174,
+      "scratch_n": 425,
+      "train": {
+        "n": 400,
+        "pnl5": 76.4688,
+        "take_wr": 0.9487,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 82.5232,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if BM fair < 0.7, even if CLOB confirmed 62",
+      "beats": false,
+      "d_ho": -12.42,
+      "d_tr": -0.54
+    },
+    "oracle_fair90_75": {
+      "n": 599,
+      "pnl5": 125.0816,
+      "pnl3": 75.04896,
+      "take_wr": 0.9755,
+      "held": 163,
+      "scratch_n": 436,
+      "train": {
+        "n": 400,
+        "pnl5": 56.7674,
+        "take_wr": 0.9633,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 68.3142,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if BM fair < 0.75, even if CLOB confirmed 62",
+      "beats": false,
+      "d_ho": -26.63,
+      "d_tr": -20.24
+    },
+    "oracle_fair90_80": {
+      "n": 599,
+      "pnl5": 50.9168,
+      "pnl3": 30.55008,
+      "take_wr": 0.973,
+      "held": 148,
+      "scratch_n": 451,
+      "train": {
+        "n": 400,
+        "pnl5": 4.0929,
+        "take_wr": 0.9592,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 46.8239,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if BM fair < 0.8, even if CLOB confirmed 62",
+      "beats": false,
+      "d_ho": -48.12,
+      "d_tr": -72.92
+    },
+    "lead_thin90_2bps": {
+      "n": 599,
+      "pnl5": 189.1536,
+      "pnl3": 113.49216,
+      "take_wr": 0.9468,
+      "held": 188,
+      "scratch_n": 411,
+      "train": {
+        "n": 400,
+        "pnl5": 85.6075,
+        "take_wr": 0.935,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 103.5461,
+        "take_wr": 0.9692,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if signed oracle lead < 2.0 bps",
+      "beats": true,
+      "d_ho": 8.6,
+      "d_tr": 8.6
+    },
+    "lead_thin90_3bps": {
+      "n": 599,
+      "pnl5": 163.6593,
+      "pnl3": 98.19558,
+      "take_wr": 0.9503,
+      "held": 181,
+      "scratch_n": 418,
+      "train": {
+        "n": 400,
+        "pnl5": 76.2136,
+        "take_wr": 0.9339,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 87.4457,
+        "take_wr": 0.9833,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if signed oracle lead < 3.0 bps",
+      "beats": false,
+      "d_ho": -7.5,
+      "d_tr": -0.8
+    },
+    "lead_thin90_4bps": {
+      "n": 599,
+      "pnl5": 100.9118,
+      "pnl3": 60.54708,
+      "take_wr": 0.9573,
+      "held": 164,
+      "scratch_n": 435,
+      "train": {
+        "n": 400,
+        "pnl5": 34.5247,
+        "take_wr": 0.9364,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 66.3871,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if signed oracle lead < 4.0 bps",
+      "beats": false,
+      "d_ho": -28.56,
+      "d_tr": -42.49
+    },
+    "lead_thin90_5bps": {
+      "n": 599,
+      "pnl5": 19.3835,
+      "pnl3": 11.6301,
+      "take_wr": 0.9524,
+      "held": 147,
+      "scratch_n": 452,
+      "train": {
+        "n": 400,
+        "pnl5": 0.432,
+        "take_wr": 0.932,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 18.9515,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "at 90s left dump if signed oracle lead < 5.0 bps",
+      "beats": false,
+      "d_ho": -75.99,
+      "d_tr": -76.58
+    },
+    "lead_thin90_6bps": {
+      "n": 599,
+      "pnl5": -16.8462,
+      "pnl3": -10.10772,
+      "take_wr": 0.9632,
+      "held": 136,
+      "scratch_n": 463,
+      "train": {
+        "n": 400,
+        "pnl5": -18.3706,
+        "take_wr": 0.9474,
+        "ev_ok": false
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 1.5244,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": false,
+      "note": "at 90s left dump if signed oracle lead < 6.0 bps",
+      "beats": false,
+      "d_ho": -93.42,
+      "d_tr": -95.38
+    },
+    "retrace90_52": {
+      "n": 599,
+      "pnl5": 171.9549,
+      "pnl3": 103.17294,
+      "take_wr": 0.9059,
+      "held": 202,
+      "scratch_n": 397,
+      "train": {
+        "n": 400,
+        "pnl5": 77.0102,
+        "take_wr": 0.9008,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 94.9447,
+        "take_wr": 0.9155,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "confirmed 62 then last print before 90s left < 0.52",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0
+    },
+    "retrace90_55": {
+      "n": 599,
+      "pnl5": 171.9549,
+      "pnl3": 103.17294,
+      "take_wr": 0.9059,
+      "held": 202,
+      "scratch_n": 397,
+      "train": {
+        "n": 400,
+        "pnl5": 77.0102,
+        "take_wr": 0.9008,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 94.9447,
+        "take_wr": 0.9155,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "confirmed 62 then last print before 90s left < 0.55",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0
+    },
+    "retrace90_57": {
+      "n": 599,
+      "pnl5": 171.9549,
+      "pnl3": 103.17294,
+      "take_wr": 0.9059,
+      "held": 202,
+      "scratch_n": 397,
+      "train": {
+        "n": 400,
+        "pnl5": 77.0102,
+        "take_wr": 0.9008,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 94.9447,
+        "take_wr": 0.9155,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "confirmed 62 then last print before 90s left < 0.58",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0
+    },
+    "oracle_fair_late_60": {
+      "n": 599,
+      "pnl5": 236.2568,
+      "pnl3": 141.75408,
+      "take_wr": 0.9837,
+      "held": 184,
+      "scratch_n": 415,
+      "train": {
+        "n": 400,
+        "pnl5": 118.2383,
+        "take_wr": 0.975,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 118.0185,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "dump if fair < 0.6 at 90, 60, or 30s left",
+      "beats": true,
+      "d_ho": 23.07,
+      "d_tr": 41.23
+    },
+    "oracle_fair_late_70": {
+      "n": 599,
+      "pnl5": 153.5818,
+      "pnl3": 92.14908,
+      "take_wr": 0.9879,
+      "held": 165,
+      "scratch_n": 434,
+      "train": {
+        "n": 400,
+        "pnl5": 81.221,
+        "take_wr": 0.9818,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 72.3608,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "dump if fair < 0.7 at 90, 60, or 30s left",
+      "beats": false,
+      "d_ho": -22.58,
+      "d_tr": 4.21
+    },
+    "persist_and_oracle70": {
+      "n": 488,
+      "pnl5": 49.1063,
+      "pnl3": 29.46378,
+      "take_wr": 0.9837,
+      "held": 123,
+      "scratch_n": 365,
+      "train": {
+        "n": 328,
+        "pnl5": 40.0019,
+        "take_wr": 0.977,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 160,
+        "pnl5": 9.1043,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "persist 15s AND oracle fair90<0.70",
+      "beats": false,
+      "d_ho": -85.84,
+      "d_tr": -37.01
+    },
+    "oracle70_and_retrace55": {
+      "n": 599,
+      "pnl5": 158.9919,
+      "pnl3": 95.39514,
+      "take_wr": 0.9655,
+      "held": 174,
+      "scratch_n": 425,
+      "train": {
+        "n": 400,
+        "pnl5": 76.4688,
+        "take_wr": 0.9487,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 82.5232,
+        "take_wr": 1.0,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "",
+      "beats": false,
+      "d_ho": -12.42,
+      "d_tr": -0.54
+    },
+    "peak_fade_12c": {
+      "n": 599,
+      "pnl5": 171.9549,
+      "pnl3": 103.17294,
+      "take_wr": 0.9059,
+      "held": 202,
+      "scratch_n": 397,
+      "train": {
+        "n": 400,
+        "pnl5": 77.0102,
+        "take_wr": 0.9008,
+        "ev_ok": true
+      },
+      "holdout": {
+        "n": 199,
+        "pnl5": 94.9447,
+        "take_wr": 0.9155,
+        "ev_ok": true
+      },
+      "robust": true,
+      "note": "high-water >=62 and px90 is \u226512\u00a2 below peak (not 8\u00a2 from entry)",
+      "beats": false,
+      "d_ho": 0.0,
+      "d_tr": 0.0
+    }
+  },
+  "winners": [
+    "oracle_fair_late_60",
+    "oracle_fair90_55",
+    "oracle_fair90_60",
+    "lead_thin90_2bps",
+    "oracle_fair90_65"
+  ],
+  "pick": "oracle_fair_late_60",
+  "live_sanity": {
+    "n": 11,
+    "rows": [
+      {
+        "slug": "btc-updown-5m-1788276600",
+        "held": true,
+        "won": false,
+        "net": -2.899999,
+        "max": 0.775,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": -6.2202,
+          "signed": 6.2202,
+          "fair": 0.8975,
+          "vol": 0.4237
+        },
+        "o90": {
+          "lead": -1.2043,
+          "signed": 1.2043,
+          "fair": 0.6408,
+          "vol": 0.4311
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": true
+      },
+      {
+        "slug": "btc-updown-5m-1788279300",
+        "held": true,
+        "won": false,
+        "net": -2.899999,
+        "max": 0.63,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": 4.6902,
+          "signed": 4.6902,
+          "fair": 0.8143,
+          "vol": 0.4345
+        },
+        "o90": {
+          "lead": -6.9568,
+          "signed": -6.9568,
+          "fair": 0.0519,
+          "vol": 0.5521
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": true
+      },
+      {
+        "slug": "eth-updown-5m-1788285600",
+        "held": false,
+        "won": false,
+        "net": 0.18951,
+        "max": 0.78,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": 2.7811,
+          "signed": 2.7811,
+          "fair": 0.5656,
+          "vol": 1.2544
+        },
+        "o90": {
+          "lead": 4.13,
+          "signed": 4.13,
+          "fair": 0.6216,
+          "vol": 1.7223
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": false,
+        "retrace": true
+      },
+      {
+        "slug": "eth-updown-5m-1788287400",
+        "held": false,
+        "won": true,
+        "net": 4.16612,
+        "max": 0.99,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": 1.3926,
+          "signed": -1.3926,
+          "fair": 0.4681,
+          "vol": 1.3165
+        },
+        "o90": {
+          "lead": -5.6575,
+          "signed": 5.6575,
+          "fair": 0.7518,
+          "vol": 1.074
+        },
+        "oracle70_would_dump": false,
+        "lead3_would_dump": false,
+        "retrace": false
+      },
+      {
+        "slug": "eth-updown-5m-1788291600",
+        "held": true,
+        "won": false,
+        "net": -2.899999,
+        "max": 0.55,
+        "ever_62_by90": false,
+        "o_fill": {
+          "lead": 0.8953,
+          "signed": 0.8953,
+          "fair": 0.558,
+          "vol": 0.4666
+        },
+        "o90": {
+          "lead": -4.2076,
+          "signed": -4.2076,
+          "fair": 0.0727,
+          "vol": 0.3732
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": false
+      },
+      {
+        "slug": "btc-updown-5m-1788307200",
+        "held": false,
+        "won": true,
+        "net": 0.614791,
+        "max": 0.99,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": 4.662,
+          "signed": 4.662,
+          "fair": 0.7445,
+          "vol": 0.5426
+        },
+        "o90": {
+          "lead": -2.6002,
+          "signed": -2.6002,
+          "fair": 0.1113,
+          "vol": 0.2752
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": true
+      },
+      {
+        "slug": "eth-updown-5m-1788309600",
+        "held": true,
+        "won": false,
+        "net": -2.899999,
+        "max": 0.58,
+        "ever_62_by90": false,
+        "o_fill": {
+          "lead": -5.2148,
+          "signed": 5.2148,
+          "fair": 0.6627,
+          "vol": 1.2165
+        },
+        "o90": {
+          "lead": 1.6474,
+          "signed": -1.6474,
+          "fair": 0.4282,
+          "vol": 1.1749
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": false
+      },
+      {
+        "slug": "btc-updown-5m-1788326700",
+        "held": true,
+        "won": false,
+        "net": -2.899999,
+        "max": 0.72,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": -3.4548,
+          "signed": 3.4548,
+          "fair": 0.759,
+          "vol": 0.4431
+        },
+        "o90": {
+          "lead": -1.1566,
+          "signed": 1.1566,
+          "fair": 0.704,
+          "vol": 0.2786
+        },
+        "oracle70_would_dump": false,
+        "lead3_would_dump": true,
+        "retrace": true
+      },
+      {
+        "slug": "eth-updown-5m-1788342000",
+        "held": false,
+        "won": false,
+        "net": -1.444769,
+        "max": 0.61,
+        "ever_62_by90": false,
+        "o_fill": {
+          "lead": 4.5821,
+          "signed": 4.5821,
+          "fair": 0.6494,
+          "vol": 0.9255
+        },
+        "o90": {
+          "lead": -8.5411,
+          "signed": -8.5411,
+          "fair": 0.1135,
+          "vol": 0.9127
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": false
+      },
+      {
+        "slug": "eth-updown-5m-1788342300",
+        "held": true,
+        "won": false,
+        "net": -2.749999,
+        "max": 0.62,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": -6.8066,
+          "signed": 6.8066,
+          "fair": 0.6674,
+          "vol": 1.2451
+        },
+        "o90": {
+          "lead": 12.4328,
+          "signed": -12.4328,
+          "fair": 0.0795,
+          "vol": 1.1394
+        },
+        "oracle70_would_dump": true,
+        "lead3_would_dump": true,
+        "retrace": true
+      },
+      {
+        "slug": "eth-updown-5m-1788342600",
+        "held": false,
+        "won": false,
+        "net": 1.868221,
+        "max": 0.9,
+        "ever_62_by90": true,
+        "o_fill": {
+          "lead": 1.3564,
+          "signed": 1.3564,
+          "fair": 0.543,
+          "vol": 0.9364
+        },
+        "o90": {
+          "lead": 3.5864,
+          "signed": 3.5864,
+          "fair": 0.722,
+          "vol": 0.7862
+        },
+        "oracle70_would_dump": false,
+        "lead3_would_dump": false,
+        "retrace": false
+      }
+    ]
+  },
+  "ship": true,
+  "do_not": [
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "scratch_adverse_0.08",
+    "btc_eth_min_left_180",
+    "chase_leftover",
+    "complement",
+    "favorite_97_98"
+  ],
+  "findings": {
+    "headline": "Pick oracle_fair_late_60. Baseline holdout $94.9447 wr=0.9155. Winners=['oracle_fair_late_60', 'oracle_fair90_55', 'oracle_fair90_60', 'lead_thin90_2bps', 'oracle_fair90_65']."
+  }
+}

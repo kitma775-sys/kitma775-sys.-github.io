@@ -1,0 +1,128 @@
+{
+  "researched_at_utc": "2026-09-05T00:22:09Z",
+  "researched_at_hkt": "2026-09-05 08:22:09",
+  "question": "Why so few live fills on the frozen BTC+ETH 6bps sleeve?",
+  "ship": false,
+  "pick": null,
+  "live_ok": {
+    "engine_running": true,
+    "live_trading": true,
+    "killed": false,
+    "circuit": false,
+    "clob_halted": false,
+    "twap_reverse": false,
+    "taker_fok": true,
+    "stake_usd": 3.0,
+    "twap_assets": ["btc", "eth"],
+    "strategy_rev": 60,
+    "ws_status": "connected",
+    "chainlink_status": "connected",
+    "clob_status_page": "all_systems_operational",
+    "open_inventory": 0,
+    "live_usdc": 77.77,
+    "note": "USDC is wallet cash, not strategy PnL. Health today_pnl is UTC-day; last fill was previous UTC day."
+  },
+  "current_skip": {
+    "slug": "eth-updown-5m-1788567600",
+    "reason": "twap_band",
+    "ask": 0.68,
+    "lead_bps": 1.18,
+    "left": 232.3,
+    "meaning": "Ask already 68¢, TWAP lead only ~1.2bps. Gate never reached 6bps 45–55. Not a halt."
+  },
+  "tape_floor": {
+    "source": "research/freq_params.json",
+    "btc_eth_first_cross_share": 0.07,
+    "takes_per_day": 34,
+    "windows": 8498,
+    "takes": 593,
+    "max_left_300_delta_n": 0
+  },
+  "btc_eth_unique_slug_funnel": {
+    "note": "One slug = one 5m window we FOK'd. Kill_rows can be many retries on the same slug.",
+    "by_hkt_day": {
+      "2026-09-02": {"attempted": 68, "filled": 22, "fill_rate": 0.3235},
+      "2026-09-03": {"attempted": 37, "filled": 23, "fill_rate": 0.6216},
+      "2026-09-04": {"attempted": 35, "filled": 10, "fill_rate": 0.2857},
+      "2026-09-05_to_08h22": {"attempted": 3, "filled": 0, "fill_rate": 0.0}
+    },
+    "last_36h": {
+      "attempted": 55,
+      "filled": 18,
+      "killed_only": 27,
+      "err_only": 10,
+      "fill_rate": 0.3273,
+      "fok_reason_rows": {
+        "twap_no_cheaper": 45,
+        "twap_no_up_requote": 38,
+        "fok_short": 1
+      },
+      "err_rows": {"unmatched": 21, "disabled": 2}
+    },
+    "last_24h": {
+      "attempted": 29,
+      "filled": 7,
+      "fill_rate": 0.2414
+    },
+    "last_fill_hkt": "2026-09-04 21:32",
+    "hours_since_last_fill_at_research": 10.84
+  },
+  "fills_by_hkt_day_all_live_rows": {
+    "2026-08-31": 54,
+    "2026-09-01": 33,
+    "2026-09-02": 22,
+    "2026-09-03": 23,
+    "2026-09-04": 10,
+    "2026-09-05_to_08h22": 0
+  },
+  "hour_fills_7d_hkt": {
+    "dead_07_to_15": "HKT 07–15 is 0–4 fills/hour across 7d. 20–23 is the peak (17/15/27/13).",
+    "counts": {
+      "7": 0, "8": 3, "9": 3, "10": 4, "11": 3, "12": 1, "13": 2, "14": 1, "15": 3,
+      "20": 17, "21": 15, "22": 27, "23": 13
+    }
+  },
+  "why_sep4_thin": {
+    "attempts_still_tape_like": 35,
+    "conversion_dropped": "62% on Sep 3 → 29% on Sep 4",
+    "kills": "leftover cheaper (34 rows) + 2-tick up walk (24 rows). fok_short is 1 after Rev 60.",
+    "unmatched": 15,
+    "overnight_sep5": "3 leftover kills at 0.55 then morning twap_band. No 6bps 45–55 print."
+  },
+  "rev60_effect": {
+    "fok_short_36h": 1,
+    "note": "1-tick up requote converted the old fok_short pile. Leftover and +2¢ walks remain by design."
+  },
+  "ws_t0": {
+    "reconnect_every_5m": true,
+    "note": "CLOB WS resubscribes at window open. Tape: max_left 280→300 adds 0 takes, so first-20s miss is not the n lever."
+  },
+  "why": "Bot is hunting. Sparse fills are the sleeve: ~7% of windows print 6bps 45–55 (~34/day), live FOK converts ~25–33% (Sep 3 was 62%, Sep 4 29%). Morning HKT is the dead zone. Current skip is twap_band 68¢ / 1.2bps. Do not relax 6bps, 45–55, leftover, or 2-tick. Alts on this dump sleeve are −EV.",
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "lead_5_5bps",
+    "band_40_60",
+    "band_44_56",
+    "chase_leftover",
+    "up_requote_2ticks",
+    "skip_fok_delay",
+    "min_left_below_120",
+    "alts",
+    "15m",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "turn_taker_fok_off",
+    "pin_twap_assets_without_owner"
+  ],
+  "params_kept": {
+    "twap_min_lead_bps": 6.0,
+    "band": [0.45, 0.55],
+    "twap_min_left": 120.0,
+    "twap_max_left": 280.0,
+    "twap_up_tick": 0.01,
+    "twap_no_cheaper": true,
+    "fok_delay_ms": 250
+  }
+}

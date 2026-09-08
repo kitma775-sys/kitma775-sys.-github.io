@@ -1,0 +1,27 @@
+{
+  "strategy_rev": 37,
+  "goal": "User flips Telegram live twice after keys are in Zeabur; no live orders from this change",
+  "geo_live": {
+    "country": "JP",
+    "api_status": "open",
+    "frontend_only": true,
+    "note": "Official JP website geoblock; CLOB API unrestricted. US/GB/SG stay close-only and live switch is refused."
+  },
+  "blockers_now": ["FORCE_PAPER", "no_key"],
+  "fixes": [
+    "Boot no longer clears live_trading just because TRADING_MODE=paper",
+    "Paper twap inventory is not live-sold or chain-redeemed",
+    "FAK books actual taking/making amounts",
+    "Live daily circuit sums live dumped+redeemed nets",
+    "take_inventory pro-rates cost on partial dump",
+    "live2 runs wallet approvals + USDC>=$5 preflight"
+  ],
+  "unchanged": {
+    "twap_band": [0.45, 0.55],
+    "twap_min_lead_bps": 6,
+    "twap_max_left": 280,
+    "scratch": true,
+    "force_paper_on_zeabur": true,
+    "live_trading": false
+  }
+}
