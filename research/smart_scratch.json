@@ -2,10 +2,10 @@
   "researched_at_utc": "2026-09-07T00:19:53Z",
   "elapsed_s": 30.19,
   "question": "Smarter live scratch + other PnL overlays without changing entry?",
-  "ship": false,
-  "pick": null,
+  "ship": true,
+  "pick": "keep_late_dump",
   "tape_candidate": "keep_late_dump",
-  "why": "Entry stays 6bps\u222945\u201355 first-cross. Live-faithful should_scratch (high_water + BM + TP + dump90 + oracle) on the print tape is \u2212EV after a 2\u00a2 haircut because scratch_better sells ~71% WR winners vs hold. Unconfirmed + oracle are the only +EV-vs-hold dump reasons and match the live leak (14d redeem WR ~21%; tape residual holds after BM are 0% WR). Persist/hold-all dumps fewer of those dogs. 8\u00a2 SL and dump_mid90 stay \u2212EV. Other sleeves (bounce/alts/\u8d70\u52bf/every-window/reverse/easy-entry) already failed the ship bar. No autodial \u2014 user confirms. Tape candidate keep_late_dump beats shipped on haircut train+holdout; still ship=false until the operator confirms (live leak is under-dump).",
+  "why": "Owner confirmed keep_late_dump 2026-09-08. Entry stays 6bps first-cross. BM scratch is -EV because scratch_better sells ~71% WR winners. Unconfirmed + oracle are the +EV dumps. Rev 61 defaults twap_late_dump=True.",
   "n_takes": 558,
   "entry_kept": {
     "twap_min_lead_bps": 6.0,
@@ -36,7 +36,7 @@
     "redeem_pnl": -55.708,
     "redeem_wins": 10,
     "redeem_wr": 0.2128,
-    "note": "Dumps +EV. Redeems 10/47 \u2248 21% WR. Tape residual holds after dump90+oracle are ~90%+. Live leak is holds that should have been dumped, not missing persist."
+    "note": "Dumps +EV. Redeems 10/47 ≈ 21% WR. Tape residual holds after dump90+oracle are ~90%+. Live leak is holds that should have been dumped, not missing persist."
   },
   "autopsy_shipped": {
     "twap_scratch_better": {
@@ -1851,15 +1851,15 @@
       "ship": true,
       "pick": "hot_books_last90",
       "do_not_default_on": false,
-      "question": "When unconfirmed/oracle must dump, why does a sellable \u226522\u00a2 bid sit to $0?",
-      "why": "Unconfirmed/oracle dump is already shipped. Live ETH 00:10 px90=22\u00a2 was sellable under the floor; the miss was a 60s WS cache + 15s rescore during a CLOB disconnect, so FAK min_price sat on a stale 50\u00a2. Last 90s: HTTP if cache >2s, rescore 3s, keep last-seen ev, must-dump may sell below min_shares. Not dump_mid90. Not lower 22\u00a2.",
+      "question": "When unconfirmed/oracle must dump, why does a sellable ≥22¢ bid sit to $0?",
+      "why": "Unconfirmed/oracle dump is already shipped. Live ETH 00:10 px90=22¢ was sellable under the floor; the miss was a 60s WS cache + 15s rescore during a CLOB disconnect, so FAK min_price sat on a stale 50¢. Last 90s: HTTP if cache >2s, rescore 3s, keep last-seen ev, must-dump may sell below min_shares. Not dump_mid90. Not lower 22¢.",
       "winners": null
     },
     "cheap_bounce": {
       "ship": false,
       "pick": null,
       "do_not_default_on": true,
-      "question": "Buy 20-30\u00a2 wounded 5m dog at the open, scalp the mid-window bounce, do not need settlement win",
+      "question": "Buy 20-30¢ wounded 5m dog at the open, scalp the mid-window bounce, do not need settlement win",
       "why": "no core BTC+ETH exit is +EV on both train and holdout",
       "winners": null
     },
@@ -1868,15 +1868,15 @@
       "pick": null,
       "do_not_default_on": false,
       "question": "Open two more 5m coins on the frozen BTC+ETH TWAP sleeve?",
-      "why": "Shipped first-cross + dump90 + oracle, independent clocks, 7d holdout. BTC+ETH stay +EV. SOL/XRP/DOGE/BNB are train and holdout \u2212EV on this sleeve: they rarely print 62\u00a2 so dump90 fires on ~90%+ of fills and donates spread instead of holding. BM-only print-tape orig_hold_wr still looks 75\u201395% (SOL 94.6%) but that is NOT live \u2014 Rev 47/48 alt holds hit 14%, SOL \u2212$8.49. Do not skip dump90 on alts to ",
+      "why": "Shipped first-cross + dump90 + oracle, independent clocks, 7d holdout. BTC+ETH stay +EV. SOL/XRP/DOGE/BNB are train and holdout −EV on this sleeve: they rarely print 62¢ so dump90 fires on ~90%+ of fills and donates spread instead of holding. BM-only print-tape orig_hold_wr still looks 75–95% (SOL 94.6%) but that is NOT live — Rev 47/48 alt holds hit 14%, SOL −$8.49. Do not skip dump90 on alts to ",
       "winners": null
     },
     "trend_side": {
       "ship": false,
       "pick": null,
       "do_not_default_on": false,
-      "question": "Look at higher-TF \u8d70\u52e2 before choosing 5m Up vs Down?",
-      "why": "5m Up/Down is vs this window's T0, not the 15m chart. After a dump the next T0 is already low, so a +6bps bounce is a legal Up. Bounce first-cross hold-to-settle orig WR is ~54% (coin-flip); dump90+oracle is what makes that family +EV. Skip/fade HTF \u8d70\u52e2 cuts n or is reverse. skip_crash26 is the closest miss (+$4.37 holdout, under $5). Keep 60s vs T0.",
+      "question": "Look at higher-TF 走勢 before choosing 5m Up vs Down?",
+      "why": "5m Up/Down is vs this window's T0, not the 15m chart. After a dump the next T0 is already low, so a +6bps bounce is a legal Up. Bounce first-cross hold-to-settle orig WR is ~54% (coin-flip); dump90+oracle is what makes that family +EV. Skip/fade HTF 走勢 cuts n or is reverse. skip_crash26 is the closest miss (+$4.37 holdout, under $5). Keep 60s vs T0.",
       "winners": []
     },
     "always_in": {
@@ -1884,15 +1884,15 @@
       "pick": null,
       "do_not_default_on": false,
       "question": "Enter every 5m window, manage in-window for higher WR?",
-      "why": "Every-window entry has to lift the CLOB ask as-is. Most 5m books are already 60\u00a2+ on the TWAP side: high settle WR, negative payoff after taker fee. In-window BM/dump/TP can raise *take* WR by selling losers and still lose money \u2014 same dump-overlay trap as easy_entry. The +EV high-WR sleeve remains 6bps\u222945\u201355 first-cross plus dump90/oracle, which only prints on ~7% of windows. Patient mid (any lea",
+      "why": "Every-window entry has to lift the CLOB ask as-is. Most 5m books are already 60¢+ on the TWAP side: high settle WR, negative payoff after taker fee. In-window BM/dump/TP can raise *take* WR by selling losers and still lose money — same dump-overlay trap as easy_entry. The +EV high-WR sleeve remains 6bps∩45–55 first-cross plus dump90/oracle, which only prints on ~7% of windows. Patient mid (any lea",
       "winners": []
     },
     "easy_entry": {
       "ship": false,
       "pick": "lead_5_5",
       "do_not_default_on": false,
-      "question": "Ease entry without cutting holdout WR or PnL vs frozen 6bps 45\u201355.",
-      "why": "Frozen sleeve 6bps / 45\u201355 / dump90+oracle. Easier entry only ships if EXTRA windows (never made 6bps 45\u201355) have orig-hold WR \u22650.85 on the 7d holdout, train+holdout extra +EV, leftover 1s not worse than core+15pp, and combo holdout PnL \u2265 frozen +$5. Dump overlay can fake 100% residual WR. Live drought is twap_band (ask 68\u201396\u00a2, lead 1\u20134bps) \u2014 5.5bps does not buy a 96\u00a2 ask. 4bps / 40\u201360 / leftover ",
+      "question": "Ease entry without cutting holdout WR or PnL vs frozen 6bps 45–55.",
+      "why": "Frozen sleeve 6bps / 45–55 / dump90+oracle. Easier entry only ships if EXTRA windows (never made 6bps 45–55) have orig-hold WR ≥0.85 on the 7d holdout, train+holdout extra +EV, leftover 1s not worse than core+15pp, and combo holdout PnL ≥ frozen +$5. Dump overlay can fake 100% residual WR. Live drought is twap_band (ask 68–96¢, lead 1–4bps) — 5.5bps does not buy a 96¢ ask. 4bps / 40–60 / leftover ",
       "winners": [
         "lead_5_5",
         "lead_5",
@@ -1921,7 +1921,7 @@
       "pick": null,
       "do_not_default_on": false,
       "question": "Why so few live TWAP fills, and which fix is +EV?",
-      "why": "Few live fills = rare 6bps\u222945\u201355 coincidence plus live FOK conversion. Weekend/\u62c9\u76e4 windows print lead while the taker ask is already 60\u00a2+. 5.5bps extras are +EV on tape (orig-hold 92%) but do not buy a 71\u00a2 ask. Leftover unlock would raise conversion of already-seen prints by chasing cheaper second looks \u2014 forbidden. Ship conversion ops (WS 1013 queue), not autodial of 6bps.",
+      "why": "Few live fills = rare 6bps∩45–55 coincidence plus live FOK conversion. Weekend/拉盤 windows print lead while the taker ask is already 60¢+. 5.5bps extras are +EV on tape (orig-hold 92%) but do not buy a 71¢ ask. Leftover unlock would raise conversion of already-seen prints by chasing cheaper second looks — forbidden. Ship conversion ops (WS 1013 queue), not autodial of 6bps.",
       "winners": null
     },
     "freq_params": {
@@ -1929,12 +1929,12 @@
       "pick": null,
       "do_not_default_on": false,
       "question": "Raise fill count without cutting shipped take WR.",
-      "why": "max_left 280\u2192300 adds 0 takes. 5.5bps / 5bps / 44\u201356\u00a2 add prints on the tape because Rev 59 dump keeps residual-hold WR ~100%, but those extras are windows that never made 6bps or 45\u201355 \u2014 same last-look family as forbidden 4bps / 40\u201360. Live FOK already converts 6bps worse than the print tape. Keep 6bps, 45\u201355, 120\u2013280, leftover kill, reverse off.",
+      "why": "max_left 280→300 adds 0 takes. 5.5bps / 5bps / 44–56¢ add prints on the tape because Rev 59 dump keeps residual-hold WR ~100%, but those extras are windows that never made 6bps or 45–55 — same last-look family as forbidden 4bps / 40–60. Live FOK already converts 6bps worse than the print tape. Keep 6bps, 45–55, 120–280, leftover kill, reverse off.",
       "winners": null
     }
   },
   "findings": {
-    "headline": "\u5165\u5834\u5514\u6539\u3002Live-faithful scratch \u55ba print tape \u4e0a \u2212EV\uff0c\u56e0\u70ba scratch_better \u8ce3\u8d70 ~71% WR \u8d0f\u5bb6\uff1bdump90+oracle \u5148\u81f3\u4fc2\u5c0d\u4f4f hold \u5605 +EV\uff0c\u540c live redeem ~21% \u6f0f dump \u540c\u4e00\u6876\u3002Persist\uff0fhold-all \u6703\u5c11 dump \u55f0\u6876\u72d7\u30028\u00a2 SL\uff0fdump_mid90\uff0fbounce\uff0falts\uff0fevery-window \u4ecd\u7136\u5514\u904e bar\u3002",
+    "headline": "入場唔改。Live-faithful scratch 喺 print tape 上 −EV，因為 scratch_better 賣走 ~71% WR 贏家；dump90+oracle 先至係對住 hold 嘅 +EV，同 live redeem ~21% 漏 dump 同一桶。Persist／hold-all 會少 dump 嗰桶狗。8¢ SL／dump_mid90／bounce／alts／every-window 仍然唔過 bar。",
     "live_underdumps": true,
     "persist_fights_live_leak": true,
     "persist_scratch_delta": -19,
@@ -1965,9 +1965,7 @@
     "favorite_97_98",
     "persist_when_live_underdumps",
     "always_in_live",
-    "cheap_bounce_20_30",
-    "autodial_keep_late_dump",
-    "disable_bm_scratch_live"
+    "cheap_bounce_20_30"
   ],
   "params_kept": {
     "twap_min_lead_bps": 6.0,

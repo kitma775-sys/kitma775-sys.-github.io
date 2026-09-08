@@ -1,0 +1,37 @@
+{
+  "strategy_rev": 61,
+  "ship": true,
+  "pick": "keep_late_dump",
+  "researched_at_utc": "2026-09-08T05:20:00Z",
+  "source": "research/smart_scratch.json",
+  "question": "Owner confirmed keep_late_dump: raise take WR of already-gated first-cross fills without changing entry.",
+  "why": "Entry stays 6bps∩45–55 leftover-kill. scratch_better sells ~71% WR winners (−$147 vs hold). Unconfirmed never-62 + oracle fair<0.60 are the +EV dumps and match live redeem ~21% WR leak. keep_late_dump holdout +$84.6 / 64% take WR vs shipped BM scratch −$25 / 0% held WR. Do not dump_mid90, 8¢ SL, reverse, leftover chase, or autodial 5.5bps.",
+  "params": {
+    "twap_late_dump": true,
+    "twap_reverse": false,
+    "twap_confirm_px": 0.62,
+    "twap_confirm_left": 90.0,
+    "twap_confirm_fair": 0.6,
+    "twap_scratch_dump_floor": 0.22,
+    "twap_min_lead_bps": 6.0,
+    "band": [0.45, 0.55],
+    "twap_no_cheaper": true
+  },
+  "tape": {
+    "keep_late_dump_holdout_pnl5": 84.6148,
+    "keep_late_dump_holdout_take_wr": 0.64,
+    "scratch_better_would_win_wr": 0.7123
+  },
+  "do_not": [
+    "lead_4bps",
+    "lead_5bps",
+    "autodial_5_5bps",
+    "band_40_60",
+    "chase_leftover",
+    "min_left_below_120",
+    "twap_reverse_on",
+    "dump_mid90",
+    "price_sl_8c",
+    "scratch_adverse_0.08"
+  ]
+}

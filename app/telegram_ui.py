@@ -110,7 +110,7 @@ TOGGLES = {
     ),
     "twap_late_dump": (
         "晚盤 dump",
-        "開咗就關弱倉／反手／更好價 scratch 同止賺，只留最後 90 秒未確認同 oracle dump。Tape：BM better 賣走 ~71% 贏家。預設關。逆向開緊時無效。",
+        "開咗就關弱倉／反手／更好價 scratch 同止賺，只留最後 90 秒未確認同 oracle dump。Tape：BM better 賣走 ~71% 贏家。Rev 61 預設開。逆向開緊時無效。",
     ),
 }
 

@@ -36,7 +36,7 @@ DEFAULT_SETTINGS = {
     "quote_cooldown_seconds": 5.0,
     "paper_slip_ticks": 0,
     "paper_starting_cash": 500.0,
-    "strategy_rev": 60,
+    "strategy_rev": 61,
     "maker_min_leg": 0.22,
     "maker_max_skew": 0.10,
     "maker_window_seconds": 0.0,
@@ -68,9 +68,10 @@ DEFAULT_SETTINGS = {
     "twap_scratch_late_left": 0.0,
     "twap_scratch_late_bid": 1.0,
     "twap_reverse": False,
-    # Research keep_late_dump. TG toggle, default off — do not autodial.
-    # On: skip BM better/weak/flip and TP; keep last-90s unconfirmed + oracle.
-    "twap_late_dump": False,
+    # Rev 61: owner confirmed keep_late_dump. Skip BM better/weak/flip and TP
+    # (tape: better sells ~71% WR winners). Keep last-90s unconfirmed + oracle.
+    # TG can still turn it off. apply_strategy_rev 61 sets True once.
+    "twap_late_dump": True,
     # 0 = off. Default 87¢ locks a runner; 80/85/87/90/95 via Telegram.
     "twap_tp_bid": 0.87,
     # Rev 54: first-cross + 90s unconfirmed dump. Hunt pin is BTC+ETH;

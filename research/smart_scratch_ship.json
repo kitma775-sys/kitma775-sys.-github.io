@@ -1,12 +1,12 @@
 {
-  "strategy_rev": 60,
-  "ship": false,
-  "pick": null,
+  "strategy_rev": 61,
+  "ship": true,
+  "pick": "keep_late_dump",
   "tape_candidate": "keep_late_dump",
   "researched_at_utc": "2026-09-07T00:19:53Z",
   "source": "research/smart_scratch.json",
   "question": "Smarter live scratch + other PnL overlays without changing entry?",
-  "why": "Entry stays 6bps\u222945\u201355 first-cross. Live-faithful should_scratch (high_water + BM + TP + dump90 + oracle) on the print tape is \u2212EV after a 2\u00a2 haircut because scratch_better sells ~71% WR winners vs hold. Unconfirmed + oracle are the only +EV-vs-hold dump reasons and match the live leak (14d redeem WR ~21%; tape residual holds after BM are 0% WR). Persist/hold-all dumps fewer of those dogs. 8\u00a2 SL and dump_mid90 stay \u2212EV. Other sleeves (bounce/alts/\u8d70\u52bf/every-window/reverse/easy-entry) already failed the ship bar. No autodial \u2014 user confirms. Tape candidate keep_late_dump beats shipped on haircut train+holdout; still ship=false until the operator confirms (live leak is under-dump).",
+  "why": "Owner confirmed keep_late_dump 2026-09-08. Entry stays 6bps first-cross. BM scratch is -EV because scratch_better sells ~71% WR winners. Unconfirmed + oracle are the +EV dumps. Rev 61 defaults twap_late_dump=True.",
   "n_takes": 558,
   "shipped_holdout_pnl5": -25.5691,
   "shipped_holdout_take_wr": 0.0,
@@ -97,9 +97,7 @@
     "favorite_97_98",
     "persist_when_live_underdumps",
     "always_in_live",
-    "cheap_bounce_20_30",
-    "autodial_keep_late_dump",
-    "disable_bm_scratch_live"
+    "cheap_bounce_20_30"
   ],
   "params_kept": {
     "twap_min_lead_bps": 6.0,

@@ -112,7 +112,7 @@ Implemented in `app/twap.py` + `app/runtime.py` `_confirm_twap` / `_fok_confirm`
 `should_scratch` (`app/twap.py`):
 
 - Reverse ON (`twap_reverse`): skip BM better/weak/flip **and** TP; hold to settle except wild lead. Placeholder net so FOK is not killed by `non_positive_net` (`reverse_placeholder_net`, Rev 52).
-- Late-dump ON (`twap_late_dump`, **code default False**; sqlite/Telegram may be ON): skip BM better/weak/flip **and** TP; keep last-90s unconfirmed + oracle. Reverse still wins if both on.
+- Late-dump ON (`twap_late_dump`, **Rev 61 default True**): skip BM better/weak/flip **and** TP; keep last-90s unconfirmed + oracle. Reverse still wins if both on.
 - Else: TP at `twap_tp_bid=0.87` (Telegram steps 0/80/85/87/90/95). BM better/weak/flip. Unconfirmed: `left < twap_confirm_left` (90) and same-side high-water **< `twap_confirm_px` (0.62)**. Oracle (Rev 59): last 90s if BM `fair_p < twap_confirm_fair` (0.60) even after CLOB printed 62¢.
 - Dump floor `twap_scratch_dump_floor=0.22`. Last 90s: HTTP books if WS cache **> `twap_scratch_hot_ms` (2000)**; rescore `twap_rescore_hot_seconds=3`. Keep last-8s (`scratch_left_min`). **Do not** ship `dump_mid90` or cut the 22¢ floor (commit `3d65fed` + comments).
 - **No price stop-loss** (`twap_scratch_adverse` default 0). Do not add one.
@@ -154,7 +154,7 @@ Buy cost uses official taker fee `shares × 0.07 × p × (1−p)` (`app/fees.py`
 
 **Telegram toggles** (`app/telegram_ui.py` `TOGGLES`): `auto_execute`, `auto_redeem`, `notify_signals`, `notify_rejects`, `taker_fok`, `twap_reverse`, `twap_late_dump`.
 
-**`apply_strategy_rev`:** one-way sqlite patches up to 60. **Must not** patch `twap_reverse` or `twap_late_dump` on future revs (would wipe operator toggles). Rev 60 only sets `twap_up_tick=0.01`.
+**`apply_strategy_rev`:** one-way sqlite patches up to 61. **Must not** patch `twap_reverse`. Rev 61 sets `twap_late_dump=True` once (owner confirmed); do not keep rewriting it on later revs. Rev 60 set `twap_up_tick=0.01`.
 
 **Dashboard:** query param is **`t=`** (not `token=`). `/health` is public (no token). `twap_funnel` on `/health` is UTC-day fills/kills/dumps + unique-slug skips (skip mix resets on boot). `/api/state?t=` is gated.
 
@@ -219,7 +219,7 @@ Compressed from `git log --oneline -30`. Skip chat anecdotes not in git.
 | `b08c491` | Wounded 20–30¢ bounce: **do not ship** | Research | **Yes** |
 | `c747857` | **Rev 53** TP 87¢ + TG steps | No price SL | **Yes** |
 
-Older README rev notes (23–52) are **history**. Live law is Rev 60 + sqlite operator toggles.
+Older README rev notes (23–52) are **history**. Live law is Rev 61 + sqlite operator toggles.
 
 ---
 
@@ -227,7 +227,7 @@ Older README rev notes (23–52) are **history**. Live law is Rev 60 + sqlite op
 
 Only if evidenced. Conjecture labelled.
 
-1. **`apply_strategy_rev` wiping operator toggles** — comments + `6ea4c39`. Never add `twap_reverse` / `twap_late_dump` to a rev patch. Stale docstring at `apply_strategy_rev` still says “Patch live sqlite up to rev 29” — **comment is wrong**; function patches to 60.
+1. **`apply_strategy_rev` wiping operator toggles** — comments + `6ea4c39`. Never add `twap_reverse` to a rev patch. Rev 61 is the one-time `twap_late_dump=True` owner ship. Docstring patches to 61.
 2. **Leftover cheaper chase** after first-cross — `twap_no_cheaper`, `CHEAPER_EPS`, Rev 54/56/60 tests. Looks like “better fill”; it is the 97–98 cousin.
 3. **Binance/USDT minus Gamma PTB ≈ 9 bps basis** — `app/twap.py` module docstring. Mixed-oracle −EV.
 4. **False 50/50 mid redeem** — `is_redeemable_market` docstring; Rev 19. Wait official 0/1.
@@ -271,8 +271,8 @@ Concrete tickets a new agent could pick. Empty cells would mean none; these are 
 4. **Stale package version** — File: `app/__init__.py`. Acceptance: either document “unused” or set a non-misleading string; do not drive logic from it.
 5. **README identity** — File: `README.md` top. Acceptance: opening paragraph matches Rev 60 (TWAP 5m BTC+ETH, not “paper default $5” as if live). Historical rev list can stay.
 6. **WS 1013 watch** — File: `app/runtime.py` `_ws_socket`. Acceptance: only change if new logs show queue overflow / reconnect storm; **no** 250ms skip, **no** leftover chase, **no** `initial_dump=True`.
-7. **Do not ship oracle-arb / always_in / easy_entry / two_alts / keep_late_dump autodial** — Files: `research/*_ship.json` if present. Acceptance: `ship: false` remains unless owner confirms.
-8. **Operator late-dump vs default** — File: sqlite / Telegram `twap_late_dump`. Acceptance: code default stays False; do not add it to `apply_strategy_rev`.
+7. **Do not ship oracle-arb / always_in / easy_entry / two_alts** — Files: `research/*_ship.json`. `keep_late_dump` **shipped Rev 61** after owner confirm (`research/rev61_ship.json`).
+8. **Operator late-dump vs default** — File: sqlite / Telegram `twap_late_dump`. Acceptance: code default **True** (Rev 61); Telegram can still turn it off. Do not rewrite the toggle on rev ≥62.
 9. **Scratch research already done** — File: `research/smart_scratch.py` / JSON. Acceptance: no engine change unless a new holdout beats frozen sleeve **and** owner confirms.
 10. **Fill-rate temptation** — File: `twap_min_lead_bps` / band. Acceptance: `0989aae` / `4a8389c` still hold; any relaxation needs a new research JSON + owner yes.
 11. **Non-5m inventory on the same wallet** — File: `parse_window` / redeem allowlist. Acceptance: bot still ignores weather/EPL/15m/1H.

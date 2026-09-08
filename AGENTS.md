@@ -2,14 +2,14 @@
 
 ## Identity
 
-This repo’s **live bot** (code `DEFAULT_SETTINGS["strategy_rev"]=60`, boot patch `apply_strategy_rev` up to 60) is a **Polymarket 5-minute Up/Down sleeve**. It hunts BTC and ETH windows whose slug matches `{asset}-updown-5m-{unix}`. Entry is **FOK** (live CLOB **FAK**, paper uses the same fill rules). It buys the first **6–40 bps** Chainlink-60s-TWAP vs window-open PTB lead while the ask is in **45–55¢**, waits **250ms**, does **not** chase leftover cheaper asks. Independent clocks: BTC and ETH may take the **same** 5m unix. Scratch / reverse / late-dump / oracle dump are in `app/twap.py` + `app/runtime.py`. Dashboard + Telegram are operator UI. This is **not** GitHub Pages on `main`. This is **not** `hl-auto-trader` (different repo, different venue).
+This repo’s **live bot** (code `DEFAULT_SETTINGS["strategy_rev"]=61`, boot patch `apply_strategy_rev` up to 61) is a **Polymarket 5-minute Up/Down sleeve**. It hunts BTC and ETH windows whose slug matches `{asset}-updown-5m-{unix}`. Entry is **FOK** (live CLOB **FAK**, paper uses the same fill rules). It buys the first **6–40 bps** Chainlink-60s-TWAP vs window-open PTB lead while the ask is in **45–55¢**, waits **250ms**, does **not** chase leftover cheaper asks. Independent clocks: BTC and ETH may take the **same** 5m unix. Scratch / reverse / late-dump / oracle dump are in `app/twap.py` + `app/runtime.py`. Dashboard + Telegram are operator UI. This is **not** GitHub Pages on `main`. This is **not** `hl-auto-trader` (different repo, different venue).
 
 ## Git
 
 - Work **only** on `cursor/polymarket-arb-bot-feasibility-5998`.
 - Remote: `kitma775-sys/kitma775-sys.-github.io`.
 - Open **PR #1 is DRAFT** onto `main`. **Do not merge. Do not push to `main`.**
-- `main` is the old GitHub Pages site (almost no `.py`). Bot code lives **only** on this branch. Zeabur deploys **this branch** (claimed live Rev 60).
+- `main` is the old GitHub Pages site (almost no `.py`). Bot code lives **only** on this branch. Zeabur deploys **this branch** (git Rev 61; live zip may lag until 上).
 - Never merge to `main` unless the owner explicitly says so.
 
 ## Layout
@@ -64,7 +64,7 @@ Never write **values** into markdown, git, or chat. Scan diffs for `sk-`, `0x` p
 - First-cross: `twap_min_lead_bps=6`, `twap_max_lead_bps=40`, `twap_min_ask=0.45`, `twap_max_ask=0.55`, `twap_min_left=120`, `twap_max_left=280`.
 - FOK: `fok_delay_ms=250`; retry **same limit** then **at most +1 tick** (`twap_up_tick=0.01`). `twap_no_cheaper=True` — no leftover cheaper-ask chase (`CHEAPER_EPS=0.005`).
 - Confirm: CLOB `twap_confirm_px=0.62`; oracle dump `twap_confirm_fair=0.60` (last 90s). Scratch dump floor `scratch_dump_floor=0.22`.
-- `apply_strategy_rev` **must not** patch `twap_reverse` or `twap_late_dump` (operator sqlite toggles).
+- `apply_strategy_rev` **must not** patch `twap_reverse`. Rev 61 **does** set `twap_late_dump=True` once (owner confirmed keep_late_dump). Later revs must not keep rewriting the toggle.
 - Hunt pin: Telegram `assets` ∩ `twap_assets` (`slug_allowed` / `twap_hunt_pin`).
 - Paper vs live: sqlite `live_trading`; `FORCE_PAPER=1` forces paper. Live CLOB needs keys (`live_keys_ready`). `clamp_live_at_boot` exists — do not flip live flags unless the owner asks.
 - Settlement slug allowlist: `{asset}-updown-5m-{unix}` only (`app/twap.py` `parse_window`). Do not redeem other Polymarket bets on the same wallet.

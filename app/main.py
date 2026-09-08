@@ -18,7 +18,11 @@ from app.telegram_ui import run_telegram
 
 
 def apply_strategy_rev(store: Store) -> int:
-    """Patch live sqlite up to rev 29. Does not reset the paper ledger."""
+    """Patch live sqlite up to rev 61. Does not reset the paper ledger.
+
+    Never write twap_reverse here. Rev 61 writes twap_late_dump=True once
+    (owner confirmed keep_late_dump); Telegram can still turn it off after.
+    """
     rev = int(store.settings().get("strategy_rev") or 0)
     n = 0
     if rev < 6:
@@ -811,6 +815,12 @@ def apply_strategy_rev(store: Store) -> int:
         store.add_event(
             "info",
             "rev60 FOK: after 250ms, allow 1-tick up requote still ≤55¢ (never leftover cheaper). Live unmatched FAK reconfirms delay=0 and sends one more same-sleeve FAK. Keep 6bps, 45–55, 120–280, no 2-tick, reverse off, stake.",
+        )
+    if rev < 61:
+        store.patch_settings(strategy_rev=61, twap_late_dump=True)
+        store.add_event(
+            "info",
+            "rev61 keep_late_dump: skip BM better/weak/flip and TP; dump last-90s never-62 and oracle fair<0.60. Entry frozen 6bps 45–55 leftover-kill. Reverse off. 22¢ dump floor.",
         )
     return n
 
