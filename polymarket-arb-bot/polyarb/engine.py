@@ -127,7 +127,14 @@ class Engine:
         self.dirty: set[str] = set()
         self._wake = asyncio.Event()
         self._last_logged: dict[str, tuple] = {}
+        self._inflight: set[asyncio.Task] = set()
         self.stats: Counter = Counter()
+        self.phase = "idle"
+        self.stopping = False
+        self.started_at = time.time()
+        self.last_sweep_s = 0.0
+        self.last_sweep_at = 0.0
+        self.last_refresh_at = 0.0
         self.stream = (
             MarketStream(store, on_change=self._on_change, assets_per_conn=cfg.engine.ws_assets_per_conn)
             if cfg.engine.use_websocket
@@ -145,6 +152,7 @@ class Engine:
         events = await load_events(self.cfg, self.gamma)
         self.universe = build_universe(events, self.strategies, self.cfg.universe)
         self.targets = {t.key: t for t in self.universe.targets}
+        self.last_refresh_at = time.time()
         info = {"events": len(self.universe.events), "tokens": len(self.universe.tokens), "targets": self.universe.counts()}
         self.journal.write("universe", info)
         log.info("universe: %s", info)
@@ -152,6 +160,7 @@ class Engine:
     async def sweep(self) -> int:
         """Refresh every universe book over REST, parsing only books whose server hash moved."""
         assert self.universe is not None
+        started = time.time()
         ws_tokens = set(self.stream.tokens) if self.stream and self.stream.running else set()
         max_age = self.store.max_age_s
 
@@ -178,6 +187,8 @@ class Engine:
                 changed += 1
         self.stats["sweeps"] += 1
         self.stats["books_parsed"] += len(books)
+        self.last_sweep_at = time.time()
+        self.last_sweep_s = self.last_sweep_at - started
         return changed
 
     def hot_tokens(self) -> list[str]:
@@ -201,11 +212,21 @@ class Engine:
             self._last_logged[opp.key] = sig
             self.journal.write("opportunity", opp.summary())
             log.info("OPP %s %s profit=$%.2f edge=%.2f%%", opp.strategy, opp.title[:60], opp.profit, 100 * opp.edge)
+        if self.stopping:
+            self.stats["skip:shutting down"] += 1
+            return
         reason = self.risk.check(opp)
         if reason:
             self.stats[f"skip:{reason}"] += 1
             return
         self.risk.begin(opp)
+        task = asyncio.create_task(self._execute(opp, target))
+        self._inflight.add(task)
+        task.add_done_callback(self._inflight.discard)
+        # Stopping the engine must never cut an execution between its orders and its convert / unwind.
+        await asyncio.shield(task)
+
+    async def _execute(self, opp: Opportunity, target: Target) -> None:
         report = await self.executor.execute(opp, target, approve=self.risk.check_size)
         self.risk.finish(report)
         if not report.sent:
@@ -267,11 +288,13 @@ class Engine:
             await asyncio.sleep(self.cfg.engine.report_every_s)
             matured = self.risk.release_matured()
             for h in matured:
-                self.journal.write("hold_released", {"key": h.key, "pnl": h.payout - h.cost})
+                self.journal.write("hold_released", {"key": h.key, "title": h.title, "strategy": h.strategy, "pnl": h.payout - h.cost})
             snapshot = {
                 **self.store.stats(),
                 "ws_msgs": self.stream.messages if self.stream else 0,
                 "pnl_total": round(self.risk.state.realized_total, 4),
+                "pnl_today": round(self.risk.state.realized_today, 4),
+                "locked": round(sum(h.payout - h.cost for h in self.risk.state.holds), 4),
                 "holds": len(self.risk.state.holds),
                 "hold_exposure": round(self.risk.hold_exposure, 2),
                 **{k: v for k, v in self.stats.items()},
@@ -279,23 +302,39 @@ class Engine:
             self.journal.write("heartbeat", snapshot)
             log.info("heartbeat %s", snapshot)
 
+    async def drain(self, timeout: float = 60.0) -> None:
+        """Refuse new executions and wait for the ones already sending orders."""
+        self.stopping = True
+        pending = set(self._inflight)
+        if not pending:
+            return
+        log.warning("waiting for %d in-flight execution(s) before stopping", len(pending))
+        _, still = await asyncio.wait(pending, timeout=timeout)
+        if still:
+            log.error("%d execution(s) still running after %.0fs; check positions", len(still), timeout)
+
     async def run(self, duration_s: float | None = None) -> None:
-        geo = await self.risk.check_geo()
-        log.info("geoblock check: %s", geo)
-        gc.set_threshold(50_000, 20, 100)
-        await self.refresh_universe()
-        await self.sweep()
-        settle_heap()
-        if self.stream:
-            await self.stream.start(self.hot_tokens())
-        tasks = [
-            asyncio.create_task(self._sweep_loop()),
-            asyncio.create_task(self._eval_loop()),
-            asyncio.create_task(self._refresh_loop()),
-            asyncio.create_task(self._report_loop()),
-        ]
-        self._wake.set()
+        tasks: list[asyncio.Task] = []
         try:
+            self.phase = "geo"
+            geo = await self.risk.check_geo()
+            log.info("geoblock check: %s", geo)
+            gc.set_threshold(50_000, 20, 100)
+            self.phase = "loading"
+            await self.refresh_universe()
+            self.phase = "sweeping"
+            await self.sweep()
+            settle_heap()
+            if self.stream:
+                await self.stream.start(self.hot_tokens())
+            tasks = [
+                asyncio.create_task(self._sweep_loop()),
+                asyncio.create_task(self._eval_loop()),
+                asyncio.create_task(self._refresh_loop()),
+                asyncio.create_task(self._report_loop()),
+            ]
+            self.phase = "running"
+            self._wake.set()
             if duration_s:
                 done, _ = await asyncio.wait(tasks, timeout=duration_s, return_when=asyncio.FIRST_EXCEPTION)
                 for t in done:
@@ -304,9 +343,13 @@ class Engine:
             else:
                 await asyncio.gather(*tasks)
         finally:
+            self.phase = "stopping"
+            self.stopping = True
             for t in tasks:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            await self.drain()
             if self.stream:
                 await self.stream.stop()
             self.risk.save()
+            self.phase = "stopped"

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import types
 import typing
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
+
+ENV_PREFIX = "POLYARB__"
 
 
 @dataclass
@@ -158,3 +161,23 @@ def load_config(path: str | Path | None = None, overrides: dict[str, Any] | None
             node = node.setdefault(key, {})
         node[leaf] = value
     return _build(Config, data, "")
+
+
+def env_overrides(environ: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """``POLYARB__RISK__MAX_TRADE_USD=50`` -> ``{"risk.max_trade_usd": 50}``; values are parsed as YAML scalars."""
+    environ = os.environ if environ is None else environ
+    out: dict[str, Any] = {}
+    for key, raw in environ.items():
+        if key.startswith(ENV_PREFIX) and len(key) > len(ENV_PREFIX):
+            dotted = ".".join(part.lower() for part in key[len(ENV_PREFIX):].split("__"))
+            out[dotted] = yaml.safe_load(raw) if raw.strip() else ""
+    return out
+
+
+def use_data_dir(cfg: Config, data_dir: str | Path, mode: str) -> None:
+    """Keep paper and live books apart: ``<data>/<mode>/journal.jsonl``, ``<data>/<mode>/state.json``, ``<data>/KILL``."""
+    root = Path(data_dir)
+    cfg.execution.journal_path = str(root / mode / "journal.jsonl")
+    cfg.execution.state_path = str(root / mode / "state.json")
+    if cfg.risk.kill_file:
+        cfg.risk.kill_file = str(root / Path(cfg.risk.kill_file).name)
