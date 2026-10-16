@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#04050c">
+<meta name="robots" content="noindex, nofollow">
+<title>登入 · POLYARB</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{V}}">
+<script src="/static/login.js?v={{V}}" defer></script>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="grain" aria-hidden="true"></div>
+<main class="login-page">
+  <section class="card login-card" id="login-card">
+    <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+      <defs>
+        <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#19e6d4"/><stop offset=".55" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff4d8d"/>
+        </linearGradient>
+      </defs>
+      <path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="rgba(25,230,212,.06)" stroke="url(#logo-g)" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M14.5 30 21.5 22.5l5 5L33.5 18" fill="none" stroke="url(#logo-g)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="33.5" cy="18" r="2.8" fill="#2ef2a0"/>
+    </svg>
+    <h1>POLYARB</h1>
+    <p>Polymarket 結構性套利指揮中心</p>
+    <form id="login-form" method="post" action="/api/login" autocomplete="on">
+      <input type="text" name="username" value="polyarb" autocomplete="username" hidden>
+      <input type="password" name="password" id="password" placeholder="控制台密碼" autocomplete="current-password" required autofocus>
+      <button class="btn" type="submit" id="login-btn">進入控制台</button>
+      <div class="err" id="login-err" role="alert"></div>
+    </form>
+  </section>
+</main>
+</body>
+</html>
