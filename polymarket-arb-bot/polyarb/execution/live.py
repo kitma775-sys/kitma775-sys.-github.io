@@ -62,6 +62,10 @@ class PolymarketGateway:
             await client.setup_trading_approvals()
         return cls(client)
 
+    def wallet_info(self) -> dict[str, str]:
+        """The wallet the SDK resolved (the one to fund) and its type; only EOA wallets pay their own gas."""
+        return {"signer": str(self.client.signer), "funder": str(self.client.wallet), "type": str(self.client.wallet_type)}
+
     async def close(self) -> None:
         await self.client.close()
         await self.chain.close()

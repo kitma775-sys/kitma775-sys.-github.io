@@ -40,15 +40,6 @@ def sdk_installed() -> bool:
     return True
 
 
-def signer_address(private_key: str) -> str | None:
-    try:
-        from eth_account import Account
-
-        return Account.from_key(private_key).address
-    except Exception:
-        return None
-
-
 def is_persistent(path: Path, environ: Mapping[str, str]) -> bool:
     """In a container only a mounted volume survives a redeploy; on a normal host the local disk does."""
     if environ.get("POLYARB_IN_CONTAINER") != "1":
@@ -181,7 +172,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
 
             gateway = await PolymarketGateway.create(key, wallet=environ.get("POLYMARKET_WALLET") or None)
             mode = "live"
-            wallet = {"signer": signer_address(key), "funder": environ.get("POLYMARKET_WALLET") or None}
+            wallet = gateway.wallet_info()
         except Exception as exc:
             log.exception("live gateway failed to start; running PAPER")
             blocked = [f"gateway: {redactor.clean(str(exc)) if redactor else exc}"]

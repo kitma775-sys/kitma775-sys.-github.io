@@ -315,6 +315,12 @@ async def test_live_delayed_and_resting_orders_reconciled_from_order_status():
     assert not none.ok and none.error == "no fill after reconcile"
 
 
+def test_live_wallet_info_reports_the_wallet_to_fund():
+    sdk = SimpleNamespace(signer="0xSigner", wallet="0xDeposit", wallet_type="DEPOSIT_WALLET")
+    gw = PolymarketGateway(sdk, chain=SimpleNamespace())
+    assert gw.wallet_info() == {"signer": "0xSigner", "funder": "0xDeposit", "type": "DEPOSIT_WALLET"}
+
+
 async def test_live_reconcile_falls_back_to_capped_balance():
     pytest.importorskip("polymarket")
     sdk = FakeSdk(statuses={"T0": "delayed"}, held=99.0)

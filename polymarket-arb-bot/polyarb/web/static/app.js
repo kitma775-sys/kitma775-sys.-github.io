@@ -34,6 +34,11 @@
     volume: ['/data 永久磁碟', '帳本與持倉可跨重啟保存'],
   };
 
+  const WALLETS = {
+    DEPOSIT_WALLET: 'Deposit Wallet・免 gas', POLY_PROXY: 'Polymarket 代理錢包・免 gas',
+    GNOSIS_SAFE: 'Safe 錢包・免 gas', EOA: 'EOA・需少量 POL 付 gas',
+  };
+
   const BLOCKED = {
     confirm: '未設 POLYARB_LIVE_CONFIRM=yes', key: '未設 POLYMARKET_PRIVATE_KEY', sdk: '未安裝下單 SDK',
     geo: '伺服器地區被 Polymarket 封鎖', password: '未設 POLYARB_DASHBOARD_PASSWORD', volume: '未掛載 /data 永久磁碟',
@@ -1149,7 +1154,7 @@
     }));
     const w = t.wallet;
     setText($('#wallet-note'), t.mode === 'live' && w
-      ? `簽名錢包 ${w.signer || '?'}${w.funder ? `・資金錢包 ${w.funder}` : ''}${finite(w.balance) ? `・餘額 ${usd(w.balance)} pUSD` : ''}`
+      ? `交易錢包（入金地址）${w.funder || '?'}${w.type ? `〔${WALLETS[w.type] || w.type}〕` : ''}・簽名 ${w.signer || '?'}${finite(w.balance) ? `・餘額 ${usd(w.balance)} pUSD` : ''}`
       : '紙盤：每筆成交都按當刻真實訂單簿深度模擬，不會動用任何資金。實盤與紙盤帳本分開保存。');
   }
 
