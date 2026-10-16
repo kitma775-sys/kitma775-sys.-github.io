@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#04050c">
+<meta name="robots" content="noindex, nofollow">
+<title>POLYARB · 套利指揮中心</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{V}}">
+<script src="/static/app.js?v={{V}}" defer></script>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+      <defs>
+        <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#19e6d4"/><stop offset=".55" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff4d8d"/>
+        </linearGradient>
+      </defs>
+      <path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="rgba(25,230,212,.06)" stroke="url(#logo-g)" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M14.5 30 21.5 22.5l5 5L33.5 18" fill="none" stroke="url(#logo-g)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="33.5" cy="18" r="2.8" fill="#2ef2a0"/>
+    </svg>
+    <div>
+      <div class="brand-name">POLYARB</div>
+      <div class="brand-sub">Polymarket 結構性套利指揮中心</div>
+    </div>
+  </div>
+  <div class="status-strip">
+    <span class="badge paper" id="mode-badge"><i></i><b>紙盤</b><small>PAPER</small></span>
+    <span class="badge phase busy" id="phase-badge"><i></i><b>連線中</b></span>
+    <span class="conn" id="conn" title="即時串流連線"><i></i><span>串流</span></span>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+  <div class="actions">
+    <button class="btn small warn" id="btn-pause" type="button" disabled>暫停交易</button>
+    <button class="btn small" id="btn-logout" type="button">登出</button>
+  </div>
+</header>
+
+<div class="banners" id="banners" aria-live="polite"></div>
+
+<main class="layout">
+
+  <section class="card hero span-7">
+    <div class="card-head">
+      <h2>累計利潤<em>TOTAL P&amp;L</em></h2>
+      <span class="hint" id="pnl-hint">已實現 + 已鎖定（結算後入賬）</span>
+    </div>
+    <div class="hero-value" id="pnl-total">$0.00</div>
+    <div class="hero-meta">
+      <div><label>已實現</label><span id="pnl-realized">$0.00</span></div>
+      <div><label>今日已實現</label><span id="pnl-today">$0.00</span></div>
+      <div><label>已鎖定・待結算</label><span id="pnl-locked">$0.00</span></div>
+      <div><label>本金回報</label><span id="pnl-roi">0.00%</span></div>
+      <div><label>已執行</label><span id="exec-count">0</span></div>
+    </div>
+    <div class="chart" id="pnl-chart"></div>
+    <div class="hero-foot">
+      <div class="legend" id="pnl-legend"></div>
+      <div class="seg" id="pnl-range" role="tablist">
+        <button type="button" data-r="3600">1 小時</button>
+        <button type="button" data-r="21600">6 小時</button>
+        <button type="button" data-r="86400" class="on">24 小時</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card radar-card span-5">
+    <div class="card-head">
+      <h2>套利雷達<em>EDGE RADAR</em></h2>
+      <span class="hint" id="radar-hint">越近中心越接近套利・點擊開啟市場</span>
+    </div>
+    <div class="radar-wrap">
+      <canvas id="radar" aria-label="各策略最接近套利的市場分佈"></canvas>
+      <div class="radar-legend" id="radar-legend"></div>
+      <div class="radar-stats"><strong id="radar-count">—</strong><span id="radar-sub">個目標即時定價</span></div>
+      <div class="tip" id="radar-tip"></div>
+    </div>
+  </section>
+
+  <section class="kpis span-12" id="kpis"></section>
+
+  <section class="card span-6">
+    <div class="card-head">
+      <h2>即時套利機會<em>OPPORTUNITIES</em></h2>
+      <span class="pill" id="opp-count">0</span>
+    </div>
+    <div class="feed" id="opp-feed"></div>
+  </section>
+
+  <section class="card span-6">
+    <div class="card-head">
+      <h2>成交紀錄<em>EXECUTIONS</em></h2>
+      <span class="pill" id="exec-pill">0</span>
+    </div>
+    <div class="feed" id="exec-feed"></div>
+  </section>
+
+  <section class="card span-8">
+    <div class="card-head">
+      <h2>最接近套利<em>NEAR MISSES</em></h2>
+      <div class="seg" id="near-tabs" role="tablist"></div>
+    </div>
+    <div class="table-wrap">
+      <table id="near-table">
+        <thead><tr><th class="num hide-sm">#</th><th>市場</th><th class="num hide-sm">腿數</th><th class="num">頂部邊際（每組）</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note" id="near-note">邊際 = 以最佳掛單價計，每組（派彩 $1）可賺取的金額；正數即可套利（未計深度與門檻）。</p>
+  </section>
+
+  <section class="card span-4">
+    <div class="card-head">
+      <h2>邊際分佈<em>EDGE MAP</em></h2>
+      <span class="hint" id="hist-hint">每 20 秒全市場重算</span>
+    </div>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <section class="card span-4">
+    <div class="card-head">
+      <h2>風險控制<em>RISK</em></h2>
+      <span class="pill" id="kill-pill">—</span>
+    </div>
+    <div class="gauges" id="gauges"></div>
+    <div class="limits" id="limits"></div>
+    <div class="skips" id="skips"></div>
+    <div class="risk-actions">
+      <button class="btn small danger" id="btn-reset" type="button" disabled>重置熔斷</button>
+      <button class="btn small" id="btn-pause-2" type="button" disabled>暫停交易</button>
+    </div>
+  </section>
+
+  <section class="card span-8">
+    <div class="card-head">
+      <h2>持倉待結算<em>HOLDS</em></h2>
+      <span class="pill" id="hold-count">0</span>
+    </div>
+    <div class="table-wrap">
+      <table id="holds-table">
+        <thead><tr><th>市場</th><th class="hide-sm">策略</th><th class="num">成本</th><th class="num hide-sm">保證派彩</th><th class="num">鎖定利潤</th><th class="num">結算</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card span-7 engine-card">
+    <div class="card-head">
+      <h2>引擎狀態<em>ENGINE</em></h2>
+      <span class="hint" id="engine-hint"></span>
+    </div>
+    <div class="engine-grid" id="engine-grid"></div>
+    <div class="chart small" id="tp-chart"></div>
+    <div class="legend" id="tp-legend"></div>
+  </section>
+
+  <section class="card span-5">
+    <div class="card-head">
+      <h2>轉實盤<em>GO LIVE</em></h2>
+      <span class="pill" id="ready-pill">—</span>
+    </div>
+    <ul class="checklist" id="checklist"></ul>
+    <details class="howto">
+      <summary>一鍵轉實盤步驟（Zeabur）</summary>
+      <ol>
+        <li>先以紙盤運行一段時間，確認「執行成功率」、「略過原因」及持倉都合理。</li>
+        <li>準備<b>專用</b>錢包：只存放打算投入的 pUSD 及少量 POL（gas）。私鑰只放在 Zeabur 環境變數，切勿貼到其他地方。</li>
+        <li>在 Zeabur 服務 →「環境變數」加入：
+          <div class="envline"><span>POLYARB_MODE=live</span><button type="button" data-copy="POLYARB_MODE=live">複製</button></div>
+          <div class="envline"><span>POLYARB_LIVE_CONFIRM=yes</span><button type="button" data-copy="POLYARB_LIVE_CONFIRM=yes">複製</button></div>
+          <div class="envline"><span>POLYMARKET_PRIVATE_KEY=0x…</span><button type="button" data-copy="POLYMARKET_PRIVATE_KEY=">複製</button></div>
+          <div class="envline"><span>POLYMARKET_WALLET=0x…（Polymarket 代理錢包才需要）</span><button type="button" data-copy="POLYMARKET_WALLET=">複製</button></div>
+        </li>
+        <li>建議首次實盤調低上限：
+          <div class="envline"><span>POLYARB__RISK__BANKROLL_USD=200</span><button type="button" data-copy="POLYARB__RISK__BANKROLL_USD=200">複製</button></div>
+          <div class="envline"><span>POLYARB__RISK__MAX_TRADE_USD=25</span><button type="button" data-copy="POLYARB__RISK__MAX_TRADE_USD=25">複製</button></div>
+          <div class="envline"><span>POLYARB__RISK__MAX_HOLD_EXPOSURE_USD=150</span><button type="button" data-copy="POLYARB__RISK__MAX_HOLD_EXPOSURE_USD=150">複製</button></div>
+        </li>
+        <li>按 Zeabur「重新啟動」。頂部徽章由「紙盤」變成「實盤」即代表成功；任何條件未通過，系統會自動維持紙盤並在頂部顯示原因。</li>
+        <li>隨時可按「暫停交易」，或把 <code>POLYARB_MODE</code> 改回 <code>paper</code> 再重啟。紙盤與實盤的帳本分開保存。</li>
+      </ol>
+    </details>
+    <p class="note" id="wallet-note"></p>
+  </section>
+
+  <section class="card span-12">
+    <div class="card-head">
+      <h2>系統日誌<em>CONSOLE</em></h2>
+      <div class="seg" id="log-filter" role="tablist">
+        <button type="button" data-f="all" class="on">全部</button>
+        <button type="button" data-f="trade">交易</button>
+        <button type="button" data-f="warn">警告</button>
+      </div>
+    </div>
+    <div class="console" id="console" role="log"></div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span id="foot-left">POLYARB</span>
+  <span>結構性套利仍有執行、結算及平台風險；紙盤結果不代表實盤表現。</span>
+</footer>
+
+<div class="modal hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-box">
+    <h3 id="modal-title">確認</h3>
+    <p id="modal-text"></p>
+    <input id="modal-input" autocomplete="off" spellcheck="false">
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel" type="button">取消</button>
+      <button class="btn danger" id="modal-ok" type="button">確認</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+</body>
+</html>
