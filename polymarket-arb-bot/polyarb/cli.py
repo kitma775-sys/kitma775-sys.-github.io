@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from polyarb.config import Config, load_config
+from polyarb.config import Config, env_overrides, load_config, use_data_dir
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
 from polyarb.data.store import BookStore
@@ -156,6 +156,12 @@ async def cmd_ladders(cfg: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_serve(cfg: Config, args: argparse.Namespace) -> int:
+    from polyarb.app import serve
+
+    return await serve(cfg, host=args.host, port=args.port)
+
+
 async def cmd_geo(cfg: Config, args: argparse.Namespace) -> int:
     print(json.dumps(await RiskManager(cfg.risk).check_geo(), indent=2))
     return 0
@@ -217,6 +223,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--max-pages", type=int, help="limit Gamma pages (100 events each) for a quick look")
     s.add_argument("--no-gates", action="store_true", help="drop profit/edge/APR gates to see every positive edge")
 
+    sv = sub.add_parser("serve", help="engine + web dashboard (paper unless every live precondition holds)")
+    sv.add_argument("--host", default="0.0.0.0")
+    sv.add_argument("--port", type=int, help="default: $PORT or 8080")
+
     r = sub.add_parser("run", help="continuous engine (paper by default)")
     r.add_argument("--mode", choices=["paper", "live"])
     r.add_argument("--duration", type=float, help="seconds to run")
@@ -229,8 +239,9 @@ def build_parser() -> argparse.ArgumentParser:
     l.add_argument("--max-pages", type=int, default=3)
 
     sub.add_parser("geo", help="check Polymarket geoblock for this IP")
-    sub.add_parser("status", help="risk state, holds and PnL")
-    sub.add_parser("reset-kill", help="clear the kill switch")
+    for name, text in (("status", "risk state, holds and PnL"), ("reset-kill", "clear the kill switch")):
+        sp = sub.add_parser(name, help=text)
+        sp.add_argument("--mode", choices=["paper", "live"], help="which book under $POLYARB_DATA_DIR (default: $POLYARB_MODE)")
 
     c = sub.add_parser("convert", help="manually convert held NegRisk NO positions (live)")
     c.add_argument("--market-id", required=True)
@@ -246,10 +257,16 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    overrides = UNGATED if getattr(args, "no_gates", False) else None
-    cfg = load_config(args.config, overrides)
+    overrides = {**env_overrides(), **(UNGATED if getattr(args, "no_gates", False) else {})}
+    cfg = load_config(args.config or os.environ.get("POLYARB_CONFIG"), overrides)
+    data_dir = os.environ.get("POLYARB_DATA_DIR")
+    if data_dir and args.cmd in ("run", "status", "reset-kill"):
+        mode = getattr(args, "mode", None) or os.environ.get("POLYARB_MODE") or cfg.execution.mode
+        use_data_dir(cfg, data_dir, mode)
     if args.cmd == "scan":
         return asyncio.run(cmd_scan(cfg, args))
+    if args.cmd == "serve":
+        return asyncio.run(cmd_serve(cfg, args))
     if args.cmd == "run":
         return asyncio.run(cmd_run(cfg, args))
     if args.cmd == "ladders":
