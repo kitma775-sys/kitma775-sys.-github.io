@@ -47,7 +47,7 @@ class Executor:
         self.strategies = strategies
         self.cfg = cfg
         self.clob = clob
-        self._paper_fp: dict[str, tuple] = {}
+        self._paper_used: dict[tuple[str, Outcome], tuple] = {}
 
     async def execute(
         self,
@@ -65,8 +65,8 @@ class Executor:
                     return self._done(report)
                 report.opp = opp = fresh
             reason = approve(opp) if approve else None
-            if reason is None and self.gateway.mode == "paper" and target is not None:
-                reason = self._paper_reuse(opp, target)
+            if reason is None and self.gateway.mode == "paper":
+                reason = self._paper_reuse(opp)
             if reason:
                 report.action = f"abort: {reason}"
                 return self._done(report)
@@ -95,12 +95,17 @@ class Executor:
             report.realized_pnl = report.proceeds + sells - report.spent
         return report
 
-    def _paper_reuse(self, opp: Opportunity, target: Target) -> str | None:
-        """Paper fills never leave the real book, so unchanged liquidity must not be traded twice."""
-        fp = tuple(b.fingerprint() if (b := self.store.raw(t)) is not None else None for t in target.tokens)
-        if self._paper_fp.get(opp.key) == fp:
+    def _paper_reuse(self, opp: Opportunity) -> str | None:
+        """Paper fills never leave the real book, so a book side a paper fill took from must change before reuse."""
+        sides = {}
+        for leg in opp.legs:
+            book = self.store.raw(leg.yes_token)
+            if book is not None:
+                levels = book.asks if leg.outcome is Outcome.YES else book.bids
+                sides[(leg.yes_token, leg.outcome)] = tuple((lvl.price, lvl.size) for lvl in levels[:3])
+        if any(self._paper_used.get(side) == top for side, top in sides.items()):
             return "paper liquidity already used"
-        self._paper_fp[opp.key] = fp
+        self._paper_used.update(sides)
         return None
 
     async def _recheck(self, opp: Opportunity, target: Target) -> Opportunity | None:

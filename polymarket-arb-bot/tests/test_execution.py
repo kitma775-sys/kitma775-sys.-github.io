@@ -209,6 +209,17 @@ async def test_paper_does_not_retrade_unchanged_liquidity(store):
     assert rep.complete and [c[2] for c in gw.converted] == [20.0, 25.0]
 
 
+async def test_paper_reuse_only_counts_the_consumed_book_side(store):
+    bids = (0.40, 0.35, 0.30)
+    strat, target, opp, ms = convert_setup(store, bids, (0.42, 0.37, 0.32))
+    clob = FakeClob(exchange(ms, bids, 20))
+    ex, gw = executor(store, strat, clob=clob)
+    assert (await ex.execute(opp, target)).complete
+    clob.books = {m.yes_token: book(m.yes_token, bids=[(b, 20)], asks=[(b + 0.05, 70)]) for m, b in zip(ms, bids)}
+    again = await ex.execute(opp, target)
+    assert again.action == "abort: paper liquidity already used" and len(gw.converted) == 1
+
+
 async def test_yes_basket_locks_hold(store, tmp_path):
     ms = [make_market(f"Will {x} win?", group=x, neg_risk=True, index=i) for i, x in enumerate(["A", "B", "Other"])]
     ev = make_event(ms, neg_risk=True)
