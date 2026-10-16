@@ -215,7 +215,8 @@ def report(url: str, password: str | None) -> None:
     geo = state.get("geo") or {}
     print(f"  地區檢查：{geo.get('country', '?')} blocked={geo.get('blocked')}")
     for item in state.get("readiness", []):
-        print(f"    {'✓' if item['ok'] else '✗'} {item['id']}{' ' + item['detail'] if item.get('detail') else ''}")
+        mark = "✓" if item["ok"] else "✗" if item.get("critical", True) else "·"
+        print(f"    {mark} {item['id']}{' ' + item['detail'] if item.get('detail') else ''}")
     if state.get("live_blocked"):
         print(f"  實盤被拒原因：{', '.join(state['live_blocked'])}（系統維持紙盤）")
 
