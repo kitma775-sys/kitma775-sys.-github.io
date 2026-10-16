@@ -1,5 +1,7 @@
 import asyncio
+import io
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -8,7 +10,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 import polyarb.app as app_mod
 import polyarb.web.server as server_mod
-from polyarb.app import is_persistent, live_blockers, readiness
+from polyarb.app import is_persistent, live_blockers, readiness, redact_logs
 from polyarb.config import Config, env_overrides, load_config, use_data_dir
 from polyarb.data.store import BookStore
 from polyarb.engine import Engine
@@ -228,6 +230,31 @@ def test_live_needs_every_critical_check(monkeypatch):
     assert live_blockers("live", readiness("live", env, {"error": "timeout", "blocked": True}, True, True)) == ["geo"]
     assert live_blockers("paper", bare) == []
     assert live_blockers("yolo", bare) == ["unknown mode 'yolo'"]
+
+
+def test_private_key_never_reaches_logs_or_the_dashboard_console(tmp_path):
+    key = "0x" + "ab12" * 16
+    engine, _ = make_engine(tmp_path)
+    monitor = Monitor(engine, info())
+    logger = logging.getLogger("redact-test")
+    logger.propagate = False
+    out = io.StringIO()
+    logger.addHandler(logging.StreamHandler(out))
+    monitor.attach_logging(root=logger)
+    redactor = redact_logs({"POLYMARKET_PRIVATE_KEY": key}, root=logger)
+    try:
+        logger.error("signer %s / bare %s", key, key[2:])
+        try:
+            raise ValueError(f"bad key {key}")
+        except ValueError:
+            logger.exception("gateway failed")
+    finally:
+        monitor.detach_logging(root=logger)
+    dashboard = json.dumps(list(monitor.logs))
+    assert key[2:] not in out.getvalue() and key[2:] not in dashboard
+    assert out.getvalue().count("[redacted]") == 3 and "[redacted]" in dashboard
+    assert redactor.clean(f"gateway: {key}") == "gateway: [redacted]"
+    assert redact_logs({}, root=logger) is None
 
 
 def test_volume_check_wants_a_mount_inside_containers(monkeypatch):

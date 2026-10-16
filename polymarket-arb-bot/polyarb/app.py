@@ -84,6 +84,47 @@ def live_blockers(requested: str, checks: list[dict[str, Any]]) -> list[str]:
     return []
 
 
+class RedactSecrets(logging.Filter):
+    """Scrub secret values from a record before any handler (stdout, dashboard console) formats it."""
+
+    def __init__(self, values: list[str]) -> None:
+        super().__init__()
+        self.values = sorted({v for v in values if len(v) >= 8}, key=len, reverse=True)
+
+    def clean(self, text: str) -> str:
+        for value in self.values:
+            text = text.replace(value, "[redacted]")
+        return text
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info and not record.exc_text:
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+        if record.exc_text:
+            record.exc_text = self.clean(record.exc_text)
+        try:
+            msg = record.getMessage()
+        except Exception:
+            return True
+        cleaned = self.clean(msg)
+        if cleaned != msg:
+            record.msg, record.args = cleaned, None
+        return True
+
+
+def redact_logs(environ: Mapping[str, str], root: logging.Logger | None = None) -> RedactSecrets | None:
+    """Attach the filter to every handler on the root logger (call again after adding handlers)."""
+    key = environ.get("POLYMARKET_PRIVATE_KEY", "").strip()
+    values = [key, key[2:] if key.lower().startswith("0x") else "", environ.get("POLYARB_DASHBOARD_PASSWORD", "")]
+    if not any(values):
+        return None
+    root = root or logging.getLogger()
+    for handler in root.handlers:
+        existing = next((f for f in handler.filters if isinstance(f, RedactSecrets)), None)
+        if existing is None:
+            handler.addFilter(RedactSecrets(values))
+    return next((f for h in root.handlers for f in h.filters if isinstance(f, RedactSecrets)), None)
+
+
 def session_key(data_dir: Path) -> bytes:
     path = data_dir / ".session_key"
     try:
@@ -117,6 +158,7 @@ async def _refresh_info(info: RuntimeInfo, risk: RiskManager, gateway: Any, geo_
 
 async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str = "0.0.0.0", port: int | None = None) -> int:
     environ = os.environ if environ is None else environ
+    redactor = redact_logs(environ)
     data_dir = Path(environ.get("POLYARB_DATA_DIR") or "data")
     data_dir.mkdir(parents=True, exist_ok=True)
     port = port or int(environ.get("PORT") or 8080)
@@ -142,7 +184,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
             wallet = {"signer": signer_address(key), "funder": environ.get("POLYMARKET_WALLET") or None}
         except Exception as exc:
             log.exception("live gateway failed to start; running PAPER")
-            blocked = [f"gateway: {exc}"]
+            blocked = [f"gateway: {redactor.clean(str(exc)) if redactor else exc}"]
     if blocked:
         log.error("live mode refused (%s); running PAPER", ", ".join(blocked))
 
@@ -168,6 +210,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         monitor = Monitor(engine, info)
         monitor.restore(journal.tail())
         monitor.attach_logging()
+        redact_logs(environ)
         runner = await start(create_app(monitor, Auth(password, session_key(data_dir))), host, port)
         log.info("dashboard on http://%s:%d | mode %s | data %s", host, port, mode.upper(), data_dir)
 
