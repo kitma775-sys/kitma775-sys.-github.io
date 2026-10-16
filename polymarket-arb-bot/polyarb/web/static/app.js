@@ -308,10 +308,15 @@
       }
       const span = tEnd - tStart;
       const nX = Math.max(2, Math.min(6, Math.floor(iw / 90)));
+      const tFmt = span / nX < 60 ? hhmmss : hhmm;
+      let prev = '';
       for (let k = 0; k <= nX; k++) {
         const t = tStart + (span * k) / nX;
+        const text = tFmt(t);
+        if (text === prev) continue;
+        prev = text;
         const label = svg('text', { x: r1(x(t)), y: H - 5, 'text-anchor': k === 0 ? 'start' : k === nX ? 'end' : 'middle' });
-        label.textContent = hhmm(t);
+        label.textContent = text;
         axis.append(label);
       }
       root.append(grid, axis);
