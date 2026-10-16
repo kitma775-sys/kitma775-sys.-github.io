@@ -172,6 +172,7 @@
       <summary>一鍵轉實盤步驟（Zeabur）</summary>
       <ol>
         <li>先以紙盤運行一段時間，確認「執行成功率」、「略過原因」及持倉都合理。</li>
+        <li>「地區檢查」必須通過：Polymarket 會拒絕來自受限地區（包括日本、美國、英國、新加坡、台灣、德國等）的下單。若顯示 ✗，用專案內的 <code>deploy/zeabur.py --region hkg1</code> 把同一套設定部署到允許的地區（例如 Zeabur 香港），切勿用 VPN 或代理繞過；你本人所在地亦須合法使用 Polymarket。</li>
         <li>準備<b>專用</b>錢包：只存放打算投入的 pUSD 及少量 POL（gas）。私鑰只放在 Zeabur 環境變數，切勿貼到其他地方。</li>
         <li>在 Zeabur 服務 →「環境變數」加入：
           <div class="envline"><span>POLYARB_MODE=live</span><button type="button" data-copy="POLYARB_MODE=live">複製</button></div>

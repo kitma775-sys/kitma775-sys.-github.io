@@ -967,7 +967,7 @@
     if (S.meta.password_generated) want.push(['pw', 'amber', ICON.key, '控制台密碼是臨時隨機產生的', '請在 Zeabur 設定環境變數 POLYARB_DASHBOARD_PASSWORD，否則每次重啟密碼都會改變。']);
     const geo = t.geo || {};
     if (t.mode !== 'live' && geo.blocked) {
-      want.push(['geo', 'blue', ICON.globe, `伺服器所在地區（${geo.country || geo.error || '未知'}）被 Polymarket 限制`, '紙盤不受影響；轉實盤前需把服務部署在未被封鎖的地區。']);
+      want.push(['geo', 'blue', ICON.globe, `伺服器所在地區（${geo.country || geo.error || '未知'}）被 Polymarket 限制下單`, '紙盤不受影響；轉實盤前需把服務部署到允許的地區（例如 Zeabur 香港 hkg1），詳見右下「轉實盤」步驟。']);
     }
     if (['idle', 'geo', 'loading', 'sweeping'].includes(t.phase)) {
       want.push(['loading', 'blue', ICON.load, '正在載入全市場', '首次啟動需讀取約 4,600 個事件、35,000 個訂單簿，約 30–60 秒。', true]);
