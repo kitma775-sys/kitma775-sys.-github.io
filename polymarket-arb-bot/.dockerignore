@@ -1,0 +1,16 @@
+**/__pycache__
+**/*.py[cod]
+*.egg-info
+build
+.pytest_cache
+.ruff_cache
+.venv
+.git
+.env
+.env.*
+data
+KILL
+research
+tests
+Dockerfile
+.dockerignore
