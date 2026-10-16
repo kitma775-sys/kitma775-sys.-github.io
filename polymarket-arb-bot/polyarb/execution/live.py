@@ -25,9 +25,15 @@ from polyarb.execution.settlement import (
 )
 from polyarb.fees import fee_per_share
 from polyarb.models import FEE_FREE, FeeSchedule, Leg, Outcome
+from polyarb.risk import REGION_REJECTED
 
 BATCH_LIMIT = 15
 log = logging.getLogger(__name__)
+
+
+def _region_refused(status: Any, message: Any) -> bool:
+    """HTTP 403 on the order API is a refusal of this server (region policy or a WAF block), never transient."""
+    return status == 403 or "restricted in your region" in str(message or "").lower()
 
 
 def _tick_decimals(tick: float) -> int:
@@ -94,7 +100,8 @@ class PolymarketGateway:
         to_post: list[tuple[int, Any]] = []
         for i, s in enumerate(signed):
             if isinstance(s, BaseException):
-                results[i] = LegResult(legs[i], False, status="sign_error", error=str(s))
+                status = REGION_REJECTED if _region_refused(getattr(s, "status", None), s) else "sign_error"
+                results[i] = LegResult(legs[i], False, status=status, error=str(s))
             else:
                 to_post.append((i, s))
         batches = [to_post[i:i + BATCH_LIMIT] for i in range(0, len(to_post), BATCH_LIMIT)]
@@ -103,8 +110,9 @@ class PolymarketGateway:
         )
         for batch, resp in zip(batches, responses):
             if isinstance(resp, BaseException):
+                status = REGION_REJECTED if _region_refused(getattr(resp, "status", None), resp) else "post_error"
                 for i, _ in batch:
-                    results[i] = LegResult(legs[i], False, status="post_error", error=str(resp))
+                    results[i] = LegResult(legs[i], False, status=status, error=str(resp))
                 continue
             for (i, _), r in zip(batch, resp):
                 results[i] = self._leg_result(legs[i], r)
@@ -115,7 +123,9 @@ class PolymarketGateway:
 
     def _leg_result(self, leg: Leg, resp: Any) -> LegResult:
         if not getattr(resp, "ok", False):
-            return LegResult(leg, False, status=str(getattr(resp, "code", "rejected")), error=getattr(resp, "message", None))
+            message = getattr(resp, "message", None)
+            status = REGION_REJECTED if _region_refused(None, message) else str(getattr(resp, "code", "rejected"))
+            return LegResult(leg, False, status=status, error=message)
         shares = float(resp.taking_amount)
         spent = float(resp.making_amount)
         avg = spent / shares if shares > 0 else leg.avg_price

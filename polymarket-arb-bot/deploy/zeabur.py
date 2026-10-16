@@ -213,7 +213,8 @@ def report(url: str, password: str | None) -> None:
         print(f"  （無法登入讀取轉實盤清單：{exc}；若剛改過密碼，請在 Zeabur 重新啟動服務）")
         return
     geo = state.get("geo") or {}
-    print(f"  地區檢查：{geo.get('country', '?')} blocked={geo.get('blocked')}")
+    api = "查詢失敗" if geo.get("error") else "API 可下單" if geo.get("api_ok") else "API 不可下單"
+    print(f"  地區檢查：{geo.get('country', '?')}・網頁 blocked={geo.get('blocked')}・{api}")
     for item in state.get("readiness", []):
         mark = "✓" if item["ok"] else "✗" if item.get("critical", True) else "·"
         print(f"    {mark} {item['id']}{' ' + item['detail'] if item.get('detail') else ''}")

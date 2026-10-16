@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Mapping
 
 import httpx
 
@@ -18,7 +18,20 @@ if TYPE_CHECKING:
     from polyarb.execution.base import ExecutionReport
 
 GEOBLOCK_URL = "https://polymarket.com/api/geoblock"
+# Close-only on polymarket.com only, "the API itself is not restricted" (docs.polymarket.com/api-reference/geoblock);
+# the geoblock endpoint is on polymarket.com and still reports blocked=true for them.
+API_UNRESTRICTED = frozenset({"IE", "JP", "KR", "MT", "NL"})
+REGION_REJECTED = "region_rejected"
 log = logging.getLogger(__name__)
+
+
+def api_allowed(geo: Mapping[str, Any] | None) -> bool:
+    """Whether Polymarket accepts API orders from this IP; a failed lookup counts as blocked."""
+    if not geo or geo.get("error"):
+        return False
+    if geo.get("blocked") is False:
+        return True
+    return geo.get("blocked") is True and str(geo.get("country") or "").upper() in API_UNRESTRICTED
 
 
 @dataclass
@@ -97,8 +110,8 @@ class RiskManager:
             return f"killed: {self.state.kill_reason}"
         if cfg.kill_file and os.path.exists(cfg.kill_file):
             return "kill file present"
-        if cfg.require_geo_ok and self.geo is not None and self.geo.get("blocked"):
-            return f"geoblocked ({self.geo.get('country')})"
+        if cfg.require_geo_ok and self.geo is not None and not api_allowed(self.geo):
+            return f"geoblocked ({self.geo.get('country') or self.geo.get('error')})"
         if self.state.realized_today <= -cfg.max_daily_loss_usd:
             return "daily loss limit"
         if self.state.consecutive_failures >= cfg.max_consecutive_failures:
@@ -159,6 +172,8 @@ class RiskManager:
                     legs=[{"token": r.leg.token_id, "outcome": r.leg.outcome.value, "shares": r.shares} for r in report.legs if r.ok],
                 )
             )
+        if any(r.status == REGION_REJECTED for r in report.legs + report.retries):
+            self.kill("Polymarket refused orders from this server (HTTP 403, e.g. region restriction); check the geoblock policy before reset-kill")
         if report.orphaned:
             self.kill(f"{report.action or 'positions kept'} on {opp.key}; review positions before reset-kill")
         if self.state.consecutive_failures >= self.cfg.max_consecutive_failures:

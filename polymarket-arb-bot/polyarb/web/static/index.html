@@ -172,7 +172,7 @@
       <summary>一鍵轉實盤步驟（Zeabur）</summary>
       <ol>
         <li>先以紙盤運行一段時間，確認「執行成功率」、「略過原因」及持倉都合理。</li>
-        <li>「地區檢查」必須通過：Polymarket 會拒絕來自受限地區（包括日本、美國、英國、新加坡、台灣、德國等）的下單。若顯示 ✗，用專案內的 <code>deploy/zeabur.py --region hkg1</code> 把同一套設定部署到允許的地區（例如 Zeabur 香港），切勿用 VPN 或代理繞過；你本人所在地亦須合法使用 Polymarket。</li>
+        <li>「地區檢查」必須通過。按 Polymarket 官方地區規則，日本、南韓、愛爾蘭、荷蘭只限制網頁版投注，API 下單不受限，所以 Zeabur 東京伺服器可以直接實盤；美國、英國、新加坡、台灣、德國、法國等地則連 API 下單也受限。若顯示 ✕，用專案內的 <code>deploy/zeabur.py --region hkg1</code> 把同一套設定部署到准許的地區（例如 Zeabur 香港）。萬一 Polymarket 以 HTTP 403 拒絕訂單，機器人會即時熔斷停手。切勿用 VPN 或代理繞過；你本人所在地亦須合法使用 Polymarket。</li>
         <li>準備<b>專用</b>錢包，只存放打算投入的 pUSD。未設 <code>POLYMARKET_WALLET</code> 時使用此私鑰的 Deposit Wallet（經 relayer 送交易，免 gas）；轉實盤後本卡會顯示實際的入金地址。私鑰只放在 Zeabur 環境變數，切勿貼到其他地方。</li>
         <li>在 Zeabur 服務 →「環境變數」加入：
           <div class="envline"><span>POLYARB_MODE=live</span><button type="button" data-copy="POLYARB_MODE=live">複製</button></div>

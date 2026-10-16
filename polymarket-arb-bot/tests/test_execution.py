@@ -9,7 +9,7 @@ from polyarb.execution.executor import Executor
 from polyarb.execution.live import PolymarketGateway, _cents, _price
 from polyarb.execution.paper import PaperGateway
 from polyarb.models import FeeSchedule, Leg, Outcome, Side
-from polyarb.risk import RiskManager
+from polyarb.risk import REGION_REJECTED, RiskManager
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
 
 from conftest import MARKET_ID, book, make_event, make_market
@@ -242,12 +242,13 @@ async def test_yes_basket_locks_hold(store, tmp_path):
 
 
 class FakeSdk:
-    def __init__(self, statuses=None, held=0.0, matched=None):
+    def __init__(self, statuses=None, held=0.0, matched=None, post_error=None):
         self.statuses = statuses or {}
         self.batches: list[int] = []
         self.cancelled: list[str] = []
         self.held = held
         self.matched = matched  # None -> get_order fails and the gateway falls back to the balance
+        self.post_error = post_error
 
     async def create_market_order(self, **kw):
         return kw
@@ -256,11 +257,16 @@ class FakeSdk:
         from polymarket.models.clob.order_response import AcceptedOrder, RejectedOrder
 
         self.batches.append(len(orders))
+        if self.post_error:
+            raise self.post_error
         out = []
         for o in orders:
             status = self.statuses.get(o["token_id"], "matched")
             if status == "fok_not_filled":
                 out.append(RejectedOrder(code="fok_not_filled", message="killed"))
+                continue
+            if status == "restricted":
+                out.append(RejectedOrder(code="unknown", message="Trading restricted in your region"))
                 continue
             spent = o["amount"]
             shares = Decimal("0") if status == "live" else (spent / o["max_price"]).quantize(Decimal("0.01"))
@@ -313,6 +319,38 @@ async def test_live_delayed_and_resting_orders_reconciled_from_order_status():
     sdk.matched = {"id-T1": 0}
     (none,) = await gw.buy([live_leg(1)])
     assert not none.ok and none.error == "no fill after reconcile"
+
+
+def region_refusal(message="Trading restricted in your region, please refer to available regions", status=403):
+    from polymarket.errors import RequestRejectedError
+
+    return RequestRejectedError(message, status=status)
+
+
+async def test_live_flags_order_api_refusals_as_region_rejections():
+    pytest.importorskip("polymarket")
+    for exc, status in (
+        (region_refusal(), REGION_REJECTED),
+        (region_refusal("Request to https://clob.polymarket.com/orders was blocked by Cloudflare with status 403"), REGION_REJECTED),
+        (region_refusal("upstream timeout", status=502), "post_error"),
+    ):
+        gw = PolymarketGateway(FakeSdk(post_error=exc), chain=SimpleNamespace())
+        assert {r.status for r in await gw.buy([live_leg(0), live_leg(1)])} == {status}
+    res = await PolymarketGateway(FakeSdk(statuses={"T1": "restricted"}), chain=SimpleNamespace()).buy([live_leg(0), live_leg(1)])
+    assert [r.status for r in res] == ["matched", REGION_REJECTED]
+
+
+async def test_order_api_refusal_trips_the_kill_switch(store, tmp_path):
+    pytest.importorskip("polymarket")
+    strat, target, opp, _ = convert_setup(store, (0.40, 0.35, 0.30), (0.42, 0.37, 0.32))
+    gateway = PolymarketGateway(FakeSdk(post_error=region_refusal()), chain=SimpleNamespace())
+    ex, _ = executor(store, strat, gateway=gateway)
+    rep = await ex.execute(opp, target)
+    assert rep.sent and not rep.complete and rep.action == "no fills"
+    assert {r.status for r in rep.legs} == {REGION_REJECTED}
+    risk = RiskManager(RiskConfig(kill_file=""), tmp_path / "s.json")
+    risk.finish(rep)
+    assert risk.state.killed and "HTTP 403" in risk.state.kill_reason
 
 
 def test_live_wallet_info_reports_the_wallet_to_fund():

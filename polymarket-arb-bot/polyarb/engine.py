@@ -16,7 +16,7 @@ from polyarb.data.ws import MarketStream
 from polyarb.execution.executor import Executor
 from polyarb.journal import Journal
 from polyarb.models import Event, Opportunity
-from polyarb.risk import RiskManager
+from polyarb.risk import RiskManager, api_allowed
 from polyarb.strategies.base import Strategy, Target
 from polyarb.universe import Universe, build_universe
 
@@ -318,7 +318,7 @@ class Engine:
         try:
             self.phase = "geo"
             geo = await self.risk.check_geo()
-            log.info("geoblock check: %s", geo)
+            log.info("geoblock check: %s (API orders %s)", geo, "allowed" if api_allowed(geo) else "not allowed")
             gc.set_threshold(50_000, 20, 100)
             self.phase = "loading"
             await self.refresh_universe()

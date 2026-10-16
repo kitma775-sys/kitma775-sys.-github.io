@@ -17,7 +17,7 @@ from polyarb.engine import Engine, ScanResult, scan_once
 from polyarb.execution.executor import Executor
 from polyarb.execution.paper import PaperGateway
 from polyarb.journal import Journal
-from polyarb.risk import RiskManager
+from polyarb.risk import RiskManager, api_allowed
 from polyarb.strategies.ladder_parse import detect_ladders
 from polyarb.universe import build_strategies
 
@@ -115,8 +115,8 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
                 print("Refusing live mode: set POLYARB_LIVE_CONFIRM=yes after reading the README risk section.")
                 return 2
             geo = await risk.check_geo()
-            if geo.get("blocked"):
-                print(f"Refusing live mode: Polymarket geoblock reports blocked={geo}")
+            if not api_allowed(geo):
+                print(f"Refusing live mode: Polymarket does not accept API orders from this IP ({geo})")
                 return 2
             from polyarb.execution.live import PolymarketGateway
 
@@ -163,7 +163,8 @@ async def cmd_serve(cfg: Config, args: argparse.Namespace) -> int:
 
 
 async def cmd_geo(cfg: Config, args: argparse.Namespace) -> int:
-    print(json.dumps(await RiskManager(cfg.risk).check_geo(), indent=2))
+    geo = await RiskManager(cfg.risk).check_geo()
+    print(json.dumps({**geo, "api_allowed": api_allowed(geo)}, indent=2))
     return 0
 
 
@@ -238,7 +239,7 @@ def build_parser() -> argparse.ArgumentParser:
     l.add_argument("--search", help="Gamma title_search filter")
     l.add_argument("--max-pages", type=int, default=3)
 
-    sub.add_parser("geo", help="check Polymarket geoblock for this IP")
+    sub.add_parser("geo", help="check whether Polymarket accepts API orders from this IP")
     for name, text in (("status", "risk state, holds and PnL"), ("reset-kill", "clear the kill switch")):
         sp = sub.add_parser(name, help=text)
         sp.add_argument("--mode", choices=["paper", "live"], help="which book under $POLYARB_DATA_DIR (default: $POLYARB_MODE)")

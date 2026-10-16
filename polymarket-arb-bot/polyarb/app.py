@@ -25,7 +25,7 @@ from polyarb.execution.executor import Executor
 from polyarb.execution.paper import PaperGateway
 from polyarb.journal import Journal
 from polyarb.monitor import Monitor, RuntimeInfo
-from polyarb.risk import RiskManager
+from polyarb.risk import RiskManager, api_allowed
 from polyarb.universe import build_strategies
 from polyarb.web.server import Auth, create_app, start
 
@@ -52,15 +52,19 @@ def is_persistent(path: Path, environ: Mapping[str, str]) -> bool:
     return False
 
 
+def geo_check(geo: Mapping[str, Any]) -> dict[str, Any]:
+    """Judged on API access: a frontend-only restriction (e.g. JP) still passes."""
+    return {"id": "geo", "ok": api_allowed(geo), "critical": True, "detail": str(geo.get("country") or geo.get("error") or "?")}
+
+
 def readiness(requested: str, environ: Mapping[str, str], geo: Mapping[str, Any], password_set: bool, persistent: bool) -> list[dict[str, Any]]:
     """Live-trading checklist; every ``critical`` item must pass before live mode is allowed."""
-    country = geo.get("country") or geo.get("error") or "?"
     return [
         {"id": "mode", "ok": requested == "live", "critical": False, "detail": requested},
         {"id": "confirm", "ok": environ.get("POLYARB_LIVE_CONFIRM") == "yes", "critical": True, "detail": ""},
         {"id": "key", "ok": bool(environ.get("POLYMARKET_PRIVATE_KEY")), "critical": True, "detail": ""},
         {"id": "sdk", "ok": sdk_installed(), "critical": True, "detail": ""},
-        {"id": "geo", "ok": geo.get("blocked") is False, "critical": True, "detail": str(country)},
+        geo_check(geo),
         {"id": "password", "ok": password_set, "critical": True, "detail": ""},
         {"id": "volume", "ok": persistent, "critical": True, "detail": ""},
     ]
@@ -141,8 +145,7 @@ async def _refresh_info(info: RuntimeInfo, risk: RiskManager, gateway: Any, geo_
             info.geo = await risk.check_geo()
             for item in info.readiness:
                 if item["id"] == "geo":
-                    item["ok"] = info.geo.get("blocked") is False
-                    item["detail"] = str(info.geo.get("country") or info.geo.get("error") or "?")
+                    item.update(geo_check(info.geo))
             next_geo = time.monotonic() + geo_every_s
         await asyncio.sleep(wallet_every_s)
 

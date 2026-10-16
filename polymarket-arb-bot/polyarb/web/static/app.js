@@ -29,7 +29,7 @@
     confirm: ['POLYARB_LIVE_CONFIRM=yes', '明確確認啟用實盤'],
     key: ['POLYMARKET_PRIVATE_KEY', '錢包私鑰（只存於伺服器環境變數）'],
     sdk: ['polymarket-client', '官方下單 SDK 已安裝'],
-    geo: ['地區檢查', '伺服器 IP 未被 Polymarket 封鎖'],
+    geo: ['地區檢查', '伺服器所在地區准許 API 下單（日本等地只限制網頁版）'],
     password: ['POLYARB_DASHBOARD_PASSWORD', '已設定固定控制台密碼'],
     volume: ['/data 永久磁碟', '帳本與持倉可跨重啟保存'],
   };
@@ -41,9 +41,11 @@
 
   const BLOCKED = {
     confirm: '未設 POLYARB_LIVE_CONFIRM=yes', key: '未設 POLYMARKET_PRIVATE_KEY', sdk: '未安裝下單 SDK',
-    geo: '伺服器地區被 Polymarket 封鎖', password: '未設 POLYARB_DASHBOARD_PASSWORD', volume: '未掛載 /data 永久磁碟',
+    geo: '伺服器所在地區不准 API 下單', password: '未設 POLYARB_DASHBOARD_PASSWORD', volume: '未掛載 /data 永久磁碟',
   };
   const blockedText = b => BLOCKED[b] || (String(b).startsWith('gateway:') ? '連接 Polymarket 失敗（' + String(b).slice(8).trim() + '）' : String(b));
+  const killText = r => /^Polymarket refused orders/.test(r) ? 'Polymarket 拒絕了此伺服器的訂單（HTTP 403，通常是地區限制）' : r;
+  const geoDetail = (g, fallback) => g.error ? '查詢失敗' : !g.country ? fallback || '?' : `${g.country}・API ${g.api_ok ? '可用' : '受限'}`;
 
   const SKIPS = [
     [/^skip:cooldown$/, '冷卻中（同一市場暫不重試）'],
@@ -57,7 +59,7 @@
     [/^skip:daily loss limit$/, '今日虧損已達上限'],
     [/^skip:consecutive failure limit$/, '連續失敗已達上限'],
     [/^skip:shutting down$/, '系統關閉中'],
-    [/^skip:geoblocked/, '地區封鎖'],
+    [/^skip:geoblocked/, '地區檢查未通過'],
     [/^abort: vanished on recheck$/, '下單前複查：機會已消失'],
     [/^abort: paper liquidity already used$/, '紙盤：同一流動性已用過'],
     [/^abort: /, s => '下單前攔截：' + s.slice(7)],
@@ -972,12 +974,14 @@
     } else if (t.requested_mode && t.requested_mode !== t.mode) {
       want.push(['live-blocked', 'amber', ICON.info, `無法識別 POLYARB_MODE=${t.requested_mode}`, '只接受 paper 或 live；目前以紙盤運行。']);
     }
-    if (risk.killed) want.push(['killed', 'red', ICON.bolt, '熔斷已觸發，所有交易已停止', `${risk.kill_reason || ''}。請先檢查持倉，確認無誤後按「重置熔斷」。`]);
+    if (risk.killed) want.push(['killed', 'red', ICON.bolt, '熔斷已觸發，所有交易已停止', `${killText(risk.kill_reason || '')}。請先檢查持倉，確認無誤後按「重置熔斷」。`]);
     if (risk.paused) want.push(['paused', 'amber', ICON.pause, '交易已暫停', '機器人仍在監控與定價，但不會下單。按「恢復交易」繼續。']);
     if (S.meta.password_generated) want.push(['pw', 'amber', ICON.key, '控制台密碼是臨時隨機產生的', '請在 Zeabur 設定環境變數 POLYARB_DASHBOARD_PASSWORD，否則每次重啟密碼都會改變。']);
     const geo = t.geo || {};
-    if (t.mode !== 'live' && geo.blocked) {
-      want.push(['geo', 'blue', ICON.globe, `伺服器所在地區（${geo.country || geo.error || '未知'}）被 Polymarket 限制下單`, '紙盤不受影響；轉實盤前需把服務部署到允許的地區（例如 Zeabur 香港 hkg1），詳見右下「轉實盤」步驟。']);
+    if (geo.api_ok === false) {
+      const where = geo.error ? '未能確認伺服器所在地區' : `伺服器所在地區（${geo.country || '未知'}）不准 API 下單`;
+      if (t.mode === 'live') want.push(['geo-live', 'red', ICON.globe, `${where}，實盤暫停下單`, '機器人約每 10 分鐘重新檢查一次，確認准許 API 下單後自動恢復。']);
+      else want.push(['geo', 'blue', ICON.globe, where, '紙盤不受影響；轉實盤前需把服務部署到准許 API 下單的地區（例如 Zeabur 東京或香港），詳見右下「轉實盤」步驟。']);
     }
     if (['idle', 'geo', 'loading', 'sweeping'].includes(t.phase)) {
       want.push(['loading', 'blue', ICON.load, '正在載入全市場', '首次啟動需讀取約 4,600 個事件、35,000 個訂單簿，約 30–60 秒。', true]);
@@ -1134,7 +1138,7 @@
 
   function renderReadiness(t) {
     const items = t.readiness || [];
-    const sig = JSON.stringify([items, t.mode, t.requested_mode, t.wallet]);
+    const sig = JSON.stringify([items, t.mode, t.requested_mode, t.wallet, t.geo]);
     if (S.sigs.ready === sig) return;
     S.sigs.ready = sig;
     const crit = items.filter(i => i.critical), ok = crit.filter(i => i.ok).length;
@@ -1149,7 +1153,7 @@
     setHTML($('#checklist'), items.map(i => {
       const [code, desc] = READY[i.id] || [i.id, ''];
       const cls2 = i.ok ? 'ok' : i.critical ? 'no' : 'info';
-      const det = i.id === 'mode' ? (i.detail === 'live' ? 'live' : '目前 ' + (i.detail || 'paper')) : i.id === 'geo' ? i.detail : i.ok ? '' : '未完成';
+      const det = i.id === 'mode' ? (i.detail === 'live' ? 'live' : '目前 ' + (i.detail || 'paper')) : i.id === 'geo' ? geoDetail(t.geo || {}, i.detail) : i.ok ? '' : '未完成';
       return html`<li class="${cls2}"><span class="ic">${i.ok ? '✓' : i.critical ? '✕' : 'i'}</span><div><code>${code}</code><div class="desc">${desc}</div></div><span class="det">${det}</span></li>`;
     }));
     const w = t.wallet;
@@ -1343,7 +1347,7 @@
 
   $('#btn-reset').addEventListener('click', async () => {
     const reason = (S.tick && S.tick.risk && S.tick.risk.kill_reason) || '';
-    const v = await modal({ title: '重置熔斷', text: `熔斷原因：${reason}。請先在 Polymarket 確認所有持倉正常，然後輸入 RESET 確認。`, expect: 'RESET', okText: '重置' });
+    const v = await modal({ title: '重置熔斷', text: `熔斷原因：${killText(reason)}。請先在 Polymarket 確認所有持倉正常，然後輸入 RESET 確認。`, expect: 'RESET', okText: '重置' });
     if (v === null) return;
     try { await control('reset_kill', { confirm: v }); toast('熔斷已重置，恢復自動交易', 'good'); } catch (err) { toast('重置失敗：' + err.message, 'bad'); }
   });

@@ -16,6 +16,7 @@ from typing import Any
 from polyarb import __version__
 from polyarb.engine import Engine
 from polyarb.fastjson import dumps
+from polyarb.risk import api_allowed
 
 log = logging.getLogger(__name__)
 
@@ -392,8 +393,15 @@ class Monitor:
             "readiness": self.info.readiness,
             "wallet": self.info.wallet,
             "live_blocked": self.info.live_blocked,
-            "geo": {k: v for k, v in (self.info.geo or {}).items() if k in ("blocked", "country", "region", "error")},
+            "geo": self._geo(),
         }
+
+    def _geo(self) -> dict[str, Any]:
+        geo = self.info.geo
+        if not geo:
+            return {}
+        public = {k: v for k, v in geo.items() if k in ("blocked", "country", "region", "error")}
+        return {**public, "api_ok": api_allowed(geo)}
 
     def snapshot(self) -> dict[str, Any]:
         cfg = self.engine.cfg

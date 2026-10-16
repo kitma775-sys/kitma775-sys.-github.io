@@ -221,15 +221,41 @@ async def test_cancelling_the_engine_never_cuts_an_execution_in_half(tmp_path):
 def test_live_needs_every_critical_check(monkeypatch):
     monkeypatch.setattr(app_mod, "sdk_installed", lambda: True)
     env = {"POLYARB_LIVE_CONFIRM": "yes", "POLYMARKET_PRIVATE_KEY": "0x" + "11" * 32}
-    checks = readiness("live", env, {"blocked": False, "country": "JP"}, True, True)
+    checks = readiness("live", env, {"blocked": False, "country": "HK"}, True, True)
     assert live_blockers("live", checks) == []
-    assert {c["id"]: c["detail"] for c in checks}["geo"] == "JP"
+    assert {c["id"]: c["detail"] for c in checks}["geo"] == "HK"
+    tokyo = readiness("live", env, {"blocked": True, "country": "JP", "region": "13"}, True, True)
+    assert live_blockers("live", tokyo) == []
 
     bare = readiness("live", {"POLYARB_LIVE_CONFIRM": "YES"}, {"blocked": True, "country": "US"}, False, False)
     assert live_blockers("live", bare) == ["confirm", "key", "geo", "password", "volume"]
     assert live_blockers("live", readiness("live", env, {"error": "timeout", "blocked": True}, True, True)) == ["geo"]
     assert live_blockers("paper", bare) == []
     assert live_blockers("yolo", bare) == ["unknown mode 'yolo'"]
+
+
+def test_dashboard_geo_reports_api_access_without_the_ip(tmp_path):
+    engine, _ = make_engine(tmp_path)
+    monitor = Monitor(engine, info())
+    assert monitor.tick()["geo"] == {}
+    monitor.info.geo = {"blocked": True, "ip": "203.0.113.42", "country": "JP", "region": "13"}
+    assert monitor.tick()["geo"] == {"blocked": True, "country": "JP", "region": "13", "api_ok": True}
+    monitor.info.geo = {"blocked": True, "error": "timeout"}
+    assert monitor.tick()["geo"] == {"blocked": True, "error": "timeout", "api_ok": False}
+
+
+async def test_geo_refresh_rejudges_the_readiness_item():
+    class Risk:
+        async def check_geo(self):
+            return {"blocked": True, "country": "JP"}
+
+    stale = {"id": "geo", "ok": False, "critical": True, "detail": "timeout"}
+    runtime = RuntimeInfo(mode="paper", requested_mode="live", readiness=[stale])
+    task = asyncio.create_task(app_mod._refresh_info(runtime, Risk(), None, geo_every_s=0, wallet_every_s=3600))
+    await asyncio.sleep(0.01)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert runtime.readiness == [{"id": "geo", "ok": True, "critical": True, "detail": "JP"}]
 
 
 def test_private_key_never_reaches_logs_or_the_dashboard_console(tmp_path):

@@ -6,7 +6,7 @@ import pytest
 from polyarb.config import RiskConfig
 from polyarb.execution.base import ExecutionReport, LegResult
 from polyarb.models import Leg, Opportunity, Outcome, Settlement, Side
-from polyarb.risk import RiskManager
+from polyarb.risk import REGION_REJECTED, RiskManager, api_allowed
 
 from conftest import NOW
 
@@ -59,9 +59,31 @@ def test_kill_switch_and_kill_file(risk, tmp_path):
     assert risk.check(opp(), T0) is None
 
 
-def test_geoblock(risk):
+@pytest.mark.parametrize(
+    "geo, ok",
+    [
+        ({"blocked": False, "country": "HK"}, True),
+        ({"blocked": True, "country": "JP", "region": "13"}, True),  # close-only on the frontend, API unrestricted
+        ({"blocked": True, "country": "KR"}, True),
+        ({"blocked": True, "country": "US", "region": "NY"}, False),
+        ({"blocked": True, "country": "SG"}, False),
+        ({"blocked": True, "error": "timeout"}, False),
+        ({"country": "JP"}, False),
+        (None, False),
+    ],
+)
+def test_api_allowed_follows_the_official_jurisdiction_table(geo, ok):
+    assert api_allowed(geo) is ok
+
+
+def test_geoblock_gates_on_api_access(risk):
     risk.geo = {"blocked": True, "country": "US"}
     assert risk.check(opp(), T0) == "geoblocked (US)"
+    risk.geo = {"blocked": True, "error": "timeout"}
+    assert risk.check(opp(), T0) == "geoblocked (timeout)"
+    risk.geo = {"blocked": True, "country": "JP"}
+    assert risk.check(opp(), T0) is None
+    risk.geo = {"blocked": True, "country": "US"}
     risk.cfg.require_geo_ok = False
     assert risk.check(opp(), T0) is None
 
@@ -118,6 +140,15 @@ def test_finish_tracks_pnl_failures_and_kills(risk):
 def test_daily_loss_trips_kill(risk):
     risk.finish(report(opp(), complete=False, pnl=-30))
     assert risk.state.killed and risk.state.kill_reason == "daily loss limit reached"
+
+
+def test_region_rejected_order_trips_kill(risk):
+    o = opp()
+    r = ExecutionReport(opp=o, mode="live", started_at=T0, finished_at=T0 + 1, sent=True)
+    r.legs = [LegResult(o.legs[0], False, status=REGION_REJECTED, error="Trading restricted in your region")]
+    risk.finish(r)
+    assert risk.state.killed and "HTTP 403" in risk.state.kill_reason
+    assert risk.check(opp(key="k2", event="E2"), T0 + 60).startswith("killed: Polymarket refused orders")
 
 
 def test_orphaned_legs_trip_kill_and_are_tracked(risk):
