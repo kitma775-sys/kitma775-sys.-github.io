@@ -54,6 +54,21 @@ def test_set_level_updates_and_deletes():
     assert b.best_ask is None
 
 
+def test_set_level_keeps_handed_out_ladders_unchanged():
+    b = OrderBook.from_api({"asset_id": "T", "hash": "h1", "bids": [{"price": "0.40", "size": "10"}, {"price": "0.38", "size": "4"}],
+                            "asks": [{"price": "0.45", "size": "7"}]})
+    bids, no_asks = b.bids, b.no_asks()
+    assert b.hash == "h1" and b.no_asks() is no_asks  # mirror is cached until the bids move
+    b.set_level("BUY", "0.39", "2")
+    b.set_level("BUY", "0.40", "0")
+    assert bids == [(0.40, 10), (0.38, 4)] and [lvl.price for lvl in no_asks] == [0.60, 0.62]
+    assert b.bids == [(0.39, 2), (0.38, 4)] and [lvl.price for lvl in b.no_asks()] == [0.61, 0.62]
+    assert b.hash is None  # a locally edited book no longer matches any server hash
+    b.set_level("SELL", "0.44", "1")
+    b.set_level("SELL", "0.50", "0")  # deleting an absent level is a no-op
+    assert b.asks == [(0.44, 1), (0.45, 7)] and b.fingerprint(1) == (((0.39, 2),), ((0.44, 1),))
+
+
 def test_take_walks_levels_with_fees():
     levels = [Level(0.40, 10), Level(0.50, 10)]
     f = take(levels, 15, SPORTS)

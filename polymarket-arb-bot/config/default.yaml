@@ -59,7 +59,8 @@ execution:
   state_path: data/state.json
 
 engine:
-  rest_sweep_s: 6
+  rest_sweep_s: 6        # full-universe REST pass; unchanged books are skipped by server hash
+  eval_interval_ms: 50   # coalesce websocket bursts before re-evaluating a target (0 = immediate)
   use_websocket: true
   ws_max_targets: 300
   ws_assets_per_conn: 400

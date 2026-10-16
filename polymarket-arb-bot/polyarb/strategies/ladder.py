@@ -18,12 +18,18 @@ import math
 from datetime import timedelta
 from typing import Iterable
 
+from polyarb.book import Level
 from polyarb.config import LadderConfig
 from polyarb.fees import fee_per_share
-from polyarb.models import Event, Opportunity, Outcome, Settlement
+from polyarb.models import Event, FeeSchedule, Opportunity, Outcome, Settlement
 from polyarb.sizing import LegBook, size_basket
 from polyarb.strategies.base import Books, Target, buy_leg, utc
 from polyarb.strategies.ladder_parse import Ladder, detect_ladders
+
+
+def _quote(levels: list[Level], fee: FeeSchedule) -> tuple[list[Level], float] | None:
+    """Ladder plus its all-in top-of-book cost per share, or None for an empty side."""
+    return (levels, levels[0].price + fee_per_share(fee, levels[0].price)) if levels else None
 
 
 class LadderArb:
@@ -46,21 +52,21 @@ class LadderArb:
     def top_edge(self, target: Target, books: Books) -> float | None:
         """Best 1 - (NO_strong + fee) - (YES_weak + fee) over all implication pairs."""
         best = None
-        rungs = target.payload.rungs
-        for i, strong in enumerate(rungs):
-            book_a = books.get(strong.market.yes_token)
-            if book_a is None or not book_a.bids:
+        cheapest_yes = None  # min YES cost over the weaker rungs already visited
+        for rung in reversed(target.payload.rungs):
+            book = books.get(rung.market.yes_token)
+            if book is None:
                 continue
-            p_no = 1.0 - book_a.bids[0].price
-            c_no = p_no + fee_per_share(strong.market.fee, p_no)
-            for weak in rungs[i + 1:]:
-                book_b = books.get(weak.market.yes_token)
-                if book_b is None or not book_b.asks:
-                    continue
-                p_yes = book_b.asks[0].price
-                edge = 1.0 - c_no - p_yes - fee_per_share(weak.market.fee, p_yes)
+            if cheapest_yes is not None and book.bids:
+                p_no = 1.0 - book.bids[0].price
+                edge = 1.0 - p_no - fee_per_share(rung.market.fee, p_no) - cheapest_yes
                 if best is None or edge > best:
                     best = edge
+            if book.asks:
+                p_yes = book.asks[0].price
+                c_yes = p_yes + fee_per_share(rung.market.fee, p_yes)
+                if cheapest_yes is None or c_yes < cheapest_yes:
+                    cheapest_yes = c_yes
         return best
 
     def evaluate(self, target: Target, books: Books, now: float) -> list[Opportunity]:
@@ -69,20 +75,22 @@ class LadderArb:
         rungs = ladder.rungs
         now_dt = utc(now)
         found: list[Opportunity] = []
+        no_side: list[tuple[list[Level], float] | None] = []
+        yes_side: list[tuple[list[Level], float] | None] = []
+        for rung in rungs:
+            book = books.get(rung.market.yes_token)
+            no_side.append(_quote(book.no_asks(), rung.market.fee) if book is not None else None)
+            yes_side.append(_quote(book.asks, rung.market.fee) if book is not None else None)
         for i, strong in enumerate(rungs):
-            book_a = books.get(strong.market.yes_token)
-            if book_a is None or not book_a.bids:
+            if no_side[i] is None:
                 continue
-            no_a = book_a.no_asks()
-            c_no = no_a[0].price + fee_per_share(strong.market.fee, no_a[0].price)
-            for weak in rungs[i + 1:]:
-                book_b = books.get(weak.market.yes_token)
-                if book_b is None or not book_b.asks:
+            no_a, c_no = no_side[i]
+            for j in range(i + 1, len(rungs)):
+                quote = yes_side[j]
+                if quote is None or 1.0 - c_no - quote[1] < cfg.min_unit_edge:
                     continue
-                yes_b = book_b.asks
-                c_yes = yes_b[0].price + fee_per_share(weak.market.fee, yes_b[0].price)
-                if 1.0 - c_no - c_yes < cfg.min_unit_edge:
-                    continue
+                weak = rungs[j]
+                yes_b = quote[0]
                 ends = [d for d in (strong.market.end_date, weak.market.end_date) if d]
                 if not ends:
                     continue

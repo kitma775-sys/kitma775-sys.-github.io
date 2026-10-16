@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 import httpx
 
 from polyarb.book import OrderBook
+from polyarb.fastjson import loads
 
 CLOB_URL = "https://clob.polymarket.com"
 BOOKS_BATCH = 500
@@ -77,7 +78,7 @@ class ClobClient:
                 if resp.status_code == 429 or resp.status_code >= 500:
                     raise httpx.HTTPStatusError("retryable", request=resp.request, response=resp)
                 resp.raise_for_status()
-                data = resp.json()
+                data = loads(resp.content)
                 return data if isinstance(data, list) else []
             except (httpx.TransportError, httpx.HTTPStatusError) as exc:
                 status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -91,16 +92,25 @@ class ClobClient:
                 delay = min(delay * 2, 8.0)
         return []
 
-    async def get_books(self, token_ids: Iterable[str]) -> dict[str, OrderBook]:
+    async def get_books(
+        self, token_ids: Iterable[str], skip: Callable[[str, str | None], bool] | None = None
+    ) -> dict[str, OrderBook]:
+        """Fetch books in batches of 500; ``skip(token, server_hash)`` returning True leaves an entry unparsed."""
         ids = list(dict.fromkeys(token_ids))
-        chunks = [ids[i:i + BOOKS_BATCH] for i in range(0, len(ids), BOOKS_BATCH)]
-        results = await asyncio.gather(*(self._post_books(c) for c in chunks))
         books: dict[str, OrderBook] = {}
-        for payload in results:
-            for raw in payload:
-                if isinstance(raw, dict) and raw.get("asset_id"):
-                    book = OrderBook.from_api(raw)
-                    books[book.token_id] = book
+
+        async def fetch(chunk: list[str]) -> None:
+            # Parse each batch as it lands: a full sweep decoded at once is several hundred MB of dicts.
+            for raw in await self._post_books(chunk):
+                if not isinstance(raw, dict):
+                    continue
+                token = raw.get("asset_id")
+                if not token or (skip is not None and skip(str(token), raw.get("hash"))):
+                    continue
+                book = OrderBook.from_api(raw)
+                books[book.token_id] = book
+
+        await asyncio.gather(*(fetch(ids[i:i + BOOKS_BATCH]) for i in range(0, len(ids), BOOKS_BATCH)))
         return books
 
     async def get_book(self, token_id: str) -> OrderBook | None:

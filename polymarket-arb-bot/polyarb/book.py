@@ -1,24 +1,75 @@
 from __future__ import annotations
 
 import time
+from bisect import bisect_left
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence
+from functools import partial
+from typing import Iterable, Mapping, NamedTuple, Sequence
 
 from polyarb.fees import fee_per_share
 from polyarb.models import FeeSchedule
 
 EPS = 1e-9
 PRICE_DECIMALS = 6
+TOP_LEVELS = 3  # depth that decides whether a book change can alter an opportunity worth re-evaluating
+_CACHE_LIMIT = 200_000
+_PRICES: dict[float | str, float] = {}
+_MIRRORS: dict[float, float] = {}
 
 
 def _p(price: float | str) -> float:
-    return round(float(price), PRICE_DECIMALS)
+    """Canonical float for a price; interned because books repeat a few thousand tick prices millions of times."""
+    value = _PRICES.get(price)
+    if value is None:
+        value = round(float(price), PRICE_DECIMALS)
+        if len(_PRICES) < _CACHE_LIMIT:
+            _PRICES[price] = value
+    return value
 
 
-@dataclass(frozen=True, slots=True)
-class Level:
+def _mirror(price: float) -> float:
+    value = _MIRRORS.get(price)
+    if value is None:
+        value = round(1.0 - price, PRICE_DECIMALS)
+        if len(_MIRRORS) < _CACHE_LIMIT:
+            _MIRRORS[price] = value
+    return value
+
+
+class Level(NamedTuple):
     price: float
     size: float
+
+
+_level = partial(tuple.__new__, Level)
+
+
+def _neg_price(level: Level) -> float:
+    return -level[0]
+
+
+def _price_of(level: Level) -> float:
+    return level[0]
+
+
+def _side(rows: Iterable[tuple[float | str, float | str]], descending: bool) -> list[Level]:
+    by_price: dict[float, float] = {}
+    for price, size in rows:
+        by_price[_p(price)] = float(size)
+    return [_level(item) for item in sorted(by_price.items(), reverse=descending) if item[1] > 0]
+
+
+def _api_side(rows: Sequence[Mapping], descending: bool) -> list[Level]:
+    """Fast path for exchange payloads (unique prices, positive sizes); anything else goes through ``_side``."""
+    cached = _PRICES.get
+    levels = [_level((cached(lvl["price"]) or _p(lvl["price"]), float(lvl["size"]))) for lvl in rows]
+    levels.sort(reverse=descending)
+    previous = None
+    for price, size in levels:
+        if price == previous or size <= 0:
+            return _side(((lvl["price"], lvl["size"]) for lvl in rows), descending)
+        previous = price
+    return levels
 
 
 class OrderBook:
@@ -27,107 +78,114 @@ class OrderBook:
     Polymarket runs a single book per binary market: the NO book is the price
     mirror of the YES book (NO ask = 1 - YES bid). Strategies therefore only
     need YES books and derive NO liquidity with ``no_asks``/``no_bids``.
+
+    Level lists are replaced, never mutated, so a ladder handed to a strategy
+    or a simulated fill stays a consistent snapshot while updates arrive.
     """
 
-    __slots__ = ("token_id", "_bids", "_asks", "_bid_cache", "_ask_cache", "tick_size", "timestamp", "received_at")
+    __slots__ = ("token_id", "_bids", "_asks", "_no_asks", "_no_bids", "tick_size", "timestamp", "received_at", "hash")
 
     def __init__(
         self,
         token_id: str,
-        bids: Iterable[tuple[float, float]] = (),
-        asks: Iterable[tuple[float, float]] = (),
+        bids: Iterable[tuple[float | str, float | str]] = (),
+        asks: Iterable[tuple[float | str, float | str]] = (),
         tick_size: float | None = None,
         timestamp: float = 0.0,
+        hash: str | None = None,
     ) -> None:
         self.token_id = token_id
-        self._bids: dict[float, float] = {}
-        self._asks: dict[float, float] = {}
-        self._bid_cache: list[Level] | None = None
-        self._ask_cache: list[Level] | None = None
         self.tick_size = tick_size
         self.timestamp = timestamp
-        self.received_at = time.time()
         self.replace(bids, asks)
+        self.hash = hash
 
     @classmethod
     def from_api(cls, payload: Mapping) -> "OrderBook":
         """Build from a CLOB REST ``/book(s)`` entry or a websocket ``book`` event."""
-        bids = [(lvl["price"], lvl["size"]) for lvl in payload.get("bids") or []]
-        asks = [(lvl["price"], lvl["size"]) for lvl in payload.get("asks") or []]
+        book = cls.__new__(cls)
+        book.token_id = str(payload.get("asset_id"))
         tick = payload.get("tick_size")
-        ts = payload.get("timestamp") or 0
-        return cls(
-            str(payload.get("asset_id")),
-            bids,
-            asks,
-            tick_size=float(tick) if tick not in (None, "") else None,
-            timestamp=float(ts) / 1000.0 if float(ts) > 1e11 else float(ts),
-        )
+        book.tick_size = float(tick) if tick not in (None, "") else None
+        ts = float(payload.get("timestamp") or 0)
+        book.timestamp = ts / 1000.0 if ts > 1e11 else ts
+        book._bids = _api_side(payload.get("bids") or (), descending=True)
+        book._asks = _api_side(payload.get("asks") or (), descending=False)
+        book._no_asks = None
+        book._no_bids = None
+        book.hash = payload.get("hash") or None
+        book.received_at = time.time()
+        return book
 
-    def replace(self, bids: Iterable[tuple[float, float]], asks: Iterable[tuple[float, float]]) -> None:
-        self._bids = {}
-        self._asks = {}
-        for price, size in bids:
-            if float(size) > 0:
-                self._bids[_p(price)] = float(size)
-        for price, size in asks:
-            if float(size) > 0:
-                self._asks[_p(price)] = float(size)
-        self._bid_cache = None
-        self._ask_cache = None
+    def replace(self, bids: Iterable[tuple[float | str, float | str]], asks: Iterable[tuple[float | str, float | str]]) -> None:
+        self._bids = _side(bids, descending=True)
+        self._asks = _side(asks, descending=False)
+        self._no_asks = None
+        self._no_bids = None
+        self.hash = None
         self.received_at = time.time()
 
-    def set_level(self, side: str, price: float | str, size: float | str) -> None:
-        """Apply an absolute level update (websocket ``price_change``); size 0 deletes."""
-        book = self._bids if side.upper() in ("BUY", "BID", "BIDS") else self._asks
+    def set_level(self, side: str, price: float | str, size: float | str) -> bool:
+        """Apply an absolute level update (websocket ``price_change``); size 0 deletes.
+
+        Returns whether the update landed within the top ``TOP_LEVELS`` of its side.
+        """
+        is_bid = side.upper() in ("BUY", "BID", "BIDS")
+        levels = list(self._bids if is_bid else self._asks)
         key = _p(price)
         qty = float(size)
+        i = bisect_left(levels, -key, key=_neg_price) if is_bid else bisect_left(levels, key, key=_price_of)
+        found = i < len(levels) and levels[i][0] == key
         if qty > 0:
-            book[key] = qty
+            if found:
+                levels[i] = Level(key, qty)
+            else:
+                levels.insert(i, Level(key, qty))
+        elif found:
+            del levels[i]
+        if is_bid:
+            self._bids = levels
+            self._no_asks = None
         else:
-            book.pop(key, None)
-        if book is self._bids:
-            self._bid_cache = None
-        else:
-            self._ask_cache = None
+            self._asks = levels
+            self._no_bids = None
+        self.hash = None
         self.received_at = time.time()
+        return i < TOP_LEVELS
 
     @property
     def bids(self) -> list[Level]:
-        if self._bid_cache is None:
-            self._bid_cache = [Level(p, s) for p, s in sorted(self._bids.items(), reverse=True)]
-        return self._bid_cache
+        return self._bids
 
     @property
     def asks(self) -> list[Level]:
-        if self._ask_cache is None:
-            self._ask_cache = [Level(p, s) for p, s in sorted(self._asks.items())]
-        return self._ask_cache
+        return self._asks
 
     @property
     def best_bid(self) -> float | None:
-        bids = self.bids
-        return bids[0].price if bids else None
+        return self._bids[0][0] if self._bids else None
 
     @property
     def best_ask(self) -> float | None:
-        asks = self.asks
-        return asks[0].price if asks else None
+        return self._asks[0][0] if self._asks else None
 
     def no_asks(self) -> list[Level]:
-        return [Level(_p(1.0 - lvl.price), lvl.size) for lvl in self.bids]
+        if self._no_asks is None:
+            cached = _MIRRORS.get
+            self._no_asks = [_level((cached(p) or _mirror(p), s)) for p, s in self._bids]
+        return self._no_asks
 
     def no_bids(self) -> list[Level]:
-        return [Level(_p(1.0 - lvl.price), lvl.size) for lvl in self.asks]
+        if self._no_bids is None:
+            cached = _MIRRORS.get
+            self._no_bids = [_level((cached(p) or _mirror(p), s)) for p, s in self._asks]
+        return self._no_bids
 
     def age(self, now: float | None = None) -> float:
         return (now or time.time()) - self.received_at
 
-    def fingerprint(self, depth: int = 3) -> tuple:
-        return (
-            tuple((lvl.price, lvl.size) for lvl in self.bids[:depth]),
-            tuple((lvl.price, lvl.size) for lvl in self.asks[:depth]),
-        )
+    def fingerprint(self, depth: int = TOP_LEVELS) -> tuple:
+        return tuple(self._bids[:depth]), tuple(self._asks[:depth])
 
     def __repr__(self) -> str:
         return f"OrderBook({self.token_id[:10]}… bid={self.best_bid} ask={self.best_ask})"

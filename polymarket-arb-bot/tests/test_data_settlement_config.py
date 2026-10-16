@@ -6,10 +6,11 @@ import httpx
 import pytest
 
 from polyarb.config import Config, load_config
+from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import parse_event, parse_fee, parse_market
 from polyarb.data.store import BookStore
 from polyarb.data.ws import MarketStream
-from polyarb.engine import scan_once
+from polyarb.engine import Engine, scan_once
 from polyarb.execution.settlement import (
     NEG_RISK_ADAPTER,
     ChainReader,
@@ -20,7 +21,7 @@ from polyarb.execution.settlement import (
 )
 from polyarb.journal import Journal
 from polyarb.models import FEE_FREE
-from polyarb.universe import build_strategies
+from polyarb.universe import build_strategies, build_universe
 
 from conftest import MARKET_ID, book
 
@@ -109,6 +110,18 @@ def test_ws_handle_applies_book_deltas_and_resolution():
     assert store.get("Y1") is None
     assert stream.handle("not json") == set() and stream.handle("PONG") == set()
     assert changed == ["Y1", "Y1"]
+
+
+def test_ws_deltas_below_the_top_levels_do_not_trigger_evaluation():
+    store = BookStore()
+    changed: list[str] = []
+    stream = MarketStream(store, on_change=changed.append)
+    store.put(book("Y1", bids=[(0.40, 1), (0.39, 1), (0.38, 1), (0.37, 1)]))
+    deep = {"event_type": "price_change", "price_changes": [{"asset_id": "Y1", "side": "BUY", "price": "0.36", "size": "5"}]}
+    assert stream.handle(json.dumps(deep)) == set() and store.raw("Y1").bids[-1] == (0.36, 5.0)
+    top = {"event_type": "price_change", "price_changes": [{"asset_id": "Y1", "side": "BUY", "price": "0.38", "size": "0"}]}
+    assert stream.handle(json.dumps(top)) == {"Y1"} and changed == ["Y1"]
+    assert [lvl.price for lvl in store.raw("Y1").bids] == [0.40, 0.39, 0.37, 0.36]
 
 
 # ---------------------------------------------------------------- config + journal
@@ -204,3 +217,57 @@ async def test_scan_once_finds_convert_opportunity():
     (opp, target) = result.opportunities[0]
     assert opp.strategy == "negrisk_convert" and opp.shares == pytest.approx(51.28)
     assert result.edge_stats()["negrisk_convert"]["best"] == pytest.approx(0.05)
+
+
+def books_transport(payload: dict, calls: list | None = None) -> httpx.AsyncClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked = [row["token_id"] for row in json.loads(request.content)]
+        if calls is not None:
+            calls.append(len(asked))
+        return httpx.Response(200, json=[payload[t] for t in asked if t in payload])
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def levels(*rows):
+    return [{"price": str(p), "size": str(s)} for p, s in rows]
+
+
+async def test_get_books_batches_and_skips_by_hash():
+    tokens = [str(i) for i in range(1203)]
+    payload = {t: {"asset_id": t, "hash": f"h{t}", "bids": levels((0.5, 1)), "asks": []} for t in tokens}
+    calls: list[int] = []
+    seen: list[tuple] = []
+    clob = ClobClient(http=books_transport(payload, calls), books_rps=1000)
+    books = await clob.get_books(tokens + tokens[:5], skip=lambda t, h: seen.append((t, h)) or int(t) % 2 == 0)
+    assert sorted(calls) == [203, 500, 500]
+    assert sorted(seen) == sorted((t, f"h{t}") for t in tokens)
+    assert set(books) == {t for t in tokens if int(t) % 2} and books["7"].hash == "h7"
+
+
+async def test_sweep_parses_only_books_whose_hash_moved():
+    ev = parse_event({
+        "id": 1, "title": "Who wins?", "negRisk": True, "negRiskMarketID": MARKET_ID,
+        "markets": [raw_market(i, feesEnabled=False) for i in range(3)],
+    })
+    payload = {f"Y{i}": {"asset_id": f"Y{i}", "hash": "a", "bids": levels((0.30, 10), (0.29, 10), (0.28, 10)), "asks": []}
+               for i in range(3)}
+    cfg = Config()
+    cfg.engine.use_websocket = False
+    strategies = build_strategies(cfg)
+    store = BookStore(max_age_s=20)
+    engine = Engine(cfg, strategies, None, ClobClient(http=books_transport(payload), books_rps=1000), store, None, None, None)
+    engine.universe = build_universe([ev], strategies, cfg.universe)
+    engine.targets = {t.key: t for t in engine.universe.targets}
+    assert await engine.sweep() == 3 and engine.stats["books_parsed"] == 3
+
+    first = store.raw("Y0")
+    first.received_at -= 30
+    payload["Y1"] = {**payload["Y1"], "hash": "b", "bids": levels((0.31, 10))}
+    payload["Y2"] = {**payload["Y2"], "hash": "c", "bids": payload["Y2"]["bids"] + levels((0.10, 5))}
+    engine.dirty.clear()
+    assert await engine.sweep() == 1  # Y2 only moved below the top three levels
+    assert engine.stats["books_parsed"] == 5
+    assert store.raw("Y0") is first and store["Y0"] is first  # same hash: kept and re-stamped fresh
+    assert store.raw("Y2").bids[-1] == (0.10, 5.0)
+    assert engine.dirty == {t.key for t in engine.universe.by_token["Y1"]}

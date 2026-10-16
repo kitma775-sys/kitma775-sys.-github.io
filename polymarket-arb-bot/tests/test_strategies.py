@@ -1,3 +1,4 @@
+import random
 from datetime import timedelta
 
 import pytest
@@ -226,6 +227,26 @@ def test_ladder_time_gates(store, now_ts):
 def test_ladder_direction_filter():
     ev, _ = ladder_event((130, 120))
     assert LadderArb(LadderConfig(directions=["down"])).targets([ev]) == []
+
+
+def test_ladder_top_edge_matches_pairwise_scan(store):
+    rng = random.Random(7)
+    ev, ms = ladder_event((160, 150, 140, 130, 120, 110))
+    strat = LadderArb(LadderConfig())
+    (target,) = strat.targets([ev])
+    for _ in range(200):
+        for m in ms:
+            bid = round(rng.uniform(0.01, 0.9), 2)
+            sides = {"bids": [(bid, 10)] if rng.random() > 0.2 else [], "asks": [(bid + 0.02, 10)] if rng.random() > 0.2 else []}
+            store.put(book(m.yes_token, **sides))
+        rungs = target.payload.rungs
+        brute = [
+            1 - (1 - store[a.market.yes_token].bids[0].price) - store[b.market.yes_token].asks[0].price
+            for i, a in enumerate(rungs) for b in rungs[i + 1:]
+            if store[a.market.yes_token].bids and store[b.market.yes_token].asks
+        ]
+        expected = max(brute) if brute else None
+        assert strat.top_edge(target, store) == (pytest.approx(expected) if brute else None)
 
 
 # ---------------------------------------------------------------- universe

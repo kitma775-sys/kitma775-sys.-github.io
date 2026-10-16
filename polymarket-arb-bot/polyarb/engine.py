@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
 import statistics
 import time
@@ -46,6 +47,17 @@ class ScanResult:
                 "best": round(vals[-1], 4),
             }
         return out
+
+
+def settle_heap() -> None:
+    """Collect once, then park the long-lived universe and books outside the cyclic GC.
+
+    Full collections over the ~35k books and the market universe cost several
+    percent of a core; replaced books are still freed by reference counting.
+    """
+    gc.unfreeze()
+    gc.collect()
+    gc.freeze()
 
 
 async def load_events(cfg: Config, gamma: GammaClient) -> list[Event]:
@@ -114,7 +126,6 @@ class Engine:
         self.targets: dict[str, Target] = {}
         self.dirty: set[str] = set()
         self._wake = asyncio.Event()
-        self._fp: dict[str, tuple] = {}
         self._last_logged: dict[str, tuple] = {}
         self.stats: Counter = Counter()
         self.stream = (
@@ -139,23 +150,34 @@ class Engine:
         log.info("universe: %s", info)
 
     async def sweep(self) -> int:
+        """Refresh every universe book over REST, parsing only books whose server hash moved."""
         assert self.universe is not None
-        books = await self.clob.get_books(self.universe.tokens)
         ws_tokens = set(self.stream.tokens) if self.stream and self.stream.running else set()
+        max_age = self.store.max_age_s
+
+        def skip(token: str, server_hash: str | None) -> bool:
+            current = self.store.raw(token)
+            if current is None:
+                return False
+            if token in ws_tokens and current.age() < max_age:
+                return True
+            if server_hash is not None and current.hash == server_hash:
+                current.received_at = time.time()
+                return True
+            return False
+
+        books = await self.clob.get_books(self.universe.tokens, skip=skip)
         changed = 0
         for token, book in books.items():
             current = self.store.raw(token)
-            if token in ws_tokens and current is not None and current.age() < self.store.max_age_s:
+            if token in ws_tokens and current is not None and current.age() < max_age:
                 continue
-            fp = book.fingerprint()
-            if self._fp.get(token) == fp and current is not None:
-                current.received_at = book.received_at
-                continue
-            self._fp[token] = fp
             self.store.put(book)
-            self._on_change(token)
-            changed += 1
+            if current is None or current.fingerprint() != book.fingerprint():
+                self._on_change(token)
+                changed += 1
         self.stats["sweeps"] += 1
+        self.stats["books_parsed"] += len(books)
         return changed
 
     def hot_tokens(self) -> list[str]:
@@ -198,8 +220,12 @@ class Engine:
         )
 
     async def _eval_loop(self) -> None:
+        settle = self.cfg.engine.eval_interval_ms / 1000.0
         while True:
             await self._wake.wait()
+            if settle > 0:
+                # Lets a burst of websocket deltas for one target collapse into a single evaluation.
+                await asyncio.sleep(settle)
             self._wake.clear()
             keys, self.dirty = self.dirty, set()
             now = time.time()
@@ -230,6 +256,7 @@ class Engine:
             try:
                 await self.refresh_universe()
                 await self.sweep()
+                settle_heap()
                 if self.stream:
                     await self.stream.start(self.hot_tokens())
             except Exception as exc:
@@ -255,8 +282,10 @@ class Engine:
     async def run(self, duration_s: float | None = None) -> None:
         geo = await self.risk.check_geo()
         log.info("geoblock check: %s", geo)
+        gc.set_threshold(50_000, 20, 100)
         await self.refresh_universe()
         await self.sweep()
+        settle_heap()
         if self.stream:
             await self.stream.start(self.hot_tokens())
         tasks = [

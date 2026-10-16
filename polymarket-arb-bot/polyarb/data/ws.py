@@ -10,6 +10,7 @@ import websockets
 
 from polyarb.book import OrderBook
 from polyarb.data.store import BookStore
+from polyarb.fastjson import loads
 
 WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 log = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ class MarketStream:
 
     def handle(self, msg: str | bytes) -> set[str]:
         try:
-            data = json.loads(msg)
+            data = loads(msg)
         except ValueError:
             return set()
         items = data if isinstance(data, list) else [data]
@@ -122,8 +123,9 @@ class MarketStream:
                     book = self.store.raw(aid)
                     if book is None:
                         continue
-                    book.set_level(str(ch.get("side", "")), ch.get("price", 0), ch.get("size", 0))
-                    changed.add(aid)
+                    # Deeper levels only change sizing headroom, the same rule REST sweeps apply.
+                    if book.set_level(str(ch.get("side", "")), ch.get("price", 0), ch.get("size", 0)):
+                        changed.add(aid)
             elif kind == "tick_size_change":
                 book = self.store.raw(str(ev.get("asset_id")))
                 if book is not None and ev.get("new_tick_size"):

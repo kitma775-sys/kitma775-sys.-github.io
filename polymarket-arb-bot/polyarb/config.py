@@ -88,6 +88,7 @@ class ExecutionConfig:
 @dataclass
 class EngineConfig:
     rest_sweep_s: float = 6.0
+    eval_interval_ms: float = 50.0
     use_websocket: bool = True
     ws_max_targets: int = 300
     ws_assets_per_conn: int = 400

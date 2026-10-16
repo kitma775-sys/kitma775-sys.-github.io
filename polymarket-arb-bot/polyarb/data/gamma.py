@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator, Mapping
 
 import httpx
 
+from polyarb.fastjson import loads
 from polyarb.models import FEE_FREE, Event, FeeSchedule, Market
 
 GAMMA_URL = "https://gamma-api.polymarket.com"
@@ -166,7 +167,7 @@ class GammaClient:
                 if resp.status_code == 429 or resp.status_code >= 500:
                     raise httpx.HTTPStatusError("retryable", request=resp.request, response=resp)
                 resp.raise_for_status()
-                return resp.json()
+                return loads(resp.content)
             except (httpx.TransportError, httpx.HTTPStatusError) as exc:
                 status = getattr(getattr(exc, "response", None), "status_code", None)
                 if status is not None and status < 500 and status != 429:
@@ -200,6 +201,8 @@ class GammaClient:
         """Open events with at least ``min_markets`` tradeable markets (single binaries carry no structure)."""
         out: list[Event] = []
         async for raw in self.iter_raw_events(**filters):
+            if len(raw.get("markets") or ()) < min_markets:
+                continue
             ev = parse_event(raw)
             if len(ev.tradeable_markets) >= min_markets:
                 out.append(ev)
