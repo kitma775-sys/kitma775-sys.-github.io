@@ -119,16 +119,16 @@ docker run -p 8080:8080 -v polyarb-data:/data -e POLYARB_DASHBOARD_PASSWORD=chan
 | `confirm` | 是 | `POLYARB_LIVE_CONFIRM=yes` |
 | `key` | 是 | 已設定 `POLYMARKET_PRIVATE_KEY` |
 | `sdk` | 是 | 已安裝官方 SDK（映像已內建） |
-| `geo` | 是 | `https://polymarket.com/api/geoblock` 回報 `blocked: false`；查詢失敗視為封鎖；運行中每 10 分鐘重查 |
+| `geo` | 是 | Polymarket 准許此伺服器經 API 下單：geoblock 端點回報 `blocked: false`，或伺服器所在國家屬官方「只限網頁」名單（日本、南韓、愛爾蘭、荷蘭、馬耳他）；查詢失敗視為不通過；運行中每 10 分鐘重查 |
 | `password` | 是 | 已設定固定的 `POLYARB_DASHBOARD_PASSWORD` |
 | `volume` | 是 | 資料目錄位於永久磁碟（容器內必須是掛載的 volume），持倉及熔斷狀態可跨重啟保存 |
 
-> **現時的東京伺服器不能實盤。** 2026-10-16 從該伺服器查詢 geoblock 端點，回報 `blocked: true, country: JP`。官方文件的表格把日本列為「只限網頁只可平倉、API 不受限」，與端點的回報不一致；由於端點的 `blocked` 欄位定義為「是否禁止下單」，本程式一律以端點為準，所以東京伺服器只會以紙盤運行。香港不在任何限制名單內。
+> **Zeabur 東京伺服器可以實盤。** 從東京伺服器查詢 geoblock 端點會回報 `blocked: true, country: JP`，但這個端點位於 polymarket.com，反映的是網頁版的限制。官方文件把日本列為「網頁只可平倉，API 本身不受限」，所以程式按官方地區規則判斷，日本伺服器的「地區檢查」會通過；其他受限地區（美國、英國、新加坡、台灣等）照舊不准實盤。萬一 Polymarket 在 API 層以 HTTP 403 拒絕訂單，程式會即時熔斷，停止所有交易，並在控制台顯示原因。
 
 **步驟（Zeabur）**
 
 1. 確認你本人所在地可以合法使用 Polymarket（見下一節「地區限制」）。**切勿用 VPN 或代理繞過限制。**
-2. 部署到允許的地區，例如香港：`python deploy/zeabur.py --region hkg1`。先以紙盤運行，確認控制台的「地區檢查」顯示 ✓。
+2. 以紙盤運行一段時間，確認控制台的「地區檢查」顯示 ✓（Zeabur 東京或香港的伺服器均可；部署到香港：`python deploy/zeabur.py --region hkg1`）。
 3. 準備**專用**錢包，只存放打算投入的 pUSD：
    - 不設 `POLYMARKET_WALLET`：使用此私鑰對應的 Deposit Wallet（2026-05-04 之後的預設），經 relayer 送交易，免 gas；
    - 沿用 polymarket.com 帳戶：把 `POLYMARKET_WALLET` 設為該帳戶的代理錢包地址，同樣免 gas；
@@ -151,10 +151,10 @@ docker run -p 8080:8080 -v polyarb-data:/data -e POLYARB_DASHBOARD_PASSWORD=chan
 
 ### 地區限制
 
-程式啟動實盤前會呼叫 `https://polymarket.com/api/geoblock`，若回報 `blocked` 即拒絕實盤；查詢失敗亦視為封鎖。根據 2026 年 10 月的官方文件：
+程式啟動實盤前會呼叫 `https://polymarket.com/api/geoblock`，按官方地區規則判斷能否經 API 下單：端點回報 `blocked: false`，或伺服器所在國家屬下列「只限網頁」名單，才准實盤；查詢失敗視為不通過。根據 2026 年 10 月的[官方文件](https://docs.polymarket.com/api-reference/geoblock)：
 - **完全封鎖**（OFAC 制裁）：伊朗、敘利亞、古巴、北韓、烏克蘭的克里米亞、頓涅茨克、盧甘斯克。
 - **只可平倉**（網頁及 API 均受限）：美國、英國、法國、德國、意大利、比利時、波蘭、斯洛伐克、俄羅斯、白俄羅斯、澳洲、新西蘭、新加坡、台灣、泰國、巴西、委內瑞拉，加拿大的卑詩、安大略、亞伯達、魁北克，以及多個受制裁或戰亂地區（完整名單見[官方文件](https://docs.polymarket.com/api-reference/geoblock)）。
-- **只限網頁只可平倉**（文件註明 API 不受限）：愛爾蘭、日本、荷蘭、南韓；馬耳他只限體育市場。但如上文所述，2026-10-16 從東京伺服器查詢時，端點回報日本為 `blocked: true`。
+- **只限網頁只可平倉**（文件註明 API 不受限）：愛爾蘭、日本、荷蘭、南韓；馬耳他只限體育市場。這些地區的端點會回報 `blocked: true`（2026-10-16 從東京伺服器實測如此），程式照樣准許 API 下單；若 Polymarket 實際以 HTTP 403 拒單，即時熔斷。
 - **香港不在名單內**。但香港《賭博條例》（第 148 章）限制與未獲授權的博彩營運者下注，Polymarket 是否屬於該範疇是法律問題，請自行諮詢律師。
 
 **切勿使用 VPN 或海外伺服器規避你本人所在地的限制**，這違反 Polymarket 服務條款，帳戶及資金可能被凍結。
@@ -175,10 +175,10 @@ pip install -e ".[dev,live]"     # 實盤：另外安裝官方 SDK polymarket-cl
 ## 測試
 
 ```bash
-pytest -q        # 115 個單元測試，全部離線執行，不需要網絡或私鑰
+pytest -q        # 128 個單元測試，全部離線執行，不需要網絡或私鑰
 ```
 
-測試覆蓋手續費與訂單簿計算、籃子定量、階梯解析、三個策略、風控、執行器的所有修復路徑（補齊、轉換子集、平倉、保留倉位、轉換失敗）、實盤閘道（以假 SDK 模擬批量送單、延遲撮合對帳、交易錢包資料）、鏈上 calldata 編碼、WebSocket 處理及設定檔；以及控制台的部分：登入及 Cookie、登入限流、Origin 檢查、SSE、控制操作、靜態檔路徑穿越、環境變數覆蓋、日誌輪替、優雅關閉（不會中途切斷執行）、實盤就緒檢查及機密遮蔽。
+測試覆蓋手續費與訂單簿計算、籃子定量、階梯解析、三個策略、風控（包括按官方地區規則判斷 API 下單、HTTP 403 拒單即熔斷）、執行器的所有修復路徑（補齊、轉換子集、平倉、保留倉位、轉換失敗）、實盤閘道（以假 SDK 模擬批量送單、延遲撮合對帳、交易錢包資料、地區拒單）、鏈上 calldata 編碼、WebSocket 處理及設定檔；以及控制台的部分：登入及 Cookie、登入限流、Origin 檢查、SSE、控制操作、靜態檔路徑穿越、環境變數覆蓋、日誌輪替、優雅關閉（不會中途切斷執行）、實盤就緒檢查及機密遮蔽。
 
 ---
 
@@ -186,7 +186,7 @@ pytest -q        # 115 個單元測試，全部離線執行，不需要網絡或
 
 ```bash
 polyarb serve                                    # 引擎 + 網頁控制台（預設紙盤，http://localhost:8080）
-polyarb geo                                      # 檢查你的 IP 是否被 Polymarket 地區封鎖
+polyarb geo                                      # 檢查 Polymarket 是否准許此 IP 經 API 下單
 polyarb scan                                     # 一次性掃描全部開放事件（約 30 秒）
 polyarb scan --json data/scan.json               # 同時把完整結果寫入 JSON
 polyarb scan --no-gates                          # 研究用：移除利潤／邊際／年化門檻，列出所有正邊際
@@ -287,9 +287,9 @@ polyarb -c live.yaml convert --market-id 0x<negRiskMarketID> --indices 0,3,5 --s
 
 ## 風險控制
 
-- **地區檢查**：實盤啟動前及運行中定期檢查，查詢失敗亦視為封鎖。
+- **地區檢查**：按官方地區規則判斷能否經 API 下單（日本等「只限網頁」地區准許），實盤啟動前及運行中定期檢查，查詢失敗視為不通過。
 - **實盤閘門**：`POLYARB_MODE=live` 時七項條件中任何一項必要條件未通過，都會留在紙盤，絕不會在設定不完整時下單。
-- **熔斷**（需人工解除）：單日虧損上限、連續不完整執行、保留了未對沖倉位、鏈上轉換失敗。另可隨時以 `KILL` 檔案或控制台的「暫停交易」停止所有新交易。
+- **熔斷**（需人工解除）：單日虧損上限、連續不完整執行、保留了未對沖倉位、鏈上轉換失敗、Polymarket 以 HTTP 403 拒絕訂單（例如地區限制）。另可隨時以 `KILL` 檔案或控制台的「暫停交易」停止所有新交易。
 - **額度**：單筆上限、可用資金、等待結算的持倉總額、單一事件持倉；送單前會以重新定量後的最終訂單再審批一次。
 - **價格保護**：FOK 加最差價位限價，訂單簿變差時整腿取消，不會追價。
 - **數據新鮮度**：只用 20 秒內更新的訂單簿；WebSocket 心跳中斷時，其訂單簿會自動過期。
@@ -326,7 +326,7 @@ polymarket-arb-bot/
 ├── entrypoint.sh          容器入口：資料目錄權限、降權
 ├── requirements.lock      鎖定版本的運行依賴
 ├── research/              全市場掃描腳本及 2026-10-16 的結果
-├── tests/                 115 個離線單元測試
+├── tests/                 128 個離線單元測試
 └── RESEARCH_REPORT_ZH.md  研究報告
 ```
 
