@@ -35,7 +35,8 @@ TOP_SKIP = {"tests", "research", "data", "deploy"}
 ANY_SKIP = {".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".venv", "node_modules"}
 SKIP_FILES = {".env", "KILL"}
 DEFAULT_VARS = {"POLYARB_MODE": "paper", "POLYARB_DATA_DIR": "/data", "PORT": "8080"}
-TERMINAL = {"RUNNING", "FAILED", "CRASHED", "CANCELED", "REMOVED"}
+FINAL = {"RUNNING", "FAILED", "CRASHED"}
+SETTLING = {"REMOVED", "CANCELED", "UNKNOWN"}  # briefly reported while a new deployment is being scheduled
 
 
 def gql(token: str, query: str, **variables):
@@ -136,7 +137,7 @@ def upload(token: str, service: str, env: str) -> None:
 
 def wait_for_deployment(token: str, service: str, env: str, since: float, timeout_s: float = 1200) -> str:
     query = "query($s:ObjectID!,$e:ObjectID!){ deployments(serviceID:$s, environmentID:$e, perPage:1){ edges { node { _id status createdAt } } } }"
-    last = None
+    last, settling_since = None, None
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         edges = gql(token, query, s=service, e=env)["deployments"]["edges"]
@@ -144,11 +145,18 @@ def wait_for_deployment(token: str, service: str, env: str, since: float, timeou
             node = edges[0]["node"]
             created = calendar.timegm(time.strptime(node["createdAt"][:19], "%Y-%m-%dT%H:%M:%S"))
             if created >= since - 120:
-                if node["status"] != last:
-                    print(f"  部署 {node['_id']}: {node['status']}")
-                    last = node["status"]
-                if node["status"] in TERMINAL:
-                    return node["status"]
+                status = node["status"]
+                if status != last:
+                    print(f"  部署 {node['_id']}: {status}")
+                    last = status
+                if status in FINAL:
+                    return status
+                if status in SETTLING:
+                    settling_since = settling_since or time.time()
+                    if time.time() - settling_since > 120:
+                        return status
+                else:
+                    settling_since = None
         time.sleep(5)
     return last or "UNKNOWN"
 
@@ -224,6 +232,7 @@ def main() -> int:
     ap.add_argument("--env", action="append", default=[], metavar="KEY=VALUE", help="set/overwrite a variable (repeatable)")
     ap.add_argument("--no-upload", action="store_true", help="only (re)configure; skip the code upload")
     args = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)
 
     token = os.environ.get("ZEABUR_TOKEN", "").strip()
     if not token:
