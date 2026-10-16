@@ -122,7 +122,7 @@ def test_daily_loss_trips_kill(risk):
 
 def test_orphaned_legs_trip_kill_and_are_tracked(risk):
     risk.finish(report(opp(settlement=Settlement.CONVERT), complete=False, locked=9.0, payout=0.2, orphaned=True))
-    assert risk.state.killed and "unhedged" in risk.state.kill_reason
+    assert risk.state.killed and risk.state.kill_reason == "positions kept on k1; review positions before reset-kill"
     assert risk.hold_exposure == pytest.approx(9.0)
 
 

@@ -160,7 +160,7 @@ class RiskManager:
                 )
             )
         if report.orphaned:
-            self.kill(f"unhedged legs kept on {opp.key}; review positions before reset-kill")
+            self.kill(f"{report.action or 'positions kept'} on {opp.key}; review positions before reset-kill")
         if self.state.consecutive_failures >= self.cfg.max_consecutive_failures:
             self.kill(f"{self.state.consecutive_failures} consecutive incomplete executions")
         if self.state.realized_today <= -self.cfg.max_daily_loss_usd:

@@ -140,6 +140,24 @@ async def test_expensive_unwind_keeps_legs_and_kills(store, tmp_path):
     assert risk.state.killed and risk.hold_exposure == pytest.approx(9.0)
 
 
+class FailingConvert(PaperGateway):
+    async def convert(self, neg_risk_market_id, index_set, shares):
+        return False, None, 0.0
+
+
+async def test_failed_convert_keeps_no_legs_and_kills(store, tmp_path):
+    strat, target, opp, ms = convert_setup(store, (0.40, 0.35, 0.30), (0.42, 0.37, 0.32))
+    ex, _ = executor(store, strat, gateway=FailingConvert(store))
+    rep = await ex.execute(opp, target)
+    assert rep.complete and rep.orphaned and rep.sells == [] and rep.proceeds == 0
+    assert rep.locked_cost == pytest.approx(39.0) and rep.expected_payout == pytest.approx(40.0)
+    assert rep.realized_pnl == pytest.approx(0.0)
+    risk = RiskManager(RiskConfig(kill_file=""), tmp_path / "s.json")
+    risk.finish(rep)
+    assert risk.state.killed and risk.state.kill_reason.startswith("convert failed: NO legs kept on ")
+    assert risk.state.consecutive_failures == 0 and risk.hold_exposure == pytest.approx(39.0)
+
+
 async def test_no_fills_is_a_clean_failure(store):
     strat, target, opp, ms = convert_setup(store, (0.40, 0.35, 0.30), (0.42, 0.37, 0.32))
     for m in ms:

@@ -224,8 +224,11 @@ class Executor:
         q = floor_shares(min(h.shares for h in held.values()))
         ok, tx, proceeds = await self.gateway.convert(market_id, index_set(indices), q)
         if not ok:
+            report.orphaned = True
+            report.locked_cost = sum(h.cost for h in held.values())
+            report.expected_payout = (len(held) - 1) * q + sum(self._sell_value(h.leg, h.shares - q) for h in held.values())
             report.error = "convert transaction failed; NO positions retained"
-            report.action = "convert failed"
+            report.action = "convert failed: NO legs kept"
             return
         report.convert_tx = tx
         report.proceeds += proceeds
