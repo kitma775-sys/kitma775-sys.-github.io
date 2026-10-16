@@ -109,6 +109,11 @@ class RiskManager:
                 return "cooldown"
         if opp.event_id in self.inflight_events:
             return "event in flight"
+        return self.check_size(opp)
+
+    def check_size(self, opp: Opportunity) -> str | None:
+        """Capital and exposure limits; re-run on the exact (re-sized) order right before sending."""
+        cfg = self.cfg
         if opp.cost > cfg.max_trade_usd + 1e-9:
             return "trade above max_trade_usd"
         if opp.cost > self.available() + 1e-9:

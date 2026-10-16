@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from polyarb.book import OrderBook
 from polyarb.config import ConvertConfig, ExecutionConfig, RiskConfig, YesBasketConfig
 from polyarb.execution.executor import Executor
 from polyarb.execution.live import PolymarketGateway, _cents, _price
@@ -33,11 +34,21 @@ def executor(store, strat, gateway=None, clob=None, **cfg):
 
 
 class FakeClob:
+    """Returns new book objects on every request, like the REST endpoint."""
+
     def __init__(self, books):
         self.books = books
 
     async def get_books(self, tokens):
-        return {t: self.books[t] for t in tokens if t in self.books}
+        return {
+            t: OrderBook(t, [(l.price, l.size) for l in b.bids], [(l.price, l.size) for l in b.asks])
+            for t, b in self.books.items()
+            if t in tokens
+        }
+
+
+def exchange(ms, bids, depth):
+    return {m.yes_token: book(m.yes_token, bids=[(b, depth)], asks=[(b + 0.02, depth)]) for m, b in zip(ms, bids)}
 
 
 # ---------------------------------------------------------------- paper gateway
@@ -156,6 +167,28 @@ async def test_recheck_resizes_to_fresh_depth(store):
     ex, gw = executor(store, strat, clob=FakeClob(fresh))
     rep = await ex.execute(opp, target)
     assert rep.complete and rep.opp.shares == 10 and gw.converted[0][2] == 10.0
+
+
+async def test_recheck_upsize_must_be_reapproved(store):
+    bids = (0.40, 0.35, 0.30)
+    strat, target, opp, ms = convert_setup(store, bids, (0.42, 0.37, 0.32), depth=10)
+    ex, gw = executor(store, strat, clob=FakeClob(exchange(ms, bids, 40)))
+    approved = opp.cost
+    rep = await ex.execute(opp, target, approve=lambda o: "too big" if o.cost > approved + 1e-9 else None)
+    assert rep.action == "abort: too big" and not rep.sent and gw.converted == []
+
+
+async def test_paper_does_not_retrade_unchanged_liquidity(store):
+    bids = (0.40, 0.35, 0.30)
+    strat, target, opp, ms = convert_setup(store, bids, (0.42, 0.37, 0.32))
+    clob = FakeClob(exchange(ms, bids, 20))
+    ex, gw = executor(store, strat, clob=clob)
+    assert (await ex.execute(opp, target)).complete
+    again = await ex.execute(opp, target)
+    assert again.action == "abort: paper liquidity already used" and not again.sent
+    clob.books = exchange(ms, bids, 25)
+    rep = await ex.execute(opp, target)
+    assert rep.complete and [c[2] for c in gw.converted] == [20.0, 25.0]
 
 
 async def test_yes_basket_locks_hold(store, tmp_path):

@@ -83,6 +83,7 @@ def test_cooldown_and_inflight(risk):
     risk.begin(o, T0)
     assert risk.check(o, T0 + 1) == "cooldown"
     assert risk.check(opp(key="other"), T0 + 1) == "cooldown"  # same event
+    assert risk.check_size(o) is None  # the executor's pre-send re-approval ignores its own attempt
     risk.finish(report(o, sent=False))
     assert risk.check(o, T0 + 31) is None
     risk.inflight_events.add("E1")

@@ -123,6 +123,12 @@ class OrderBook:
     def age(self, now: float | None = None) -> float:
         return (now or time.time()) - self.received_at
 
+    def fingerprint(self, depth: int = 3) -> tuple:
+        return (
+            tuple((lvl.price, lvl.size) for lvl in self.bids[:depth]),
+            tuple((lvl.price, lvl.size) for lvl in self.asks[:depth]),
+        )
+
     def __repr__(self) -> str:
         return f"OrderBook({self.token_id[:10]}… bid={self.best_bid} ask={self.best_ask})"
 

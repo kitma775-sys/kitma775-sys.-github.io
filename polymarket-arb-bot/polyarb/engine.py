@@ -7,7 +7,6 @@ import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
-from polyarb.book import OrderBook
 from polyarb.config import Config
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
@@ -87,10 +86,6 @@ async def scan_once(
     return ScanResult(universe, store, opportunities, dict(edges), timings)
 
 
-def _fingerprint(book: OrderBook) -> tuple:
-    return (tuple((l.price, l.size) for l in book.bids[:3]), tuple((l.price, l.size) for l in book.asks[:3]))
-
-
 class Engine:
     """Continuous loop: REST sweeps for the whole universe, websocket for the hot set,
     event-driven evaluation of only the targets whose books changed."""
@@ -152,7 +147,7 @@ class Engine:
             current = self.store.raw(token)
             if token in ws_tokens and current is not None and current.age() < self.store.max_age_s:
                 continue
-            fp = _fingerprint(book)
+            fp = book.fingerprint()
             if self._fp.get(token) == fp and current is not None:
                 current.received_at = book.received_at
                 continue
@@ -189,8 +184,12 @@ class Engine:
             self.stats[f"skip:{reason}"] += 1
             return
         self.risk.begin(opp)
-        report = await self.executor.execute(opp, target)
+        report = await self.executor.execute(opp, target, approve=self.risk.check_size)
         self.risk.finish(report)
+        if not report.sent:
+            self.stats[report.action] += 1
+            log.debug("not sent %s: %s", opp.key, report.action)
+            return
         self.stats["executions"] += 1
         self.journal.write("execution", report.summary())
         log.info(

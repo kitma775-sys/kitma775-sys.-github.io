@@ -4,7 +4,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass, replace
-from typing import Mapping
+from typing import Callable, Mapping
 
 from polyarb.book import take
 from polyarb.config import ExecutionConfig
@@ -47,8 +47,15 @@ class Executor:
         self.strategies = strategies
         self.cfg = cfg
         self.clob = clob
+        self._paper_fp: dict[str, tuple] = {}
 
-    async def execute(self, opp: Opportunity, target: Target | None = None) -> ExecutionReport:
+    async def execute(
+        self,
+        opp: Opportunity,
+        target: Target | None = None,
+        approve: Callable[[Opportunity], str | None] | None = None,
+    ) -> ExecutionReport:
+        """``approve`` re-checks limits on the final order, which a recheck may have re-sized."""
         report = ExecutionReport(opp=opp, mode=self.gateway.mode, started_at=time.time())
         try:
             if self.cfg.recheck_books and target is not None and self.clob is not None:
@@ -57,6 +64,12 @@ class Executor:
                     report.action = "abort: vanished on recheck"
                     return self._done(report)
                 report.opp = opp = fresh
+            reason = approve(opp) if approve else None
+            if reason is None and self.gateway.mode == "paper" and target is not None:
+                reason = self._paper_reuse(opp, target)
+            if reason:
+                report.action = f"abort: {reason}"
+                return self._done(report)
             report.sent = True
             report.legs = await self.gateway.buy(opp.legs, self.cfg.slippage_ticks)
             report.complete = all(r.ok for r in report.legs)
@@ -81,6 +94,14 @@ class Executor:
         else:
             report.realized_pnl = report.proceeds + sells - report.spent
         return report
+
+    def _paper_reuse(self, opp: Opportunity, target: Target) -> str | None:
+        """Paper fills never leave the real book, so unchanged liquidity must not be traded twice."""
+        fp = tuple(b.fingerprint() if (b := self.store.raw(t)) is not None else None for t in target.tokens)
+        if self._paper_fp.get(opp.key) == fp:
+            return "paper liquidity already used"
+        self._paper_fp[opp.key] = fp
+        return None
 
     async def _recheck(self, opp: Opportunity, target: Target) -> Opportunity | None:
         assert self.clob is not None
