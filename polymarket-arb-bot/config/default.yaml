@@ -1,0 +1,66 @@
+# polyarb default configuration. Every key is optional; omitted keys use the
+# dataclass defaults in polyarb/config.py. Money values are pUSD (= USD).
+
+convert:                 # NegRisk NO-basket -> convertPositions -> pUSD (risk: low)
+  enabled: true
+  min_profit_usd: 0.25   # absolute profit after taker fees
+  min_edge: 0.003        # profit / capital
+  min_unit_edge: 0.0005  # every marginal basket unit must still earn this
+  max_legs: 12           # more legs = more leg risk; 15 orders per POST /orders batch
+  gas_usd: 0.0           # relayer (deposit wallet) is gasless; ~0.02 for EOA wallets
+
+yes_basket:              # buy YES on every outcome of an exhaustive NegRisk event (risk: medium)
+  enabled: true
+  min_profit_usd: 1.0
+  min_edge: 0.01
+  min_apr: 0.25          # capital is locked until resolution
+  max_days: 45
+  min_unit_edge: 0.002
+  max_legs: 12
+  require_catch_all: true  # need an Other/None bucket or open-ended numeric partition
+  min_ask_sum: 0.85        # sanity floor: lower sums usually mean a decided/stale event
+  resolution_lag_days: 1.0
+
+ladder:                  # YES weak rung + NO strong rung of an implication ladder (risk: medium)
+  enabled: true
+  min_profit_usd: 0.5
+  min_edge: 0.008
+  min_apr: 0.20
+  max_days: 90
+  min_unit_edge: 0.002
+  directions: [up, down, by_date]
+  resolution_lag_days: 1.0
+
+universe:
+  min_markets: 2
+  max_seconds_delay: 0   # skip delayed-matching (live sports) markets
+  exclude_tags: []
+  refresh_minutes: 20
+  max_book_age_s: 20
+  gamma_filters: {}      # passed to /events/keyset, e.g. {liquidity_min: 100}
+
+risk:
+  bankroll_usd: 1000
+  max_trade_usd: 100
+  max_event_exposure_usd: 250
+  max_hold_exposure_usd: 600
+  max_daily_loss_usd: 25
+  max_consecutive_failures: 3
+  cooldown_s: 30
+  kill_file: KILL        # `touch KILL` stops all new trades immediately
+  require_geo_ok: true
+
+execution:
+  mode: paper            # paper | live (live also needs POLYARB_LIVE_CONFIRM=yes)
+  slippage_ticks: 0      # extra ticks of max_price headroom on first send (repairs always add +1)
+  recheck_books: true    # re-fetch REST books and re-size right before sending
+  max_unwind_loss_usd: 5 # partial fill whose unwind would lose more: keep legs, trip kill switch
+  journal_path: data/journal.jsonl
+  state_path: data/state.json
+
+engine:
+  rest_sweep_s: 6
+  use_websocket: true
+  ws_max_targets: 300
+  ws_assets_per_conn: 400
+  report_every_s: 60
