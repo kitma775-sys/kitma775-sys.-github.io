@@ -240,6 +240,9 @@ def build_parser() -> argparse.ArgumentParser:
     l.add_argument("--max-pages", type=int, default=3)
 
     sub.add_parser("geo", help="check whether Polymarket accepts API orders from this IP")
+    cl = sub.add_parser("crypto-lock", help="paper-only: buy a locked 5-minute crypto side while the ask is still cheap")
+    cl.add_argument("--duration", type=float, help="seconds to run (default: until stopped)")
+    cl.add_argument("--journal", help="default: $POLYARB_DATA_DIR/crypto-lock.jsonl or data/crypto-lock.jsonl")
     for name, text in (("status", "risk state, holds and PnL"), ("reset-kill", "clear the kill switch")):
         sp = sub.add_parser(name, help=text)
         sp.add_argument("--mode", choices=["paper", "live"], help="which book under $POLYARB_DATA_DIR (default: $POLYARB_MODE)")
@@ -280,6 +283,11 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_reset(cfg, args)
     if args.cmd == "convert":
         return asyncio.run(cmd_convert(cfg, args))
+    if args.cmd == "crypto-lock":
+        from polyarb.crypto_lock_run import run_paper
+
+        journal = Path(args.journal or (Path(os.environ.get("POLYARB_DATA_DIR") or "data") / "crypto-lock.jsonl"))
+        return asyncio.run(run_paper(journal, args.duration))
     return 1
 
 

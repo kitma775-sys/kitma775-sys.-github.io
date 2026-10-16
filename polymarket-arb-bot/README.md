@@ -187,6 +187,7 @@ pytest -q        # 128 個單元測試，全部離線執行，不需要網絡或
 ```bash
 polyarb serve                                    # 引擎 + 網頁控制台（預設紙盤，http://localhost:8080）
 polyarb geo                                      # 檢查 Polymarket 是否准許此 IP 經 API 下單
+polyarb crypto-lock                              # 紙盤：5 分鐘加密鎖定（見下）
 polyarb scan                                     # 一次性掃描全部開放事件（約 30 秒）
 polyarb scan --json data/scan.json               # 同時把完整結果寫入 JSON
 polyarb scan --no-gates                          # 研究用：移除利潤／邊際／年化門檻，列出所有正邊際
@@ -199,6 +200,17 @@ polyarb reset-kill                               # 人工檢查完畢後解除�
 ```
 
 全域選項 `-c my.yaml`（只需寫要覆蓋的設定）和 `-v`（除錯日誌）須放在子指令之前，例如 `polyarb -c my.yaml run`。`--no-gates` 只供研究，實盤模式會拒絕執行。
+
+### 5 分鐘加密鎖定（紙盤）
+
+`polyarb crypto-lock` 只做 BTC、ETH 的 5 分鐘 Up/Down，而且**不下真單**。規則：
+
+1. 開盤時記下 Chainlink 60 秒 TWAP，以及公開現貨價。中途才啟動的那個視窗跳過。
+2. 結束前 8–25 秒，若「現價再朝反方向衝 40 個基點，60 秒 TWAP 仍然過不了開盤價」，這一邊視為鎖定。TWAP 和現貨必須同一邊。
+3. 這一邊的賣價仍 ≤ 92¢，而且掛單量夠 $20，才按賣價模擬買入 $20。賣價已經到 98¢ 就不買。
+4. 每個視窗最多一筆。當日已結算虧損到 $40 就停。紀錄在 `data/crypto-lock.jsonl`。
+
+這是高風險方向盤，不是無風險套利。紙盤連續兩個 UTC 日的已結算盈虧都是正數之前，不要改成實盤。
 
 `scan` 的輸出包括：
 - 每個策略在「最優價位」的邊際分佈（扣除 taker 手續費後，每單位利潤 > 0、> −0.5¢、> −1¢、> −2¢ 的數目、中位數及最佳值）；
