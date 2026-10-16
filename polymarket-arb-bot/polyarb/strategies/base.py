@@ -50,6 +50,7 @@ def buy_leg(market: Market, outcome: Outcome, fill: Fill, label: str | None = No
         yes_token=market.yes_token,
         fee_schedule=market.fee,
         neg_risk_index=market.neg_risk_index,
+        seconds_delay=market.seconds_delay,
     )
 
 

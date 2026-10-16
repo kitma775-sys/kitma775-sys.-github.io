@@ -124,6 +124,7 @@ class Leg:
     yes_token: str = ""
     fee_schedule: FeeSchedule = FEE_FREE
     neg_risk_index: int | None = None
+    seconds_delay: int = 0
 
     @property
     def avg_price(self) -> float:

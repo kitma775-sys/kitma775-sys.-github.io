@@ -130,8 +130,8 @@ class PolymarketGateway:
         if not result.order_id:
             return LegResult(leg, False, status=result.status, error="no order id to reconcile")
         if result.status == "delayed":
-            # Taker-delay markets (crypto ~150 ms) queue the order before matching it.
-            await asyncio.sleep(self.delayed_wait_s)
+            # Taker-delay markets (crypto ~150 ms, sports games 1-3 s) queue the order before matching it.
+            await asyncio.sleep(leg.seconds_delay + self.delayed_wait_s)
         try:
             await self.client.cancel_order(order_id=result.order_id)
         except Exception as exc:
