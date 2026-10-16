@@ -1,0 +1,325 @@
+{
+  "scanned_at": "2026-10-16T09:13:46Z",
+  "markets": 45868,
+  "duplicate_question_groups_same_deadline": 10,
+  "duplicate_question_groups_different_deadline": 0,
+  "cross_event_ladders": 118,
+  "identical_question": {
+    "priced": 10,
+    "positive_edge": 4,
+    "profit_at_least_25c": 3,
+    "sum_positive_profit": 107.49,
+    "best": [
+      {
+        "question": "Will there be no Hormuz agreement?",
+        "listings": 2,
+        "events": [
+          "Who wins the Senate pending Hormuz Agreement by Oct 23?",
+          "Who wins the Senate pending Hormuz Agreement before the midterms?"
+        ],
+        "slugs": [
+          "who-wins-the-senate-pending-hormuz-agreement",
+          "who-wins-the-senate-pending-hormuz-agreement-before-the-midterms"
+        ],
+        "edge": 0.0165,
+        "shares": 5247.23,
+        "profit": 86.565
+      },
+      {
+        "question": "Will oil be below $80 on November 2 and the Republicans win the Senate?",
+        "listings": 2,
+        "events": [
+          "Republicans win the Senate pending oil above or below $80?",
+          "Who wins the Senate pending oil above or below $80 before the midterms?"
+        ],
+        "slugs": [
+          "republicans-win-the-senate-pending-oil-above-or-below-80",
+          "who-wins-the-senate-pending-oil-above-or-below-80-before-the-midterms"
+        ],
+        "edge": 0.0175,
+        "shares": 1167.0,
+        "profit": 20.3779
+      },
+      {
+        "question": "Will there be a Hormuz agreement and the Democrats win the Senate?",
+        "listings": 2,
+        "events": [
+          "Who wins the Senate pending Hormuz Agreement by Oct 23?",
+          "Who wins the Senate pending Hormuz Agreement before the midterms?"
+        ],
+        "slugs": [
+          "who-wins-the-senate-pending-hormuz-agreement",
+          "who-wins-the-senate-pending-hormuz-agreement-before-the-midterms"
+        ],
+        "edge": 0.0092,
+        "shares": 48.69,
+        "profit": 0.4463
+      },
+      {
+        "question": "Will there be a Hormuz agreement and the Republicans win the Senate?",
+        "listings": 3,
+        "events": [
+          "Republicans win the Senate pending Hormuz Agreement?",
+          "Who wins the Senate pending Hormuz Agreement by Oct 23?",
+          "Who wins the Senate pending Hormuz Agreement before the midterms?"
+        ],
+        "slugs": [
+          "republicans-win-the-senate-pending-hormuz-agreement",
+          "who-wins-the-senate-pending-hormuz-agreement",
+          "who-wins-the-senate-pending-hormuz-agreement-before-the-midterms"
+        ],
+        "edge": 0.0085,
+        "shares": 11.54,
+        "profit": 0.0982
+      },
+      {
+        "question": "Will Anthropic not IPO by December 31, 2027?",
+        "listings": 3,
+        "events": [
+          "Anthropic IPO Closing Market Cap (Lower Brackets)",
+          "Anthropic IPO Closing Market Cap",
+          "What will Anthropic's IPO valuation be?"
+        ],
+        "slugs": [
+          "anthropic-ipo-closing-market-cap-119",
+          "anthropic-ipo-closing-market-cap-higher-strikes",
+          "what-will-anthropics-ipo-valuation-be"
+        ],
+        "edge": -0.0079,
+        "shares": 30.0,
+        "profit": -0.2385
+      },
+      {
+        "question": "Opensea FDV above $100M one day after launch?",
+        "listings": 2,
+        "events": [
+          "Opensea FDV above ___ one day after launch?",
+          "Opensea FDV above ___ one day after launch?"
+        ],
+        "slugs": [
+          "opensea-fdv-above-one-day-after-launch",
+          "opensea-fdv-above-one-day-after-launch"
+        ],
+        "edge": -0.0343,
+        "shares": 10.0,
+        "profit": -0.3427
+      },
+      {
+        "question": "Will there be a run scored in the first inning?: Tampa Bay Rays vs. Cleveland Guardians",
+        "listings": 2,
+        "events": [
+          "Tampa Bay Rays vs. Cleveland Guardians",
+          "Tampa Bay Rays vs. Cleveland Guardians"
+        ],
+        "slugs": [
+          "mlb-tb-cle-2026-10-16",
+          "mlb-tb-cle-2026-10-17"
+        ],
+        "edge": -0.0641,
+        "shares": 6.0,
+        "profit": -0.3849
+      },
+      {
+        "question": "Will Trump's approval rating be at least 38.4 on October 16, 2026?",
+        "listings": 2,
+        "events": [
+          "Trump approval rating on October 16?",
+          "Trump approval rating at least ___ on October 16?"
+        ],
+        "slugs": [
+          "trump-approval-rating-on-october-16",
+          "trump-approval-rating-at-least-on-october-16"
+        ],
+        "edge": -0.2829,
+        "shares": 9.88,
+        "profit": -2.7953
+      },
+      {
+        "question": "Will there be a run scored in the first inning?: Cleveland Guardians vs. Tampa Bay Rays",
+        "listings": 2,
+        "events": [
+          "Cleveland Guardians vs. Tampa Bay Rays",
+          "Cleveland Guardians vs. Tampa Bay Rays"
+        ],
+        "slugs": [
+          "mlb-cle-tb-2026-10-19",
+          "mlb-cle-tb-2026-10-20"
+        ],
+        "edge": -0.8473,
+        "shares": 7.39,
+        "profit": -6.2617
+      },
+      {
+        "question": "Will oil be at least $80 on November 2 and the Republicans win the Senate?",
+        "listings": 2,
+        "events": [
+          "Republicans win the Senate pending oil above or below $80?",
+          "Who wins the Senate pending oil above or below $80 before the midterms?"
+        ],
+        "slugs": [
+          "republicans-win-the-senate-pending-oil-above-or-below-80",
+          "who-wins-the-senate-pending-oil-above-or-below-80-before-the-midterms"
+        ],
+        "edge": -0.0262,
+        "shares": 260.0,
+        "profit": -6.8238
+      }
+    ]
+  },
+  "cross_event_ladder": {
+    "priced": 118,
+    "positive_edge": 0,
+    "profit_at_least_25c": 0,
+    "sum_positive_profit": 0,
+    "best": [
+      {
+        "edge": -0.1127,
+        "shares": 0.18,
+        "profit": -0.0203,
+        "strong": "Pete Hegseth out as Secretary of Defense by October 31?",
+        "weak": "Pete Hegseth out as Secretary of Defense by November 30?",
+        "strong_event": "959168",
+        "weak_event": "1120129"
+      },
+      {
+        "edge": -0.0342,
+        "shares": 5.12,
+        "profit": -0.1749,
+        "strong": "Will Hillary Clinton announce a Presidential run before 2027?",
+        "weak": "Will Hillary Clinton announce a Presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.0286,
+        "shares": 7.75,
+        "profit": -0.2217,
+        "strong": "Will the Vancouver Canucks record 110+ points?",
+        "weak": "Will the Vancouver Canucks record 100+ points?",
+        "strong_event": "1094031",
+        "weak_event": "1094030"
+      },
+      {
+        "edge": -0.133,
+        "shares": 5.58,
+        "profit": -0.7421,
+        "strong": "Will John Fetterman announce a Presidential run before 2027?",
+        "weak": "Will John Fetterman announce a Presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.0187,
+        "shares": 40.0,
+        "profit": -0.7471,
+        "strong": "Will Barack Obama announce a Presidential run before 2027?",
+        "weak": "Will Barack Obama announce a Presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.1782,
+        "shares": 4.47,
+        "profit": -0.7964,
+        "strong": "Will Kristi Noem announce a presidential run before 2027?",
+        "weak": "Will Kristi Noem announce a presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.0692,
+        "shares": 11.73,
+        "profit": -0.8122,
+        "strong": "Will the Chicago Blackhawks record 110+ points?",
+        "weak": "Will the Chicago Blackhawks record 100+ points?",
+        "strong_event": "1094031",
+        "weak_event": "1094030"
+      },
+      {
+        "edge": -0.122,
+        "shares": 7.68,
+        "profit": -0.9372,
+        "strong": "Will Elon Musk announce a presidential run before 2027?",
+        "weak": "Will Elon Musk announce a presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.151,
+        "shares": 6.59,
+        "profit": -0.9949,
+        "strong": "Will Dwayne 'The Rock' Johnson announce a Presidential run before 2027?",
+        "weak": "Will Dwayne 'The Rock' Johnson announce a Presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.0515,
+        "shares": 20.0,
+        "profit": -1.0307,
+        "strong": "Will Ivanka Trump announce a presidential run before 2027?",
+        "weak": "Will Ivanka Trump announce a presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.1551,
+        "shares": 7.0,
+        "profit": -1.086,
+        "strong": "Will Marjorie Taylor Greene announce a presidential run before 2027?",
+        "weak": "Will Marjorie Taylor Greene announce a presidential run before 2028?",
+        "strong_event": "85704",
+        "weak_event": "798125"
+      },
+      {
+        "edge": -0.057,
+        "shares": 19.98,
+        "profit": -1.1397,
+        "strong": "Will the Vegas Golden Knights record 90+ points?",
+        "weak": "Will the Vegas Golden Knights record 80+ points?",
+        "strong_event": "1094029",
+        "weak_event": "1093928"
+      },
+      {
+        "edge": -0.0597,
+        "shares": 20.0,
+        "profit": -1.1934,
+        "strong": "Will the Washington Capitals record 100+ points?",
+        "weak": "Will the Washington Capitals record 90+ points?",
+        "strong_event": "1094030",
+        "weak_event": "1094029"
+      },
+      {
+        "edge": -0.144,
+        "shares": 9.12,
+        "profit": -1.3134,
+        "strong": "Will the Philadelphia Flyers record 110+ points?",
+        "weak": "Will the Philadelphia Flyers record 100+ points?",
+        "strong_event": "1094031",
+        "weak_event": "1094030"
+      },
+      {
+        "edge": -0.0238,
+        "shares": 60.0,
+        "profit": -1.4298,
+        "strong": "Will the Edmonton Oilers record 90+ points?",
+        "weak": "Will the Edmonton Oilers record 80+ points?",
+        "strong_event": "1094029",
+        "weak_event": "1093928"
+      }
+    ]
+  },
+  "conjunction_outside_negrisk": {
+    "priced": 0,
+    "positive_edge": 0,
+    "profit_at_least_25c": 0,
+    "sum_positive_profit": 0,
+    "best": []
+  },
+  "liquidity_rewards": {
+    "markets_with_daily_rate": 20205,
+    "sum_daily_rate_usd": 340619.34,
+    "holding_rewards_enabled_markets": 712
+  },
+  "different_deadline_examples": []
+}
