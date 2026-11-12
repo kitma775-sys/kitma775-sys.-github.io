@@ -213,9 +213,17 @@ class LifecycleManager:
                 await self.sync_wallet_balance()
 
     async def _reconcile_external(self) -> None:
-        if not hasattr(self.gateway, "position") or not self.risk.state.holds:
+        if not self.risk.state.holds:
             return
-        removed: list[HoldPosition] = await self.risk.reconcile_holds(self.gateway.position)
+        open_tokens: set[str] | None = await self._fetch_open_position_tokens()
+        if open_tokens is not None:
+            async def _check_tok(token_id: str) -> float:
+                return 1.0 if token_id in open_tokens else 0.0
+        elif hasattr(self.gateway, "position"):
+            _check_tok = self.gateway.position
+        else:
+            return
+        removed: list[HoldPosition] = await self.risk.reconcile_holds(_check_tok)
         for hold in removed:
             self.reconciled += 1
             self.journal.write(
@@ -230,6 +238,34 @@ class LifecycleManager:
             log.warning("reconciled externally closed hold %s (cost=$%.2f freed from exposure)", hold.title[:55], hold.cost)
         if removed:
             await self.sync_wallet_balance()
+
+    async def _fetch_open_position_tokens(self) -> set[str] | None:
+        """Return token_ids with active open or winning-redeemable value (> $0.05), or None on API error."""
+        if not self.wallet_funder:
+            return None
+        try:
+            resp = await self._http.get(
+                f"{DATA_API_URL}/v2/positions",
+                params={"user": self.wallet_funder, "limit": 500},
+            )
+            if resp.status_code != 200:
+                return None
+            body = resp.json()
+            if (body.get("pagination") or {}).get("has_more"):
+                return None  # fall back to per-token queries if >500 positions
+            rows = body.get("data") or []
+        except Exception:
+            return None
+        active: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            tok = str(row.get("token_id") or "")
+            val = float(row.get("current_value") or 0.0)
+            status = str(row.get("status") or "").upper()
+            if tok and (val >= 0.05 or status not in ("REDEEMABLE", "CLOSED")):
+                active.add(tok)
+        return active
 
     async def start(self) -> None:
         await self.stop()
