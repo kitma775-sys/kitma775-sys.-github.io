@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import httpx
 
 from polyarb.config import Config
+from polyarb.data.gamma import GAMMA_URL, parse_event
 from polyarb.execution.base import Gateway
 from polyarb.journal import Journal
 from polyarb.models import Outcome, Side
@@ -48,6 +50,7 @@ class LifecycleManager:
         self._own_http = http is None
         self._http = http or httpx.AsyncClient(timeout=20.0)
         self._task: asyncio.Task | None = None
+        self._last_paper_redeem_at: float = 0.0
         self.flips_completed = 0
         self.redemptions = 0
         self.reconciled = 0
@@ -70,6 +73,11 @@ class LifecycleManager:
             if self.cfg.execution.auto_redeem:
                 await self._auto_redeem_live()
             await self._reconcile_external()
+        elif self.cfg.execution.auto_redeem and self.risk.state.holds:
+            now = time.monotonic()
+            if now - self._last_paper_redeem_at >= 60.0:
+                self._last_paper_redeem_at = now
+                await self._auto_redeem_paper()
 
     async def _manage_flip_orders(self) -> None:
         if not self.cfg.metar.flip_enabled:
@@ -211,6 +219,52 @@ class LifecycleManager:
                 )
                 log.info("AUTO-REDEEMED %s proceeds=$%.2f pnl=$%.3f", hold.title[:50], total_redeemed, pnl)
                 await self.sync_wallet_balance()
+
+    async def _auto_redeem_paper(self) -> None:
+        """Settle paper holds against real Gamma on-chain resolution outcomes as soon as markets resolve."""
+        by_event: dict[str, Any] = {}
+        for hold in list(self.risk.state.holds):
+            if not hold.event_id or not hold.legs:
+                continue
+            if hold.event_id not in by_event:
+                try:
+                    resp = await self._http.get(f"{GAMMA_URL}/events/{hold.event_id}")
+                    by_event[hold.event_id] = parse_event(resp.json()) if resp.status_code == 200 else None
+                except Exception:
+                    by_event[hold.event_id] = None
+            ev = by_event.get(hold.event_id)
+            if ev is None:
+                continue
+            mkt_by_id = {m.id: m for m in ev.markets}
+            mkt_by_tok = {t: m for m in ev.markets for t in (m.yes_token, m.no_token)}
+            resolved_all = True
+            proceeds = 0.0
+            for leg in hold.legs:
+                m = mkt_by_id.get(str(leg.get("market_id") or "")) or mkt_by_tok.get(str(leg.get("token") or ""))
+                if m is None or not m.closed or m.resolved_outcome not in ("YES", "NO"):
+                    resolved_all = False
+                    break
+                if m.resolved_outcome == str(leg.get("outcome") or "").upper():
+                    proceeds += float(leg.get("shares") or 0.0)
+            if not resolved_all:
+                continue
+            if hold.exit_order_id:
+                await self.gateway.cancel(hold.exit_order_id)
+                hold.exit_order_id = None
+            pnl = self.risk.close_hold(hold, proceeds)
+            self.redemptions += 1
+            self.journal.write(
+                "redeemed",
+                {
+                    "key": hold.key,
+                    "title": hold.title,
+                    "strategy": hold.strategy,
+                    "proceeds": round(proceeds, 4),
+                    "pnl": round(pnl, 4),
+                    "txs": ["paper-gamma-verified"],
+                },
+            )
+            log.info("PAPER AUTO-REDEEMED %s proceeds=$%.2f pnl=$%.3f", hold.title[:50], proceeds, pnl)
 
     async def _reconcile_external(self) -> None:
         if not self.risk.state.holds:

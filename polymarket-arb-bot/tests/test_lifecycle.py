@@ -7,12 +7,13 @@ import pytest
 from polyarb.config import Config, ConvertConfig, ExecutionConfig, MetarConfig
 from polyarb.data.gamma import parse_event
 from polyarb.data.metar import MetarFeed
+from polyarb.data.ws import MarketStream
 from polyarb.execution.executor import Executor
 from polyarb.execution.lifecycle import LifecycleManager
 from polyarb.execution.live import PolymarketGateway, resolve_gateway_api_key
 from polyarb.execution.paper import PaperGateway
 from polyarb.journal import Journal
-from polyarb.models import Settlement
+from polyarb.models import Outcome, Settlement, Side
 from polyarb.risk import HoldPosition, RiskManager
 from polyarb.strategies.ladder import LadderArb
 from polyarb.strategies.ladder_parse import detect_ladders
@@ -262,3 +263,76 @@ def test_relayer_api_key_and_warm_markets():
     m = make_market("Q?", neg_risk=True, index=0)
     m.condition_id = "0x" + "22" * 32
     assert gw.warm_markets([m]) == 1
+
+
+async def test_paper_resting_order_fills_from_ws_last_trade_price(store):
+    store.put(book("Y_LEAD", bids=[(0.34, 100)], asks=[(0.38, 100)]))
+    gw = PaperGateway(store)
+    changed = []
+    stream = MarketStream(store, on_change=changed.append, on_trade=gw.on_market_trade)
+
+    # Resting BUY NO @ 0.63 <=> SELL YES @ 0.37
+    res = await gw.place_limit("N_LEAD", Outcome.NO, "Y_LEAD", Side.BUY, 0.63, 20.0, post_only=True)
+    assert res.ok and res.order_id is not None
+    gw._orders[res.order_id].placed_at -= 1.0
+
+    # Real market trade at YES=0.36 does not reach our 0.37 ask -> still 0 matched
+    stream.handle('{"event_type":"last_trade_price","asset_id":"Y_LEAD","price":"0.36","size":"15"}')
+    st0 = await gw.get_order_state(res.order_id)
+    assert st0.size_matched == 0.0 and st0.status == "LIVE"
+
+    # Real market buyer lifts YES=0.38 for 25 shares -> crosses our 0.37 ask and fills all 20 shares!
+    stream.handle('{"event_type":"last_trade_price","asset_id":"Y_LEAD","price":"0.38","size":"25"}')
+    st1 = await gw.get_order_state(res.order_id)
+    assert st1.size_matched == pytest.approx(20.0) and st1.status == "MATCHED"
+    assert changed == ["Y_LEAD"]
+
+
+async def test_paper_auto_redeem_verifies_real_gamma_resolution(store, tmp_path):
+    cfg = Config()
+    cfg.risk.kill_file = ""
+    risk = RiskManager(cfg.risk, tmp_path / "state.json")
+    journal = Journal(tmp_path / "journal.jsonl")
+    risk.state.holds = [
+        HoldPosition(
+            key="metar:ev1:m1:NO",
+            event_id="ev1",
+            strategy="metar_lock",
+            title="Highest temperature in London on November 12?",
+            cost=22.50,
+            payout=25.0,
+            shares=25.0,
+            resolves_at=(NOW + timedelta(hours=2)).isoformat(),
+            opened_at=NOW.timestamp() - 600,
+            legs=[{"token": "n1", "yes_token": "y1", "market_id": "m1", "outcome": "NO", "shares": 25.0, "tick": 0.001}],
+        )
+    ]
+    risk.save()
+
+    gw = PaperGateway(store)
+    gamma_payload = {
+        "id": "ev1",
+        "title": "Highest temperature in London on November 12?",
+        "markets": [
+            {
+                "id": "m1",
+                "conditionId": "0x" + "44" * 32,
+                "question": "Will temp be 7°C?",
+                "clobTokenIds": ["y1", "n1"],
+                "outcomes": ["Yes", "No"],
+                "closed": True,
+                "acceptingOrders": False,
+                "outcomePrices": ["0", "1"],
+            }
+        ],
+    }
+    lc = LifecycleManager(
+        cfg, gw, risk, journal,
+        http=httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=gamma_payload))),
+    )
+    lc._last_paper_redeem_at = -100.0
+    await lc.step()
+
+    assert lc.redemptions == 1
+    assert risk.state.holds == []
+    assert risk.state.realized_total == pytest.approx(25.0 - 22.50)

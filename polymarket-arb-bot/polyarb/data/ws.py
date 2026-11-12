@@ -28,6 +28,7 @@ class MarketStream:
         self,
         store: BookStore,
         on_change: Callable[[str], None] | None = None,
+        on_trade: Callable[[str, float, float], bool | None] | None = None,
         url: str = WS_URL,
         assets_per_conn: int = 400,
         ping_s: float = 10.0,
@@ -35,6 +36,7 @@ class MarketStream:
     ) -> None:
         self.store = store
         self.on_change = on_change
+        self.on_trade = on_trade
         self.url = url
         self.assets_per_conn = assets_per_conn
         self.ping_s = ping_s
@@ -125,6 +127,16 @@ class MarketStream:
                         continue
                     # Deeper levels only change sizing headroom, the same rule REST sweeps apply.
                     if book.set_level(str(ch.get("side", "")), ch.get("price", 0), ch.get("size", 0)):
+                        changed.add(aid)
+            elif kind == "last_trade_price":
+                if self.on_trade is not None:
+                    aid = str(ev.get("asset_id") or "")
+                    try:
+                        px = float(ev.get("price") or 0)
+                        sz = float(ev.get("size") or 0)
+                    except (TypeError, ValueError):
+                        px, sz = 0.0, 0.0
+                    if aid and px > 0 and sz > 0 and self.on_trade(aid, px, sz):
                         changed.add(aid)
             elif kind == "tick_size_change":
                 book = self.store.raw(str(ev.get("asset_id")))

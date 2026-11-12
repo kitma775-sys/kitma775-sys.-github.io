@@ -158,8 +158,9 @@ class Engine:
         self.last_sweep_s = 0.0
         self.last_sweep_at = 0.0
         self.last_refresh_at = 0.0
+        trade_hook = getattr(getattr(executor, "gateway", None), "on_market_trade", None)
         self.stream = (
-            MarketStream(store, on_change=self._on_change, assets_per_conn=cfg.engine.ws_assets_per_conn)
+            MarketStream(store, on_change=self._on_change, on_trade=trade_hook, assets_per_conn=cfg.engine.ws_assets_per_conn)
             if cfg.engine.use_websocket
             else None
         )

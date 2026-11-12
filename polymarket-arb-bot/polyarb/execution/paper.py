@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
 from polyarb.book import EPS, Level, OrderBook, spend
@@ -23,6 +24,7 @@ class _PaperOrder:
     original_size: float
     size_matched: float = 0.0
     status: str = "LIVE"
+    placed_at: float = field(default_factory=time.time)
 
 
 def _buy_levels(book: OrderBook, outcome: Outcome) -> list[Level]:
@@ -175,6 +177,40 @@ class PaperGateway:
         if order.original_size - order.size_matched <= EPS:
             order.size_matched = order.original_size
             order.status = "MATCHED"
+
+    def on_market_trade(self, yes_token: str, yes_price: float, size: float, now: float | None = None) -> bool:
+        """Fill resting paper limit orders when a real CLOB trade executes at or through our limit."""
+        if size <= EPS or not (0.0 < yes_price < 1.0):
+            return False
+        now = time.time() if now is None else now
+        any_filled = False
+        remaining_trade = size
+        for order in self._orders.values():
+            if order.status != "LIVE" or order.yes_token != yes_token or now < order.placed_at + 0.2:
+                continue
+            rem = order.original_size - order.size_matched
+            if rem <= EPS or remaining_trade <= EPS:
+                continue
+            # Unified binary book equivalence:
+            # BUY YES @ P  <=> YES bid @ P       (crossed when trade p_yes <= P)
+            # SELL NO @ P  <=> YES bid @ (1 - P) (crossed when trade p_yes <= 1 - P)
+            # SELL YES @ P <=> YES ask @ P       (crossed when trade p_yes >= P)
+            # BUY NO @ P   <=> YES ask @ (1 - P) (crossed when trade p_yes >= 1 - P)
+            buying_yes_book = (order.side is Side.BUY and order.outcome is Outcome.YES) or (
+                order.side is Side.SELL and order.outcome is Outcome.NO
+            )
+            eq_yes_price = order.price if order.outcome is Outcome.YES else round(1.0 - order.price, 6)
+            crossed = (yes_price <= eq_yes_price + EPS) if buying_yes_book else (yes_price >= eq_yes_price - EPS)
+            if not crossed:
+                continue
+            fill_q = min(rem, remaining_trade)
+            order.size_matched = round(order.size_matched + fill_q, 4)
+            remaining_trade -= fill_q
+            any_filled = True
+            if order.original_size - order.size_matched <= EPS:
+                order.size_matched = order.original_size
+                order.status = "MATCHED"
+        return any_filled
 
     async def get_order_state(self, order_id: str) -> OrderState | None:
         order = self._orders.get(order_id)
