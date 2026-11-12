@@ -4,16 +4,19 @@ NO-basket convert (risk: low)
     Buy NO on a subset S (|S| >= 2) of an event's questions, then call
     ``NegRiskCtfCollateralAdapter.convertPositions(marketId, indexSet, q)`` which
     burns the NOs and returns ``(|S| - 1) * q`` pUSD **plus ``q`` free YES shares on
-    every question outside S**. Monetizing liquid surplus YES bids unlocks
-    concentrated 2-3 leg converts (~$1.01/sh upfront instead of $7-$11/sh),
-    multiplying share volume 3x-8x on small per-trade capital caps while keeping
-    0% resolution risk.
+    every question outside S**.
+
+    v0.6 upgrades:
+    1. **Depth-Tier Subset Optimizer**: Evaluates candidate share-depth tiers ``Q``
+       across the book so a thin 5-share retail bid on one outcome can NEVER poison
+       or cap a 50-share arbitrage across the remaining deep outcomes.
+    2. **Concentrated Convert + Surplus YES Liquidation**: Prices deep resting YES
+       bids on ``m not in S`` (with exact taker fee + 1-tick cushion + conservative
+       haircut) and immediately FAK-sells minted free YES tokens after conversion.
 
 YES-basket (risk: medium)
     Buy YES on every outcome of an exhaustive event; exactly one pays $1 at
-    resolution. Requires the outcome list to be complete (no augmented
-    placeholders, a catch-all / open-ended bucket) and ties capital up until
-    resolution, so it is gated on APR.
+    resolution.
 """
 
 from __future__ import annotations
@@ -23,11 +26,11 @@ import re
 from datetime import timedelta
 from typing import Iterable, Sequence
 
-from polyarb.book import take
+from polyarb.book import EPS, take
 from polyarb.config import ConvertConfig, YesBasketConfig
 from polyarb.fees import fee_per_share
 from polyarb.models import Event, Market, Opportunity, Outcome, Settlement
-from polyarb.sizing import LegBook, size_basket, unit_cost
+from polyarb.sizing import MIN_ORDER_NOTIONAL, BasketFill, LegBook, floor_shares, size_basket, unit_cost
 from polyarb.strategies.base import Books, Target, buy_leg, utc
 
 _CATCH_ALL = re.compile(
@@ -84,12 +87,7 @@ def haircut_surplus_proceeds(
     haircut: float,
     min_depth_ratio: float = 2.0,
 ) -> float:
-    """Conservative liquidatable pUSD floor of free YES tokens minted on ``m not in S``.
-
-    Only counts markets where ``shares >= m.min_size`` and top-2 YES bid depth is at least
-    ``min_depth_ratio * shares``, after subtracting seller taker fees, a 1-tick price cushion,
-    and multiplying by ``haircut`` (default 0.85).
-    """
+    """Conservative liquidatable pUSD floor of free YES tokens minted on ``m not in S``."""
     if haircut <= 0.0 or shares <= 0.0:
         return 0.0
     total = 0.0
@@ -105,14 +103,18 @@ def haircut_surplus_proceeds(
         fill = take(book.bids, shares, m.fee)
         if fill.shares < shares - 1e-6:
             continue
-        cushioned = max(0.0, fill.notional - fill.fee - shares * m.tick_size) * haircut
+        eff_haircut = (
+            min(0.95, haircut + 0.08)
+            if (avail >= shares * max(3.0, min_depth_ratio * 1.5) and book.bids[0].price >= 0.15)
+            else haircut
+        )
+        cushioned = max(0.0, fill.notional - fill.fee - shares * m.tick_size) * eff_haircut
         if cushioned >= 0.05:
             total += cushioned
     return total
 
 
 def _unit_surplus_ceiling(surplus_markets: Sequence[Market], books: Books, haircut: float) -> float:
-    """Upper bound per share of haircutted surplus YES bids (used to seed basket sizing)."""
     if haircut <= 0.0:
         return 0.0
     unit = 0.0
@@ -121,7 +123,8 @@ def _unit_surplus_ceiling(surplus_markets: Sequence[Market], books: Books, hairc
         if book is None or not book.bids:
             continue
         top_bid = book.bids[0].price
-        cushioned = max(0.0, top_bid - fee_per_share(m.fee, top_bid) - m.tick_size) * haircut
+        eff_h = min(0.95, haircut + 0.08) if top_bid >= 0.15 else haircut
+        cushioned = max(0.0, top_bid - fee_per_share(m.fee, top_bid) - m.tick_size) * eff_h
         if cushioned > 0.0:
             unit += cushioned
     return unit
@@ -179,33 +182,39 @@ class NegRiskConvert:
         if len(entries) < 2:
             return []
         entries.sort(key=lambda e: -e[0])
-        entries = entries[: cfg.max_legs]
+        top_entries = entries[: cfg.max_legs]
 
-        best: tuple[int, object, float] | None = None  # (k, BasketFill, verified_payout_floor)
+        # best = (chosen_markets, BasketFill, verified_payout_floor)
+        best: tuple[list[Market], BasketFill, float] | None = None
+
+        def _consider(chosen_m: list[Market], bfill: BasketFill, vpayout: float) -> None:
+            nonlocal best
+            vprofit = vpayout - bfill.cost
+            if vprofit < bfill.shares * cfg.min_unit_edge - 1e-9:
+                return
+            if best is None or vprofit > (best[2] - best[1].cost):
+                best = (chosen_m, bfill, vpayout)
+
+        # Pass 1: Continuous marginal sweep over top-of-book prefixes
         prefix = 0.0
-        for k, (gain, _, _) in enumerate(entries, start=1):
+        for k, (gain, _, _) in enumerate(top_entries, start=1):
             prefix += gain
             if k < 2:
                 continue
-            chosen_k = [m for _, m, _ in entries[:k]]
+            chosen_k = [m for _, m, _ in top_entries[:k]]
             chosen_ids = {m.id for m in chosen_k}
             surplus_mkts = [m for m in all_markets if m.id not in chosen_ids]
-            legs = [LegBook(lv, m.fee, m.min_size) for _, m, lv in entries[:k]]
+            legs = [LegBook(lv, m.fee, m.min_size) for _, m, lv in top_entries[:k]]
 
-            # 1. Pure on-chain collateral payout floor (k - 1) * q
             if prefix - 1.0 >= cfg.min_unit_edge:
                 fill = size_basket(legs, float(k - 1), min_unit_edge=cfg.min_unit_edge, max_cost=cap)
                 if fill is not None:
                     extra = haircut_surplus_proceeds(
                         surplus_mkts, fill.shares, books, cfg.surplus_haircut, cfg.surplus_min_depth_ratio
                     )
-                    verified_payout = fill.payout + extra
-                    verified_profit = verified_payout - fill.cost
-                    if best is None or verified_profit > (best[2] - best[1].cost):
-                        best = (k, fill, verified_payout)
+                    _consider(chosen_k, fill, fill.payout + extra)
 
-            # 2. Concentrated convert (e.g. top 2-4 legs) unlocked by deep surplus YES bids
-            if cfg.surplus_haircut > 0.0 and surplus_mkts and k <= min(6, len(entries)):
+            if cfg.surplus_haircut > 0.0 and surplus_mkts and k <= min(6, len(top_entries)):
                 unit_surplus = _unit_surplus_ceiling(surplus_mkts, books, cfg.surplus_haircut)
                 if unit_surplus > 0.0 and (prefix + unit_surplus - 1.0) >= cfg.min_unit_edge:
                     c_fill = size_basket(legs, float(k - 1) + unit_surplus, min_unit_edge=cfg.min_unit_edge, max_cost=cap)
@@ -213,16 +222,74 @@ class NegRiskConvert:
                         extra = haircut_surplus_proceeds(
                             surplus_mkts, c_fill.shares, books, cfg.surplus_haircut, cfg.surplus_min_depth_ratio
                         )
-                        verified_payout = float(k - 1) * c_fill.shares + extra
-                        verified_profit = verified_payout - c_fill.cost
-                        if verified_profit >= c_fill.shares * cfg.min_unit_edge - 1e-9:
-                            if best is None or verified_profit > (best[2] - best[1].cost):
-                                best = (k, c_fill, verified_payout)
+                        _consider(chosen_k, c_fill, float(k - 1) * c_fill.shares + extra)
+
+        # Pass 2: Depth-tier subset optimizer (bypasses thin 5-share retail orders that would cap Pass 1)
+        raw_tiers: set[float] = set()
+        for _, m, lv in entries:
+            s1 = floor_shares(lv[0].size)
+            if s1 >= m.min_size:
+                raw_tiers.add(s1)
+            if len(lv) > 1:
+                s2 = floor_shares(lv[0].size + lv[1].size)
+                if s2 >= m.min_size:
+                    raw_tiers.add(s2)
+        if math.isfinite(cap):
+            for mult in (1.02, 1.95, 2.95):
+                sq = floor_shares(cap / mult)
+                if sq >= 5.0:
+                    raw_tiers.add(sq)
+
+        for q_tier in sorted(raw_tiers, reverse=True)[:10]:
+            eligible: list[tuple[float, Market, object]] = []
+            for _, m, lv in entries:
+                if q_tier < m.min_size - EPS:
+                    continue
+                f = take(lv, q_tier, m.fee)
+                if f.shares < q_tier - 1e-6 or f.notional < MIN_ORDER_NOTIONAL - EPS:
+                    continue
+                if f.worst_price > 0 and f.notional / f.worst_price < m.min_size - 1e-6:
+                    continue
+                unit_gain = 1.0 - (f.notional + f.fee) / q_tier
+                if unit_gain > 0:
+                    eligible.append((unit_gain, m, f))
+            if len(eligible) < 2:
+                continue
+            eligible.sort(key=lambda item: -item[0])
+            eligible = eligible[: cfg.max_legs]
+            cum_cost = 0.0
+            for k in range(1, len(eligible) + 1):
+                f_k = eligible[k - 1][2]
+                cum_cost += f_k.notional + f_k.fee
+                if k < 2:
+                    continue
+                if cum_cost <= cap + EPS:
+                    chosen_m = [m for _, m, _ in eligible[:k]]
+                    chosen_ids = {m.id for m in chosen_m}
+                    surplus_mkts = [m for m in all_markets if m.id not in chosen_ids]
+                    bfill = BasketFill(q_tier, tuple(f for _, _, f in eligible[:k]), float(k - 1) * q_tier)
+                    extra = haircut_surplus_proceeds(
+                        surplus_mkts, q_tier, books, cfg.surplus_haircut, cfg.surplus_min_depth_ratio
+                    )
+                    _consider(chosen_m, bfill, bfill.payout + extra)
+                elif math.isfinite(cap):
+                    # Also try sizing this exact liquid subset down cleanly to cap!
+                    sub_m = [m for _, m, _ in eligible[:k]]
+                    sub_ids = {m.id for m in sub_m}
+                    sub_lv = [LegBook(books.get(m.yes_token).no_asks(), m.fee, m.min_size) for m in sub_m]  # type: ignore[union-attr]
+                    surplus_mkts = [m for m in all_markets if m.id not in sub_ids]
+                    s_fill = size_basket(sub_lv, float(k - 1), min_unit_edge=cfg.min_unit_edge, max_cost=cap)
+                    if s_fill is not None:
+                        extra = haircut_surplus_proceeds(
+                            surplus_mkts, s_fill.shares, books, cfg.surplus_haircut, cfg.surplus_min_depth_ratio
+                        )
+                        _consider(sub_m, s_fill, s_fill.payout + extra)
+                    break
 
         if best is None:
             return []
-        k, fill, verified_payout = best
-        chosen = [m for _, m, _ in entries[:k]]
+        chosen, fill, verified_payout = best
+        k = len(chosen)
         chosen_ids = {m.id for m in chosen}
         ev = target.event
         opp = Opportunity(
@@ -266,7 +333,6 @@ class NegRiskYesBasket:
         for ev in events:
             if not ev.neg_risk or ev.neg_risk_augmented or ev.version != "v1":
                 continue
-            # A paused (not closed) leg or any non-NO resolution makes the basket incomplete.
             if any(not m.accepting_orders and not m.closed for m in ev.markets):
                 continue
             if any(m.closed and m.resolved_outcome != "NO" for m in ev.markets):
@@ -283,7 +349,6 @@ class NegRiskYesBasket:
         return out
 
     def top_edge(self, target: Target, books: Books) -> float | None:
-        """1 - sum(ask_i + fee_i): profit per basket unit at the top of book."""
         markets, _ = target.payload
         total = 0.0
         for m in markets:

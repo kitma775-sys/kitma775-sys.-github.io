@@ -129,14 +129,17 @@ class MarketStream:
                     if book.set_level(str(ch.get("side", "")), ch.get("price", 0), ch.get("size", 0)):
                         changed.add(aid)
             elif kind == "last_trade_price":
-                if self.on_trade is not None:
-                    aid = str(ev.get("asset_id") or "")
-                    try:
-                        px = float(ev.get("price") or 0)
-                        sz = float(ev.get("size") or 0)
-                    except (TypeError, ValueError):
-                        px, sz = 0.0, 0.0
-                    if aid and px > 0 and sz > 0 and self.on_trade(aid, px, sz):
+                aid = str(ev.get("asset_id") or "")
+                try:
+                    px = float(ev.get("price") or 0)
+                    sz = float(ev.get("size") or 0)
+                except (TypeError, ValueError):
+                    px, sz = 0.0, 0.0
+                if aid and px > 0 and sz > 0:
+                    if self.on_trade is not None and self.on_trade(aid, px, sz):
+                        changed.add(aid)
+                    elif self.on_trade is None:
+                        # Live mode: wake any active maker quote on this token within milliseconds of a CLOB trade!
                         changed.add(aid)
             elif kind == "tick_size_change":
                 book = self.store.raw(str(ev.get("asset_id")))

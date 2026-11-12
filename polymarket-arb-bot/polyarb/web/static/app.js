@@ -14,15 +14,18 @@
   const STRATS = {
     negrisk_convert: { name: '轉換套利', short: '轉換', color: '#19e6d4' },
     metar_lock: { name: 'METAR 氣象鎖定', short: 'METAR 鎖定', color: '#2ef2a0' },
+    binance_lock: { name: '幣安收盤鎖定', short: '幣安鎖定', color: '#f59e0b' },
     twin_arb: { name: '雙生跨盤套利', short: '雙生跨盤', color: '#f472b6' },
     maker_convert: { name: '零費掛單轉換', short: '掛單轉換', color: '#38bdf8' },
+    maker_metar: { name: '零費 METAR 保底', short: 'METAR 搶單', color: '#34d399' },
+    maker_binance: { name: '零費幣安保底', short: '幣安搶單', color: '#fbbf24' },
     maker_ladder: { name: '零費掛單階梯', short: '掛單階梯', color: '#fb7185' },
     maker_yes_basket: { name: '零費掛單籃子', short: '掛單籃子', color: '#a78bfa' },
     maker_twin: { name: '零費掛單雙生', short: '掛單雙生', color: '#f9a8d4' },
     negrisk_yes_basket: { name: 'YES 籃子', short: 'YES 籃子', color: '#8b6cff' },
     ladder: { name: '階梯套利', short: '階梯', color: '#ffc857' },
   };
-  const ORDER = ['negrisk_convert', 'metar_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
+  const ORDER = ['negrisk_convert', 'metar_lock', 'binance_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
   const strat = k => STRATS[k] || { name: k || '?', short: k || '?', color: '#5aa9ff' };
 
   const PHASES = {
@@ -82,6 +85,7 @@
     [/^maker filled -> converted \(co-fill 0-fee!\)$/, '雙腿零費自對沖 → 已轉換 pUSD'],
     [/^maker filled -> converted \+ surplus sold$/, '零費掛單成交 → 轉換 pUSD ＋ 殘值變現'],
     [/^maker filled -> converted$/, '零費掛單成交 → 已轉換 pUSD'],
+    [/^maker lock filled -> 0\.995 flip$/, '零對沖保底成交 → 自動掛 0.995 止盈'],
     [/^maker filled -> holding to resolution$/, '零費掛單成交 → 對沖持有'],
     [/^partial hedge -> converted subset$/, '部分對沖 → 轉換已成交子集'],
     [/^maker hedge missed -> unwind$/, '對沖未滿 → 已平倉保護'],

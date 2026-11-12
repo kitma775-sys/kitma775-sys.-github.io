@@ -216,11 +216,15 @@ class LifecycleManager:
             await self.sync_wallet_balance()
 
     async def _manage_flip_orders(self) -> None:
-        if not self.cfg.metar.flip_enabled:
+        if not (self.cfg.metar.flip_enabled or self.cfg.binance.flip_enabled):
             return
         changed = False
         for hold in list(self.risk.state.holds):
-            if hold.strategy != "metar_lock" or len(hold.legs) != 1:
+            if hold.strategy not in ("metar_lock", "binance_lock", "maker_metar", "maker_binance") or len(hold.legs) != 1:
+                continue
+            if hold.strategy in ("metar_lock", "maker_metar") and not self.cfg.metar.flip_enabled:
+                continue
+            if hold.strategy in ("binance_lock", "maker_binance") and not self.cfg.binance.flip_enabled:
                 continue
             leg = hold.legs[0]
             token = str(leg.get("token") or "")

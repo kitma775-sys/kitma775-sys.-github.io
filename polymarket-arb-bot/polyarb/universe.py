@@ -6,28 +6,46 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from polyarb.config import Config, UniverseConfig
+from polyarb.data.binance import BinanceFeed
 from polyarb.data.metar import MetarFeed
 from polyarb.models import Event
 from polyarb.strategies.base import Strategy, Target
+from polyarb.strategies.binance_clock import BinanceClockLock
 from polyarb.strategies.ladder import LadderArb
 from polyarb.strategies.metar import MetarLock
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
 from polyarb.strategies.twin import TwinPartitionArb
 
 
-def build_all_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
+def build_all_strategies(
+    cfg: Config,
+    metar_feed: MetarFeed | None = None,
+    binance_feed: BinanceFeed | None = None,
+) -> list[Strategy]:
     cap = cfg.risk.max_trade_usd
     return [
         NegRiskConvert(cfg.convert, cap),
         MetarLock(cfg.metar, metar_feed, cap),
+        BinanceClockLock(
+            cfg.binance,
+            binance_feed,
+            cap,
+            flip_ask_price=cfg.metar.flip_ask_price,
+            flip_min_instant_bid=cfg.metar.flip_min_instant_bid,
+            flip_min_profit_usd=cfg.metar.flip_min_profit_usd,
+        ),
         TwinPartitionArb(cfg.twin, cap),
         NegRiskYesBasket(cfg.yes_basket, cap),
         LadderArb(cfg.ladder, cap),
     ]
 
 
-def build_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
-    return [s for s in build_all_strategies(cfg, metar_feed=metar_feed) if s.enabled]
+def build_strategies(
+    cfg: Config,
+    metar_feed: MetarFeed | None = None,
+    binance_feed: BinanceFeed | None = None,
+) -> list[Strategy]:
+    return [s for s in build_all_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed) if s.enabled]
 
 
 def filter_events(events: Iterable[Event], ucfg: UniverseConfig) -> list[Event]:

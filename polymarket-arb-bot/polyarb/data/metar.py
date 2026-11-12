@@ -204,9 +204,9 @@ class StationDaySummary:
 
 
 def is_metar_release_window(now: float | None = None) -> bool:
-    """Routine METARs transmit around :00, :20, :30 and :50 of every hour."""
+    """Routine METARs transmit around :51-:59 (US ASOS), :00-:07, :19-:26, and :30-:36 of every hour."""
     minute = datetime.fromtimestamp(now or time.time(), tz=timezone.utc).minute
-    return (minute % 30 <= 5) or (20 <= minute <= 25) or (50 <= minute <= 55)
+    return minute <= 7 or (19 <= minute <= 36) or minute >= 49
 
 
 class MetarFeed:

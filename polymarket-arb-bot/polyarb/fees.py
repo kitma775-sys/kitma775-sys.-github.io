@@ -23,6 +23,13 @@ def taker_fee(fee: FeeSchedule, shares: float, price: float) -> float:
     return shares * fee_per_share(fee, price)
 
 
+def maker_rebate_per_share(fee: FeeSchedule, price: float) -> float:
+    """Expected USDC maker rebate per share when a counterparty's taker order hits our postOnly quote."""
+    if fee.rate <= 0.0 or fee.rebate_rate <= 0.0:
+        return 0.0
+    return fee.rebate_rate * fee_per_share(fee, price)
+
+
 def round_fee(amount: float) -> float:
     """Exchange precision: 5 decimals, anything below 0.00001 is waived."""
     return round(amount, FEE_DECIMALS)

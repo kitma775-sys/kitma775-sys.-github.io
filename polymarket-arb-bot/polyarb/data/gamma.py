@@ -17,7 +17,10 @@ log = logging.getLogger(__name__)
 
 _AWC_METAR_RE = re.compile(r"aviationweather\.gov/api/data/metar\?ids=([A-Z0-9]{4})\b", re.I)
 _OBS_DATE_RE = re.compile(r"\bon\s+(\d{1,2})\s+([A-Za-z]{3})\s+'(\d{2})\b")
-_CREATION_SCOPE_RE = re.compile(r"\b(?:between|since|from)\s+(?:the\s+)?market(?:'s)?\s+creation\b", re.I)
+_CREATION_SCOPE_RE = re.compile(
+    r"\b(?:between|since|from)\s+(?:the\s+)?(?:market(?:'s)?\s+creation|creation\s+of\s+this\s+market)\b",
+    re.I,
+)
 _MONTH_MAP = {
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
     "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
@@ -44,9 +47,15 @@ def _extract_metar_spec(title: str, description: str) -> tuple[str | None, str |
 
 def _extract_oracle_sig(description: str) -> str | None:
     low = description.lower()
-    if "binance" in low and "12:00" in low and "1 minute candle" in low:
-        m = re.search(r"binance\.com/en/trade/([a-z0-9_]+)", low)
-        return f"binance_1200et:{m.group(1)}" if m else "binance_1200et"
+    if "binance" in low:
+        m = re.search(r"binance\.com/en/trade/([a-z0-9_]+)", low) or re.search(r"\b(btc|eth|sol|xrp|bnb|doge)/usdt\b", low)
+        pair = m.group(1).replace("/", "_") if m else "crypto_usdt"
+        if "12:00" in low and ("1 minute" in low or "1-minute" in low):
+            return f"binance_1200et:{pair}"
+        if "1 hour candle" in low or "1-hour candle" in low:
+            return f"binance_1h:{pair}"
+        if "1 minute candle" in low or "1-minute candle" in low:
+            return f"binance_1m:{pair}"
     if "published by pyth" in low and "close price" in low:
         return "pyth_close"
     return None

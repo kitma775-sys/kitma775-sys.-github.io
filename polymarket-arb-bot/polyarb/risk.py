@@ -142,7 +142,10 @@ class RiskManager:
             return "daily loss limit"
         if self.state.consecutive_failures >= cfg.max_consecutive_failures:
             return "consecutive failure limit"
-        for k in (opp.key, f"event:{opp.event_id}"):
+        cooldown_keys = [opp.key, *(f"mkt:{leg.market_id}" for leg in opp.legs if leg.market_id)]
+        if not opp.meta.get("independent_legs"):
+            cooldown_keys.append(f"event:{opp.event_id}")
+        for k in cooldown_keys:
             last = self.last_attempt.get(k)
             if last is not None and now - last < cfg.cooldown_s:
                 return "cooldown"
@@ -170,7 +173,11 @@ class RiskManager:
     def begin(self, opp: Opportunity, now: float | None = None) -> None:
         now = now or time.time()
         self.last_attempt[opp.key] = now
-        self.last_attempt[f"event:{opp.event_id}"] = now
+        for leg in opp.legs:
+            if leg.market_id:
+                self.last_attempt[f"mkt:{leg.market_id}"] = now
+        if not opp.meta.get("independent_legs"):
+            self.last_attempt[f"event:{opp.event_id}"] = now
         self.inflight_events.add(opp.event_id)
 
     def finish(self, report: "ExecutionReport") -> None:

@@ -398,6 +398,7 @@ class Monitor:
                 "eval_errors": engine.stats["eval_errors"],
                 "clients": self.subscribers,
                 "metar": engine.metar_feed.stats() if engine.metar_feed is not None else None,
+                "binance": engine.binance_feed.stats() if engine.binance_feed is not None else None,
                 "maker": engine.maker_arb.stats() if engine.maker_arb is not None else None,
                 "lifecycle": engine.lifecycle.stats() if engine.lifecycle is not None else None,
                 "tg": self.tg_bot.stats() if self.tg_bot is not None and hasattr(self.tg_bot, "stats") else None,

@@ -55,7 +55,7 @@ class MetarConfig:
     basket_min_edge: float = 0.005
     max_days: float = 3.0
     resolution_lag_days: float = 0.5
-    fast_poll_s: float = 4.0
+    fast_poll_s: float = 3.0
     idle_poll_s: float = 15.0
     glitch_delta_c: float = 12.0
     flip_enabled: bool = True
@@ -65,12 +65,29 @@ class MetarConfig:
 
 
 @dataclass
+class BinanceClockConfig:
+    """Deterministic Binance Spot closed-candle sniping & 0-leg-risk bonding (hourly, noon, and hit barriers)."""
+
+    enabled: bool = True
+    min_profit_usd: float = 0.12
+    min_edge: float = 0.004
+    min_unit_edge: float = 0.002
+    max_days: float = 3.0
+    resolution_lag_days: float = 0.15
+    burst_poll_s: float = 0.5
+    idle_poll_s: float = 6.0
+    flip_enabled: bool = True
+
+
+@dataclass
 class MakerArbConfig:
     """Lead-leg postOnly maker quote (0 maker fee) + instant FOK hedge & convert on fill."""
 
     enabled: bool = True
     min_profit_usd: float = 0.25
     min_edge: float = 0.006
+    deterministic_min_edge: float = 0.004
+    rebate_credit_ratio: float = 0.75
     min_keep_edge: float = 0.002
     min_volume_24h: float = 500.0
     min_hedge_depth_ratio: float = 2.0
@@ -180,6 +197,7 @@ class Config:
     ladder: LadderConfig = field(default_factory=LadderConfig)
     twin: TwinConfig = field(default_factory=TwinConfig)
     metar: MetarConfig = field(default_factory=MetarConfig)
+    binance: BinanceClockConfig = field(default_factory=BinanceClockConfig)
     maker: MakerArbConfig = field(default_factory=MakerArbConfig)
     universe: UniverseConfig = field(default_factory=UniverseConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)

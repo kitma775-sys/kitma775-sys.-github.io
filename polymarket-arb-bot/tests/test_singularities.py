@@ -93,7 +93,7 @@ def test_twin_partition_arb_zero_tie_risk_and_oracle_guard(store, now_ts):
 
     strat = TwinPartitionArb(TwinConfig(min_profit_usd=0.10, min_edge=0.005), max_trade_usd=30.0)
     targets = strat.targets([r_ev, a_ev])
-    assert len(targets) == 2  # K=80,000 (3 legs) and K=82,000 (2 legs)
+    assert len(targets) == 3  # 2 twin_upper (K=80k, K=82k) + 1 twin_lower (K=80k overlapping <82k)
 
     opps = [o for t in targets for o in strat.evaluate(t, store, now_ts)]
     assert len(opps) == 1

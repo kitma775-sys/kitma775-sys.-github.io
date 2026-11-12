@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from polyarb.config import Config, use_data_dir
+from polyarb.data.binance import BinanceFeed
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
 from polyarb.data.metar import MetarFeed
@@ -222,6 +223,10 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         idle_poll_s=cfg.metar.idle_poll_s,
         glitch_delta_c=cfg.metar.glitch_delta_c,
     )
+    binance_feed = BinanceFeed(
+        burst_poll_s=cfg.binance.burst_poll_s,
+        idle_poll_s=cfg.binance.idle_poll_s,
+    )
     switch_lock = asyncio.Lock()
     holder: list[_ActiveRuntime] = []
 
@@ -274,7 +279,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         )
 
         shared_store.max_age_s = run_cfg.universe.max_book_age_s
-        all_strats = build_all_strategies(run_cfg, metar_feed=metar_feed)
+        all_strats = build_all_strategies(run_cfg, metar_feed=metar_feed, binance_feed=binance_feed)
         active_strats = [s for s in all_strats if s.enabled]
         risk = RiskManager(run_cfg.risk, run_cfg.execution.state_path)
         risk.geo = geo
@@ -282,8 +287,9 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         if gateway is None:
             gateway = PaperGateway(shared_store)
         lifecycle = LifecycleManager(run_cfg, gateway, risk, journal, wallet_funder=(wallet or {}).get("funder"), store=shared_store)
-        maker_arb = MakerArbManager(run_cfg, shared_store, gateway, risk, journal, clob=clob)
-        executor = Executor(gateway, shared_store, {s.name: s for s in all_strats}, run_cfg.execution, clob)
+        strat_map = {s.name: s for s in all_strats}
+        maker_arb = MakerArbManager(run_cfg, shared_store, gateway, risk, journal, clob=clob, strategies=strat_map)
+        executor = Executor(gateway, shared_store, strat_map, run_cfg.execution, clob)
         engine = Engine(
             run_cfg,
             active_strats,
@@ -296,6 +302,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
             all_strategies=all_strats,
             initial_events=cached_events,
             metar_feed=metar_feed,
+            binance_feed=binance_feed,
             maker_arb=maker_arb,
             lifecycle=lifecycle,
         )
@@ -412,6 +419,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
             monitor.detach_logging()
             await runner.cleanup()
             await metar_feed.close()
+            await binance_feed.close()
             await cur.lifecycle.close()
             await cur.gateway.close()
         return code

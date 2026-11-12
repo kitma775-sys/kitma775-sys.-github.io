@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from polyarb.config import Config
+from polyarb.data.binance import BinanceFeed
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
 from polyarb.data.metar import MetarFeed
@@ -90,6 +91,11 @@ async def scan_once(
         if isinstance(feed, MetarFeed):
             feed.set_stations(t.event.metar_icao for t in universe.targets if t.strategy == "metar_lock" and t.event.metar_icao)
             await feed.poll_once(hours=36)
+        elif isinstance(feed, BinanceFeed):
+            feed.set_symbols(
+                t.payload.symbol for t in universe.targets if t.strategy == "binance_lock" and hasattr(t.payload, "symbol")
+            )
+            await feed.poll_once(bootstrap=True)
     # A full sweep takes a few seconds; every book in this pass counts as fresh.
     store = BookStore(max_age_s=max(cfg.universe.max_book_age_s, 300.0))
     store.update_many(await clob.get_books(universe.tokens))
@@ -129,6 +135,7 @@ class Engine:
         all_strategies: list[Strategy] | None = None,
         initial_events: list[Event] | None = None,
         metar_feed: MetarFeed | None = None,
+        binance_feed: BinanceFeed | None = None,
         maker_arb: "MakerArbManager | None" = None,
         lifecycle: "LifecycleManager | None" = None,
     ) -> None:
@@ -143,15 +150,21 @@ class Engine:
         self.risk = risk
         self.journal = journal
         self.metar_feed = metar_feed
+        self.binance_feed = binance_feed
         self.maker_arb = maker_arb
+        if self.maker_arb is not None:
+            self.maker_arb.set_strategies(self.by_name)
         self.lifecycle = lifecycle
         self._initial_events = initial_events
         self._raw_events: list[Event] | None = None
         if self.metar_feed is not None:
             self.metar_feed.on_station_update = self._on_metar_station
+        if self.binance_feed is not None:
+            self.binance_feed.on_symbol_update = self._on_binance_symbol
         self.universe: Universe | None = None
         self.targets: dict[str, Target] = {}
         self._by_station: dict[str, list[str]] = defaultdict(list)
+        self._by_symbol: dict[str, list[str]] = defaultdict(list)
         self.dirty: set[str] = set()
         self._wake = asyncio.Event()
         self._last_logged: dict[str, tuple] = {}
@@ -184,6 +197,16 @@ class Engine:
         if keys:
             self.dirty.update(keys)
             self._wake.set()
+            if self.maker_arb is not None:
+                self.maker_arb._wake.set()
+
+    def _on_binance_symbol(self, symbol: str) -> None:
+        keys = self._by_symbol.get(symbol.upper())
+        if keys:
+            self.dirty.update(keys)
+            self._wake.set()
+            if self.maker_arb is not None:
+                self.maker_arb._wake.set()
 
     async def refresh_universe(self, events: list[Event] | None = None) -> None:
         if events is None:
@@ -205,13 +228,20 @@ class Engine:
         if self.executor is not None and hasattr(self.executor.gateway, "warm_markets"):
             self.executor.gateway.warm_markets(m for ev in self.universe.events for m in ev.tradeable_markets)
         by_st: dict[str, list[str]] = defaultdict(list)
+        by_sym: dict[str, list[str]] = defaultdict(list)
         for t in self.universe.targets:
             if t.strategy == "metar_lock" and t.event.metar_icao:
                 by_st[t.event.metar_icao.upper()].append(t.key)
+            elif t.strategy == "binance_lock" and hasattr(t.payload, "symbol"):
+                by_sym[str(t.payload.symbol).upper()].append(t.key)
         self._by_station = by_st
+        self._by_symbol = by_sym
         if self.metar_feed is not None:
             self.metar_feed.set_stations(by_st.keys())
+        if self.binance_feed is not None:
+            self.binance_feed.set_symbols(by_sym.keys())
         if self.maker_arb is not None:
+            self.maker_arb.set_strategies(self.by_name)
             self.maker_arb.set_targets(self.universe.targets)
 
     async def apply_config_update(self) -> None:
@@ -223,6 +253,10 @@ class Engine:
                 s.enabled = bool(s.cfg.enabled)
             if hasattr(s, "max_trade_usd"):
                 s.max_trade_usd = self.cfg.risk.max_trade_usd
+            if s.name == "binance_lock":
+                s.flip_ask_price = self.cfg.metar.flip_ask_price
+                s.flip_min_instant_bid = self.cfg.metar.flip_min_instant_bid
+                s.flip_min_profit_usd = self.cfg.metar.flip_min_profit_usd
         self.strategies = [s for s in self.all_strategies if s.enabled]
         self.by_name = {s.name: s for s in self.all_strategies}
         if self.executor is not None:
@@ -235,6 +269,13 @@ class Engine:
                 await self.metar_feed.start()
             elif not self.cfg.metar.enabled and self.metar_feed._task is not None:
                 await self.metar_feed.stop()
+        if self.binance_feed is not None:
+            self.binance_feed.burst_poll_s = self.cfg.binance.burst_poll_s
+            self.binance_feed.idle_poll_s = self.cfg.binance.idle_poll_s
+            if self.cfg.binance.enabled and self.binance_feed._task is None and self.phase == "running":
+                await self.binance_feed.start()
+            elif not self.cfg.binance.enabled and self.binance_feed._task is not None:
+                await self.binance_feed.stop()
         now_enabled = {s.name for s in self.strategies}
         if now_enabled != prev_enabled and self._raw_events is not None:
             self._apply_universe(self._raw_events)
@@ -295,6 +336,10 @@ class Engine:
             if t.strategy == "metar_lock" and t.event.metar_obs_date and lo_date <= t.event.metar_obs_date <= hi_date:
                 for token in t.tokens:
                     tokens[token] = None
+            elif t.strategy == "binance_lock" and t.event.end_date:
+                if (t.event.end_date - now_utc).total_seconds() <= 36 * 3600:
+                    for token in t.tokens:
+                        tokens[token] = None
         if self.maker_arb is not None:
             for token in self.maker_arb.quoted_tokens():
                 tokens[token] = None
@@ -317,7 +362,7 @@ class Engine:
     def _dynamic_budget(self, strategy_name: str, event_id: str) -> float | None:
         if strategy_name == "negrisk_convert":
             b = self.risk.budget_for(Settlement.CONVERT, event_id, fast_turnover=True)
-        elif strategy_name == "metar_lock":
+        elif strategy_name in ("metar_lock", "binance_lock"):
             b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=True)
         else:
             b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=False)
@@ -454,8 +499,10 @@ class Engine:
             gc.set_threshold(50_000, 20, 100)
             self.phase = "loading"
             await self.refresh_universe()
-            if self.metar_feed is not None:
+            if self.metar_feed is not None and self.cfg.metar.enabled:
                 await self.metar_feed.start()
+            if self.binance_feed is not None and self.cfg.binance.enabled:
+                await self.binance_feed.start()
             if self.lifecycle is not None:
                 await self.lifecycle.start()
             self.phase = "sweeping"
@@ -489,6 +536,8 @@ class Engine:
             await self.drain()
             if self.metar_feed is not None:
                 await self.metar_feed.stop()
+            if self.binance_feed is not None:
+                await self.binance_feed.stop()
             if self.lifecycle is not None:
                 await self.lifecycle.stop()
             if self.stream:

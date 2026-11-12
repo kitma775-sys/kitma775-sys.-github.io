@@ -37,11 +37,11 @@ class SettingSpec:
 
 CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("risk", "🛡️ 風控與資金", "本金、單筆上限、持倉額度、流動預備金與熔斷"),
-    ("metar", "🌤️ METAR 氣象鎖定", "機場實測溫度鎖定、存活籃子與 0.995 閃電掛賣"),
-    ("maker", "🎯 零費掛單對沖", "postOnly 零手續費主導腿掛單、池化預留與動態移倉"),
-    ("convert", "🔄 轉換套利", "NegRisk 多結果 NO 籃子即時鏈上轉換與免費 YES 變現"),
-    ("baskets", "🪜 雙生・籃子與階梯", "跨事件雙生套利、窮舉 YES 籃子與蘊含階梯門檻及鎖倉期限"),
-    ("exec", "⚡ 執行與引擎", "滑點、複查、自動鏈上贖回、掃描與 WS 容量"),
+    ("metar", "🌤️ 實測預言機鎖定", "NOAA METAR 氣象站與幣安收盤 K 線 100% 已定局鎖定及 0.995 閃電掛賣"),
+    ("maker", "🎯 零費掛單對沖", "postOnly 零手續費主導腿、零對沖保底搶單、回贈折算、池化預留與動態移倉"),
+    ("convert", "🔄 轉換套利", "NegRisk 多結果 NO 籃子深度分層轉換與免費 YES 變現"),
+    ("baskets", "🪜 雙生・籃子與階梯", "跨事件雙生／蘊含套利、窮舉 YES 籃子與階梯門檻及鎖倉期限"),
+    ("exec", "⚡ 執行與引擎", "滑點、複查、中間帶提前收割、自動鏈上贖回、掃描與 WS 容量"),
     ("tg", "🔔 Telegram 通知", "成交推送、閃電／贖回通知、熔斷警報與定時戰報"),
 )
 
@@ -66,13 +66,19 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("m_fa", "metar.flip_ask_price", "metar", "閃電掛賣目標價", "休息限價賣單的掛單價（0 maker 手續費）", "float", "price", 0.95, 0.999, (0.992, 0.995, 0.997, 0.998)),
     SettingSpec("m_fb", "metar.flip_min_instant_bid", "metar", "即時秒賣最低買盤價", "盤口已有此價位或更高買單時直接秒賣平倉", "float", "price", 0.95, 0.999, (0.988, 0.990, 0.993, 0.995)),
     SettingSpec("m_fm", "metar.flip_min_profit_usd", "metar", "閃電平倉最低利潤", "提早平倉必須鎖定的最低淨利潤", "float", "usd", 0.01, 100.0, (0.05, 0.08, 0.15, 0.30)),
+    SettingSpec("b_on", "binance.enabled", "metar", "幣安收盤鎖定開關", "追蹤幣安已收盤 1h/1m 現貨 K 線，毫秒級捕捉每小時／正午／觸價已定局盤口", "bool"),
+    SettingSpec("b_mp", "binance.min_profit_usd", "metar", "幣安鎖定最低利潤", "幣安確定性鎖定單的最低美元淨利潤", "float", "usd", 0.02, 500.0, (0.08, 0.12, 0.25, 0.50)),
+    SettingSpec("b_bp", "binance.burst_poll_s", "metar", "整點收盤衝刺輪詢秒數", "每小時 :00 整點及正午收盤窗口的高頻輪詢間隔", "float", "s", 0.2, 10.0, (0.3, 0.5, 1.0, 2.0)),
+    SettingSpec("b_fl", "binance.flip_enabled", "metar", "幣安鎖定閃電掛賣", "幣安單腿鎖定倉位自動掛 0.995 零費賣單秒速翻倉", "bool"),
     # --- maker ---
     SettingSpec("k_on", "maker.enabled", "maker", "零費掛單對沖開關", "於主導腿掛 postOnly 零費買單，成交即 FOK 對沖（關閉會即撤現有掛單）", "bool"),
     SettingSpec("k_mq", "maker.max_open_quotes", "maker", "同時最多掛單數", "同時在市場上維持的零費限價單上限", "int", "int", 1, 20, (2, 4, 6, 8, 12)),
     SettingSpec("k_jb", "maker.allow_join_bid", "maker", "1-Tick 貼買一掛單", "在 1 tick 窄價差高成交市場允許貼住買一價掛零費 postOnly 單", "bool"),
-    SettingSpec("k_qe", "maker.max_quotes_per_event", "maker", "同事件互補雙掛上限", "轉換事件最多同時掛幾條互補 NO 主導腿（同時成交可零費自對沖）", "int", "int", 1, 4, (1, 2, 3)),
+    SettingSpec("k_qe", "maker.max_quotes_per_event", "maker", "同事件互補雙掛上限", "轉換／保底鎖定事件最多同時掛幾張零費買單", "int", "int", 1, 4, (1, 2, 3)),
     SettingSpec("k_ps", "maker.pool_hedge_slots", "maker", "對沖現金池化峰值數", "除鎖定全部掛單本金外，額外全額預留幾筆同時成交的對沖現金", "int", "int", 1, 10, (1, 2, 3, 6)),
     SettingSpec("k_rp", "maker.repeg_after_s", "maker", "被搶價動態移倉秒數", "盤口有人出更高買價排在前面超過此秒數即自動撤單重掛（0=關閉）", "float", "s", 0.0, 300.0, (0.0, 2.0, 3.0, 5.0, 15.0)),
+    SettingSpec("k_de", "maker.deterministic_min_edge", "maker", "零對沖保底掛單邊際", "已定局 METAR／幣安單腿零風險搶單要求的最低邊際", "float", "pct", 0.001, 0.20, (0.003, 0.004, 0.006, 0.010)),
+    SettingSpec("k_rb", "maker.rebate_credit_ratio", "maker", "Maker 回贈折算比例", "將 Polymarket 每日 USDC Maker Rebate 計入邊際評分的保守折算率（仍強制當日現金正利潤）", "float", "pct", 0.0, 1.0, (0.0, 0.50, 0.75, 1.00)),
     SettingSpec("k_mp", "maker.min_profit_usd", "maker", "掛單最低預期利潤", "主導腿成交並完成對沖後的最低淨利潤", "float", "usd", 0.05, 500.0, (0.15, 0.25, 0.50, 1.00)),
     SettingSpec("k_me", "maker.min_edge", "maker", "掛單最低開倉邊際", "開立掛單要求的最低淨回報率", "float", "pct", 0.001, 0.50, (0.004, 0.006, 0.010, 0.015)),
     SettingSpec("k_ke", "maker.min_keep_edge", "maker", "盤口偏移撤單底線", "對沖腿價格變動令邊際跌穿此值時立即撤單", "float", "pct", 0.0, 0.20, (0.001, 0.002, 0.004)),

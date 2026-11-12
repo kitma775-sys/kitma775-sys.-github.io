@@ -23,7 +23,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Iterable
+from typing import Any, Iterable
 
 from polyarb.config import MetarConfig
 from polyarb.data.metar import ICAO_TIMEZONES, MetarFeed, StationDaySummary
@@ -119,6 +119,59 @@ class MetarLock:
                 )
             )
         return out
+
+    def locked_markets(self, target: Target, now_dt: Any) -> list[tuple[Market, Outcome, Any]]:
+        """Return ``(market, locked_outcome, resolves_at)`` for 0-hedge-leg maker sniping."""
+        if self.feed is None:
+            return []
+        ev = target.event
+        summary = self.feed.get(ev.metar_icao, ev.metar_obs_date)
+        if summary is None:
+            return []
+        brackets, _ = target.payload
+        mode = ev.metar_mode or "high"
+        out: list[tuple[Market, Outcome, Any]] = []
+        for brk in brackets:
+            m = brk.market
+            locked = guaranteed_outcome(brk, summary, mode)
+            if locked is None:
+                continue
+            end_dt = m.end_date or ev.end_date
+            resolves_at = (end_dt + timedelta(days=self.cfg.resolution_lag_days)) if end_dt else (now_dt + timedelta(days=1.0))
+            if (resolves_at - now_dt).total_seconds() / 86400.0 <= self.cfg.max_days:
+                out.append((m, locked, resolves_at))
+        return out
+
+    def surviving_basket(self, target: Target, now_dt: Any) -> tuple[list[Market], Any] | None:
+        """Return ``(surviving_markets, resolves_at)`` when METAR has pruned dead brackets from an exhaustive NegRisk event."""
+        if self.feed is None:
+            return None
+        ev = target.event
+        if not (ev.neg_risk and not ev.neg_risk_augmented and ev.version == "v1"):
+            return None
+        summary = self.feed.get(ev.metar_icao, ev.metar_obs_date)
+        if summary is None:
+            return None
+        brackets, all_parsed = target.payload
+        if not all_parsed:
+            return None
+        if not all((not m.accepting_orders and m.closed and m.resolved_outcome == "NO") or m.accepting_orders for m in ev.markets):
+            return None
+        if not all(m.resolved_outcome in (None, "NO") for m in ev.markets):
+            return None
+        mode = ev.metar_mode or "high"
+        surviving = [
+            brk.market
+            for brk in brackets
+            if guaranteed_outcome(brk, summary, mode) in (None, Outcome.YES)
+        ]
+        if not (2 <= len(surviving) < len(brackets)):
+            return None
+        ends = [sm.end_date for sm in surviving if sm.end_date]
+        resolves_at = (max(ends) if ends else (ev.end_date or now_dt)) + timedelta(days=self.cfg.resolution_lag_days)
+        if (resolves_at - now_dt).total_seconds() / 86400.0 > self.cfg.max_days:
+            return None
+        return surviving, resolves_at
 
     def top_edge(self, target: Target, books: Books) -> float | None:
         if self.feed is None:
@@ -238,6 +291,7 @@ class MetarLock:
                     "flip_ask": cfg.flip_ask_price,
                     "flip_min_bid": cfg.flip_min_instant_bid,
                     "flip_min_profit_usd": cfg.flip_min_profit_usd,
+                    "independent_legs": True,
                     "condition_ids": [m.condition_id] if m.condition_id else [],
                 },
             )

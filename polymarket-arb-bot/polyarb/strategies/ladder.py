@@ -140,6 +140,7 @@ class LadderArb:
                         "weak": weak.market.question,
                         "early_release_at": min(ends).isoformat(),
                         "bonus_state": "pays 2 if strong=NO and weak=YES",
+                        "independent_legs": True,
                         "condition_ids": [m.condition_id for m in (weak.market, strong.market) if m.condition_id],
                     },
                 )
@@ -150,4 +151,12 @@ class LadderArb:
                     continue
                 found.append(opp)
         found.sort(key=lambda o: -o.profit)
-        return found[:1]
+        # Extract all mutually market-disjoint profitable pairs in descending profit order!
+        disjoint: list[Opportunity] = []
+        used_markets: set[str] = set()
+        for opp in found:
+            mids = {leg.market_id for leg in opp.legs}
+            if mids.isdisjoint(used_markets):
+                disjoint.append(opp)
+                used_markets.update(mids)
+        return disjoint

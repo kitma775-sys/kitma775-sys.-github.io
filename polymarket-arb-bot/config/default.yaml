@@ -42,7 +42,7 @@ metar:                   # NOAA/AWC METAR deterministic temperature lock + 0.995
   basket_min_edge: 0.005
   max_days: 3.0
   resolution_lag_days: 0.5
-  fast_poll_s: 4.0       # poll interval during :00/:20/:30/:50 METAR release windows
+  fast_poll_s: 3.0       # poll interval during :49..:07 and :19..:36 METAR release windows
   idle_poll_s: 15.0
   glitch_delta_c: 12.0   # ignore isolated single-report sensor spikes larger than this
   flip_enabled: true     # immediately flip into 0.99+ bids or post resting 0.995 maker sell
@@ -50,7 +50,18 @@ metar:                   # NOAA/AWC METAR deterministic temperature lock + 0.995
   flip_min_instant_bid: 0.990
   flip_min_profit_usd: 0.08
 
-twin:                    # Cross-event same-oracle Range Bracket <-> Cumulative Above partition lock (risk: low-medium)
+binance:                 # Deterministic Binance Spot closed-candle lock + 0-hedge-leg bonding (risk: low)
+  enabled: true
+  min_profit_usd: 0.12
+  min_edge: 0.004
+  min_unit_edge: 0.002
+  max_days: 3.0
+  resolution_lag_days: 0.15
+  burst_poll_s: 0.5      # sub-second polling around :00:00 hourly/noon/minute candle closes
+  idle_poll_s: 6.0
+  flip_enabled: true
+
+twin:                    # Cross-event same-oracle Range <-> Above + Close/Hit implication locks (risk: low-medium)
   enabled: true
   min_profit_usd: 0.20
   min_edge: 0.004
@@ -64,6 +75,8 @@ maker:                   # postOnly zero-fee lead leg + instant FOK hedge & conv
   enabled: true
   min_profit_usd: 0.25
   min_edge: 0.006
+  deterministic_min_edge: 0.004 # 0-hedge-leg locked markets (maker_metar / maker_binance) carry zero leg risk
+  rebate_credit_ratio: 0.75     # fraction of expected Polymarket Maker Rebate credited while keeping day-0 cash > 0
   min_keep_edge: 0.002   # cancel resting quote immediately if hedge-leg drift drops edge below this
   min_volume_24h: 500.0
   min_hedge_depth_ratio: 2.0
