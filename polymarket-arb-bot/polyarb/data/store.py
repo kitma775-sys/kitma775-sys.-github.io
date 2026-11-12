@@ -44,6 +44,15 @@ class BookStore(Mapping[str, OrderBook]):
         if book is not None:
             book.received_at = time.time()
 
+    def prune(self, keep_tokens: set[str] | frozenset[str]) -> int:
+        """Drop books for tokens no longer in the active universe so long-lived containers stay lean."""
+        stale = [t for t in self._books if t not in keep_tokens]
+        for t in stale:
+            del self._books[t]
+        if self.resolved:
+            self.resolved.intersection_update(keep_tokens)
+        return len(stale)
+
     def stats(self) -> dict:
         now = time.time()
         ages = [b.age(now) for b in self._books.values()]

@@ -89,8 +89,11 @@ class NegRiskConvert:
         positive = [g for g in gains[: self.cfg.max_legs] if g > 0]
         return (sum(positive) if len(positive) >= 2 else gains[0] + gains[1]) - 1.0
 
-    def evaluate(self, target: Target, books: Books, now: float) -> list[Opportunity]:
+    def evaluate(self, target: Target, books: Books, now: float, max_cost: float | None = None) -> list[Opportunity]:
         cfg = self.cfg
+        cap = self.max_trade_usd if max_cost is None else min(self.max_trade_usd, max_cost)
+        if cap <= 0:
+            return []
         entries = []
         for m in target.payload:
             book = books.get(m.yes_token)
@@ -115,7 +118,7 @@ class NegRiskConvert:
             if k < 2 or prefix - 1.0 < cfg.min_unit_edge:
                 continue
             legs = [LegBook(lv, m.fee, m.min_size) for _, m, lv in entries[:k]]
-            fill = size_basket(legs, float(k - 1), min_unit_edge=cfg.min_unit_edge, max_cost=self.max_trade_usd)
+            fill = size_basket(legs, float(k - 1), min_unit_edge=cfg.min_unit_edge, max_cost=cap)
             if fill is not None and (best is None or fill.profit > best[1].profit):
                 best = (k, fill)
         if best is None:
@@ -189,8 +192,11 @@ class NegRiskYesBasket:
             total += unit_cost(book.asks, m.fee) or 0.0
         return 1.0 - total
 
-    def evaluate(self, target: Target, books: Books, now: float) -> list[Opportunity]:
+    def evaluate(self, target: Target, books: Books, now: float, max_cost: float | None = None) -> list[Opportunity]:
         cfg = self.cfg
+        cap = self.max_trade_usd if max_cost is None else min(self.max_trade_usd, max_cost)
+        if cap <= 0:
+            return []
         markets, reason = target.payload
         legs = []
         for m in markets:
@@ -206,7 +212,7 @@ class NegRiskYesBasket:
         now_dt = utc(now)
         if (resolves_at - now_dt).total_seconds() / 86400.0 > cfg.max_days:
             return []
-        fill = size_basket(legs, 1.0, min_unit_edge=cfg.min_unit_edge, max_cost=self.max_trade_usd)
+        fill = size_basket(legs, 1.0, min_unit_edge=cfg.min_unit_edge, max_cost=cap)
         if fill is None:
             return []
         ev = target.event
@@ -223,7 +229,11 @@ class NegRiskYesBasket:
             risk="medium",
             resolves_at=resolves_at,
             detected_at=now,
-            meta={"exhaustive": reason, "legs": len(markets)},
+            meta={
+                "exhaustive": reason,
+                "legs": len(markets),
+                "condition_ids": [m.condition_id for m in markets if m.condition_id],
+            },
         )
         apr = opp.apr(now_dt)
         if opp.profit < cfg.min_profit_usd or opp.edge < cfg.min_edge or (apr is not None and apr < cfg.min_apr):

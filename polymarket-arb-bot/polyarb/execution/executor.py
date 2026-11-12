@@ -54,12 +54,13 @@ class Executor:
         opp: Opportunity,
         target: Target | None = None,
         approve: Callable[[Opportunity], str | None] | None = None,
+        max_cost: float | None = None,
     ) -> ExecutionReport:
         """``approve`` re-checks limits on the final order, which a recheck may have re-sized."""
         report = ExecutionReport(opp=opp, mode=self.gateway.mode, started_at=time.time())
         try:
-            if self.cfg.recheck_books and target is not None and self.clob is not None:
-                fresh = await self._recheck(opp, target)
+            if self._should_recheck(opp, target):
+                fresh = await self._recheck(opp, target, max_cost=max_cost)
                 if fresh is None:
                     report.action = "abort: vanished on recheck"
                     return self._done(report)
@@ -79,12 +80,25 @@ class Executor:
             if report.complete or subset:
                 if opp.settlement is Settlement.CONVERT:
                     await self._convert(report)
+                elif report.complete and opp.meta.get("fast_flip") and len(opp.legs) == 1:
+                    if not await self._try_instant_flip(report):
+                        self._lock_hold(report)
                 else:
                     self._lock_hold(report)
         except Exception as exc:
             log.exception("execution failed for %s", opp.key)
             report.error = str(exc)
         return self._done(report)
+
+    def _should_recheck(self, opp: Opportunity, target: Target | None) -> bool:
+        if not (self.cfg.recheck_books and target is not None and self.clob is not None):
+            return False
+        if opp.meta.get("fast_turnover") and self.cfg.fast_ws_skip_recheck_s > 0:
+            now = time.time()
+            books = [self.store.raw(t) for t in target.tokens]
+            if books and all(b is not None and b.age(now) <= self.cfg.fast_ws_skip_recheck_s for b in books):
+                return False
+        return True
 
     def _done(self, report: ExecutionReport) -> ExecutionReport:
         report.finished_at = time.time()
@@ -108,11 +122,11 @@ class Executor:
         self._paper_used.update(sides)
         return None
 
-    async def _recheck(self, opp: Opportunity, target: Target) -> Opportunity | None:
+    async def _recheck(self, opp: Opportunity, target: Target, max_cost: float | None = None) -> Opportunity | None:
         assert self.clob is not None
         self.store.update_many(await self.clob.get_books(target.tokens))
         strategy = self.strategies[opp.strategy]
-        for candidate in strategy.evaluate(target, self.store, time.time()):
+        for candidate in strategy.evaluate(target, self.store, time.time(), max_cost=max_cost):
             if candidate.key == opp.key:
                 return candidate
         return None
@@ -251,6 +265,47 @@ class Executor:
                             h.leg.fee_schedule, h.leg.tick_size,
                         )
                     )
+
+    async def _try_instant_flip(self, report: ExecutionReport) -> bool:
+        """Sell immediately into 0.99+ bonding bids when doing so already locks positive profit."""
+        opp = report.opp
+        held = self._held(report)
+        if len(held) != 1:
+            return False
+        h = next(iter(held.values()))
+        min_bid = float(opp.meta.get("flip_min_bid") or 0.99)
+        min_profit = float(opp.meta.get("flip_min_profit_usd") or 0.08)
+        book = self.store.raw(h.leg.yes_token)
+        levels = (book.bids if h.leg.outcome is Outcome.YES else book.no_bids()) if book else []
+        if not levels or levels[0].price < min_bid - 1e-9:
+            return False
+        good = [lvl for lvl in levels if lvl.price >= min_bid - 1e-9]
+        fill = take(good, h.shares, h.leg.fee_schedule)
+        if fill.shares < h.shares - 0.05 or (fill.notional - fill.fee) < h.cost + min_profit:
+            return False
+        sell = await self.gateway.sell(
+            h.leg.token_id, h.leg.outcome, h.leg.yes_token, h.shares, min_bid, h.leg.fee_schedule, h.leg.tick_size
+        )
+        if not sell.ok or sell.shares <= 0:
+            return False
+        report.sells.append(sell)
+        rem = h.shares - sell.shares
+        if rem < 0.05:
+            report.settled_shares = sell.shares
+            report.locked_cost = 0.0
+            report.expected_payout = 0.0
+            report.action = "instant flip"
+            return True
+        frac = rem / h.shares
+        report.settled_shares = floor_shares(rem)
+        report.locked_cost = h.cost * frac
+        report.expected_payout = (opp.payout_floor / opp.shares if opp.shares else 1.0) * rem
+        report.action = "partial flip -> holding remainder"
+        for r in report.legs + report.retries:
+            if r.ok and r.leg.token_id == h.leg.token_id:
+                r.shares = max(0.0, r.shares - sell.shares)
+                break
+        return True
 
     def _lock_hold(self, report: ExecutionReport) -> None:
         opp = report.opp

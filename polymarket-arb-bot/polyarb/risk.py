@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -7,7 +8,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping
 
 import httpx
 
@@ -46,6 +47,9 @@ class HoldPosition:
     resolves_at: str | None
     opened_at: float
     legs: list[dict] = field(default_factory=list)
+    condition_ids: list[str] = field(default_factory=list)
+    exit_order_id: str | None = None
+    exit_price: float = 0.0
 
 
 @dataclass
@@ -70,12 +74,16 @@ class RiskManager:
         self.last_attempt: dict[str, float] = {}
         self.inflight_events: set[str] = set()
         self.geo: dict | None = None
+        self.wallet_balance: float | None = None
+        self.reserved_usd: float = 0.0
 
     def _load(self) -> RiskState:
         if self.state_path and self.state_path.exists():
             raw = json.loads(self.state_path.read_text())
-            holds = [HoldPosition(**h) for h in raw.pop("holds", [])]
-            return RiskState(**raw, holds=holds)
+            hold_fields = {f.name for f in dataclasses.fields(HoldPosition)}
+            state_fields = {f.name for f in dataclasses.fields(RiskState)} - {"holds"}
+            holds = [HoldPosition(**{k: v for k, v in h.items() if k in hold_fields}) for h in raw.pop("holds", [])]
+            return RiskState(**{k: v for k, v in raw.items() if k in state_fields}, holds=holds)
         return RiskState()
 
     def save(self) -> None:
@@ -93,8 +101,25 @@ class RiskManager:
     def event_exposure(self, event_id: str) -> float:
         return sum(h.cost for h in self.state.holds if h.event_id == event_id)
 
+    def formula_available(self) -> float:
+        return self.cfg.bankroll_usd + self.state.realized_total - self.hold_exposure - self.reserved_usd
+
     def available(self) -> float:
-        return self.cfg.bankroll_usd + self.state.realized_total - self.hold_exposure
+        base = self.formula_available()
+        if self.wallet_balance is None:
+            return base
+        return min(base, self.wallet_balance - self.reserved_usd)
+
+    def budget_for(self, settlement: Settlement, event_id: str, fast_turnover: bool = False) -> float:
+        """Exact spendable pUSD for this opportunity so strategies down-size instead of skipping."""
+        avail = self.available()
+        cap = min(self.cfg.max_trade_usd, avail)
+        if settlement is Settlement.RESOLUTION:
+            cap = min(cap, self.cfg.max_hold_exposure_usd - self.hold_exposure)
+            cap = min(cap, self.cfg.max_event_exposure_usd - self.event_exposure(event_id))
+            if self.cfg.liquid_reserve_usd > 0 and not fast_turnover:
+                cap = min(cap, avail - self.cfg.liquid_reserve_usd)
+        return max(0.0, cap)
 
     def _roll_day(self, now: float) -> None:
         day = datetime.fromtimestamp(now, tz=timezone.utc).strftime("%Y-%m-%d")
@@ -136,6 +161,9 @@ class RiskManager:
                 return "hold exposure cap"
             if self.event_exposure(opp.event_id) + opp.cost > cfg.max_event_exposure_usd + 1e-9:
                 return "event exposure cap"
+            if cfg.liquid_reserve_usd > 0 and not opp.meta.get("fast_turnover"):
+                if opp.cost > self.available() - cfg.liquid_reserve_usd + 1e-9:
+                    return "liquid reserve protected"
         return None
 
     def begin(self, opp: Opportunity, now: float | None = None) -> None:
@@ -169,7 +197,19 @@ class RiskManager:
                     shares=report.settled_shares,
                     resolves_at=opp.resolves_at.isoformat() if opp.resolves_at else None,
                     opened_at=report.started_at,
-                    legs=[{"token": r.leg.token_id, "outcome": r.leg.outcome.value, "shares": r.shares} for r in report.legs if r.ok],
+                    legs=[
+                        {
+                            "token": r.leg.token_id,
+                            "yes_token": r.leg.yes_token,
+                            "market_id": r.leg.market_id,
+                            "outcome": r.leg.outcome.value,
+                            "shares": r.shares,
+                            "tick": r.leg.tick_size,
+                        }
+                        for r in report.legs + report.retries
+                        if r.ok and r.shares > 0
+                    ],
+                    condition_ids=list(opp.meta.get("condition_ids") or []),
                 )
             )
         if any(r.status == REGION_REJECTED for r in report.legs + report.retries):
@@ -181,6 +221,56 @@ class RiskManager:
         if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
             self.kill("daily loss limit reached")
         self.save()
+
+    def close_hold(self, hold: HoldPosition, proceeds: float, now: float | None = None) -> float:
+        """Close a held position (via fast flip sell or on-chain redemption) and book its exact PnL."""
+        now = now or time.time()
+        self._roll_day(now)
+        pnl = proceeds - hold.cost
+        self.state.holds = [h for h in self.state.holds if h is not hold]
+        self.state.realized_today += pnl
+        self.state.realized_total += pnl
+        if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
+            self.kill("daily loss limit reached")
+        self.save()
+        return pnl
+
+    async def reconcile_holds(
+        self,
+        position_fn: Callable[[str], Awaitable[float]],
+        now: float | None = None,
+        min_age_s: float = 120.0,
+    ) -> list[HoldPosition]:
+        """Drop phantom holds whose conditional tokens were already redeemed or sold outside the bot."""
+        now = now or time.time()
+        removed: list[HoldPosition] = []
+        keep: list[HoldPosition] = []
+        for h in self.state.holds:
+            if not h.legs or now - h.opened_at < min_age_s:
+                keep.append(h)
+                continue
+            still_held = False
+            for leg in h.legs:
+                tok = leg.get("token")
+                if not tok:
+                    still_held = True
+                    break
+                try:
+                    bal = await position_fn(str(tok))
+                except Exception:
+                    still_held = True
+                    break
+                if bal >= 0.05:
+                    still_held = True
+                    break
+            if still_held:
+                keep.append(h)
+            else:
+                removed.append(h)
+        if removed:
+            self.state.holds = keep
+            self.save()
+        return removed
 
     def release_matured(self, now: float | None = None, grace_days: float = 3.0) -> list[HoldPosition]:
         """Paper bookkeeping: credit the guaranteed payout once a hold is past resolution + grace."""

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Mapping
 
@@ -13,6 +14,32 @@ from polyarb.models import FEE_FREE, Event, FeeSchedule, Market
 
 GAMMA_URL = "https://gamma-api.polymarket.com"
 log = logging.getLogger(__name__)
+
+_AWC_METAR_RE = re.compile(r"aviationweather\.gov/api/data/metar\?ids=([A-Z0-9]{4})\b", re.I)
+_OBS_DATE_RE = re.compile(r"\bon\s+(\d{1,2})\s+([A-Za-z]{3})\s+'(\d{2})\b")
+_CREATION_SCOPE_RE = re.compile(r"\b(?:between|since|from)\s+(?:the\s+)?market(?:'s)?\s+creation\b", re.I)
+_MONTH_MAP = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _extract_metar_spec(title: str, description: str) -> tuple[str | None, str | None, str | None]:
+    low_title = title.lower()
+    if "temperature in " not in low_title:
+        return None, None, None
+    mode = "low" if "lowest temperature" in low_title else ("high" if "highest temperature" in low_title else None)
+    if mode is None:
+        return None, None, None
+    u = _AWC_METAR_RE.search(description)
+    d = _OBS_DATE_RE.search(description)
+    if not u or not d:
+        return None, None, None
+    mon = _MONTH_MAP.get(d.group(2).lower())
+    if mon is None:
+        return None, None, None
+    obs_date = f"20{d.group(3)}-{mon:02d}-{int(d.group(1)):02d}"
+    return u.group(1).upper(), obs_date, mode
 
 
 def _json_list(value: Any) -> list:
@@ -107,21 +134,27 @@ def parse_market(raw: Mapping[str, Any], event_end: datetime | None = None) -> M
         volume_24h=_float(raw.get("volume24hr")),
         liquidity=_float(raw.get("liquidityNum") or raw.get("liquidity")),
         fee_type=str(raw.get("feeType") or ""),
+        created_at=parse_dt(raw.get("createdAt")),
+        creation_scoped=bool(_CREATION_SCOPE_RE.search(str(raw.get("description") or ""))),
     )
 
 
 def parse_event(raw: Mapping[str, Any]) -> Event:
     end = parse_dt(raw.get("endDate"))
-    markets = [m for m in (parse_market(rm, end) for rm in raw.get("markets") or []) if m is not None]
+    raw_markets = raw.get("markets") or []
+    markets = [m for m in (parse_market(rm, end) for rm in raw_markets) if m is not None]
     tags = tuple(
         str(t.get("slug") if isinstance(t, Mapping) else t)
         for t in raw.get("tags") or []
         if t
     )
+    title = str(raw.get("title") or "")
+    first_desc = str((raw_markets[0].get("description") if raw_markets and isinstance(raw_markets[0], Mapping) else "") or raw.get("description") or "")
+    metar_icao, metar_obs_date, metar_mode = _extract_metar_spec(title, first_desc)
     return Event(
         id=str(raw.get("id")),
         slug=str(raw.get("slug") or ""),
-        title=str(raw.get("title") or ""),
+        title=title,
         markets=markets,
         neg_risk=bool(raw.get("negRisk") or raw.get("enableNegRisk")),
         neg_risk_augmented=bool(raw.get("negRiskAugmented")),
@@ -131,6 +164,9 @@ def parse_event(raw: Mapping[str, Any]) -> Event:
         tags=tags,
         cumulative=raw.get("cumulativeMarkets"),
         sort_by=raw.get("sortBy"),
+        metar_icao=metar_icao,
+        metar_obs_date=metar_obs_date,
+        metar_mode=metar_mode,
     )
 
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol, Sequence
+from typing import Iterable, Protocol, Sequence
 
-from polyarb.models import FEE_FREE, FeeSchedule, Leg, Opportunity, Outcome
+from polyarb.models import FEE_FREE, FeeSchedule, Leg, Market, Opportunity, Outcome, Side
 
 
 @dataclass
@@ -35,6 +35,24 @@ class SellResult:
     @property
     def net(self) -> float:
         return self.proceeds - self.fee
+
+
+@dataclass
+class LimitOrderResult:
+    ok: bool
+    order_id: str | None = None
+    status: str = ""
+    matched_shares: float = 0.0
+    error: str | None = None
+
+
+@dataclass
+class OrderState:
+    order_id: str
+    status: str          # "LIVE" | "MATCHED" | "CANCELED"
+    original_size: float
+    size_matched: float
+    price: float
 
 
 @dataclass
@@ -110,5 +128,30 @@ class Gateway(Protocol):
 
     async def convert(self, neg_risk_market_id: str, index_set: int, shares: float) -> tuple[bool, str | None, float]:
         """NegRisk convert; returns (ok, tx hash, pUSD received)."""
+
+    async def place_limit(
+        self,
+        token_id: str,
+        outcome: Outcome,
+        yes_token: str,
+        side: Side,
+        price: float,
+        shares: float,
+        tick: float = 0.01,
+        post_only: bool = True,
+    ) -> LimitOrderResult:
+        """Post a resting GTC limit order (maker fee = 0 when post_only=True)."""
+
+    async def get_order_state(self, order_id: str) -> OrderState | None:
+        """Fetch live fill progress for a resting order."""
+
+    async def cancel(self, order_id: str) -> bool:
+        """Cancel a resting order; returns True if cancel succeeded or order was already terminal."""
+
+    async def redeem(self, condition_id: str) -> tuple[bool, str | None]:
+        """Redeem a resolved market's winning position on-chain into pUSD."""
+
+    def warm_markets(self, markets: Iterable[Market]) -> int:
+        """Pre-populate order metadata caches so signing needs zero cold HTTP round-trips."""
 
     async def close(self) -> None: ...

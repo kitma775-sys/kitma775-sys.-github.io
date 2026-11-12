@@ -272,6 +272,20 @@ def _date_ladders(event: Event, template: str, group: list[Market], min_rungs: i
     return [ladder]
 
 
+_CREATION_GAP = timedelta(hours=6)
+
+
+def valid_implication_window(strong: Market, weak: Market, direction: Direction) -> bool:
+    """Ensure ``strong => weak`` holds across time windows (guards against rolling 'since market creation' traps)."""
+    scoped = strong.creation_scoped or weak.creation_scoped
+    if scoped and (strong.created_at is None or weak.created_at is None):
+        return False
+    if (scoped or direction is Direction.BY_DATE) and strong.created_at is not None and weak.created_at is not None:
+        if weak.created_at - strong.created_at > _CREATION_GAP:
+            return False
+    return True
+
+
 def _finish(event: Event, direction: Direction, template: str, rungs: list[Rung], min_rungs: int) -> Ladder | None:
     values = [r.value for r in rungs]
     if len(set(values)) != len(values):
@@ -281,6 +295,12 @@ def _finish(event: Event, direction: Direction, template: str, rungs: list[Rung]
         return None
     reverse = direction is Direction.UP
     ordered = tuple(sorted(rungs, key=lambda r: r.value, reverse=reverse))
+    if not any(
+        valid_implication_window(ordered[i].market, ordered[j].market, direction)
+        for i in range(len(ordered))
+        for j in range(i + 1, len(ordered))
+    ):
+        return None
     return Ladder(event, direction, template, ordered)
 
 

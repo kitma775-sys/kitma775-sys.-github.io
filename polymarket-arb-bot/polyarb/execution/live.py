@@ -12,10 +12,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 from decimal import ROUND_DOWN, Decimal
-from typing import Any, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
-from polyarb.execution.base import LegResult, SellResult
+from polyarb.execution.base import LegResult, LimitOrderResult, OrderState, SellResult
 from polyarb.execution.settlement import (
     NEG_RISK_CTF_COLLATERAL_ADAPTER,
     ChainReader,
@@ -24,7 +25,7 @@ from polyarb.execution.settlement import (
     to_base_units,
 )
 from polyarb.fees import fee_per_share
-from polyarb.models import FEE_FREE, FeeSchedule, Leg, Outcome
+from polyarb.models import FEE_FREE, FeeSchedule, Leg, Market, Outcome, Side
 from polyarb.risk import REGION_REJECTED
 
 BATCH_LIMIT = 15
@@ -49,6 +50,33 @@ def _cents(value: float) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
 
 
+def _shares_dec(value: float) -> Decimal:
+    return Decimal(str(math.floor(value * 100 + 1e-7) / 100)).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+
+
+def resolve_gateway_api_key(private_key: str, environ: Mapping[str, str] | None = None) -> Any:
+    """Build RelayerApiKey or BuilderApiKey from environment variables when configured."""
+    env = os.environ if environ is None else environ
+    relayer_key = (env.get("POLYMARKET_RELAYER_API_KEY") or "").strip()
+    if relayer_key:
+        from polymarket import RelayerApiKey
+
+        addr = (env.get("POLYMARKET_RELAYER_ADDRESS") or env.get("POLYMARKET_RELAYER_API_KEY_ADDRESS") or "").strip()
+        if not addr:
+            from eth_account import Account
+
+            addr = Account.from_key(private_key).address
+        return RelayerApiKey(key=relayer_key, address=addr)
+    builder_key = (env.get("POLYMARKET_BUILDER_API_KEY") or "").strip()
+    builder_secret = (env.get("POLYMARKET_BUILDER_SECRET") or "").strip()
+    builder_pass = (env.get("POLYMARKET_BUILDER_PASSPHRASE") or "").strip()
+    if builder_key and builder_secret and builder_pass:
+        from polymarket import BuilderApiKey
+
+        return BuilderApiKey(builder_key, builder_secret, builder_pass)
+    return None
+
+
 class PolymarketGateway:
     mode = "live"
 
@@ -59,13 +87,27 @@ class PolymarketGateway:
         self._fee_bips: dict[str, int] = {}
 
     @classmethod
-    async def create(cls, private_key: str, wallet: str | None = None, setup_approvals: bool = True) -> "PolymarketGateway":
+    async def create(
+        cls,
+        private_key: str,
+        wallet: str | None = None,
+        setup_approvals: bool = True,
+        environ: Mapping[str, str] | None = None,
+    ) -> "PolymarketGateway":
         from polymarket import AsyncSecureClient
 
-        client = await AsyncSecureClient.create(private_key=private_key, wallet=wallet)
+        api_key = resolve_gateway_api_key(private_key, environ)
+        client = await AsyncSecureClient.create(private_key=private_key, wallet=wallet, api_key=api_key)
         if setup_approvals:
-            # Includes ConditionalTokens.setApprovalForAll(NegRiskCtfCollateralAdapter) needed by convert.
-            await client.setup_trading_approvals()
+            try:
+                # Includes ConditionalTokens.setApprovalForAll(NegRiskCtfCollateralAdapter) needed by convert.
+                await client.setup_trading_approvals()
+            except Exception as exc:
+                if api_key is None and "Gasless transactions require" in str(exc):
+                    log.warning("skipping gasless approval setup without relayer key (%s); existing approvals will be used", exc)
+                else:
+                    await client.close()
+                    raise
         return cls(client)
 
     def wallet_info(self) -> dict[str, str]:
@@ -209,3 +251,113 @@ class PolymarketGateway:
             return False, None, 0.0
         tx = getattr(outcome, "transaction_hash", None)
         return True, str(tx) if tx else None, expected_convert_proceeds(index_set, amount, bips) / 1e6
+
+    async def place_limit(
+        self,
+        token_id: str,
+        outcome: Outcome,
+        yes_token: str,
+        side: Side,
+        price: float,
+        shares: float,
+        tick: float = 0.01,
+        post_only: bool = True,
+    ) -> LimitOrderResult:
+        qty = _shares_dec(shares)
+        if qty <= 0:
+            return LimitOrderResult(False, status="dust", error="dust")
+        px = _price(max(tick, min(price, 1.0 - tick)), tick)
+        try:
+            resp = await self.client.place_limit_order(
+                token_id=token_id,
+                side=side.value,
+                price=px,
+                size=qty,
+                post_only=post_only,
+            )
+        except Exception as exc:
+            status = REGION_REJECTED if _region_refused(getattr(exc, "status", None), exc) else "post_error"
+            return LimitOrderResult(False, status=status, error=str(exc))
+        if not getattr(resp, "ok", False):
+            msg = getattr(resp, "message", None)
+            code = REGION_REJECTED if _region_refused(None, msg) else str(getattr(resp, "code", "rejected"))
+            return LimitOrderResult(False, status=code, error=msg)
+        matched = float(resp.taking_amount) if side is Side.BUY else float(resp.making_amount)
+        return LimitOrderResult(True, order_id=str(resp.order_id), status=str(resp.status), matched_shares=matched)
+
+    async def get_order_state(self, order_id: str) -> OrderState | None:
+        try:
+            info = await self.client.get_order(order_id=order_id)
+        except Exception as exc:
+            log.debug("get_order %s failed: %s", order_id, exc)
+            return None
+        return OrderState(
+            order_id=str(getattr(info, "id", order_id)),
+            status=str(getattr(info, "status", "")).upper(),
+            original_size=float(getattr(info, "original_size", 0)),
+            size_matched=float(getattr(info, "size_matched", 0)),
+            price=float(getattr(info, "price", 0)),
+        )
+
+    async def cancel(self, order_id: str) -> bool:
+        try:
+            await self.client.cancel_order(order_id=order_id)
+            return True
+        except Exception as exc:
+            log.debug("cancel %s: %s", order_id, exc)
+            return False
+
+    async def redeem(self, condition_id: str) -> tuple[bool, str | None]:
+        try:
+            handle = await self.client.redeem_positions(condition_id=condition_id, metadata="polyarb auto redeem")
+            outcome = await handle.wait()
+        except Exception as exc:
+            log.warning("redeem %s failed: %s", condition_id, exc)
+            return False, None
+        tx = getattr(outcome, "transaction_hash", None)
+        return True, str(tx) if tx else None
+
+    async def merge(self, condition_id: str, shares: float) -> tuple[bool, str | None]:
+        amount = to_base_units(shares)
+        if amount <= 0:
+            return False, None
+        try:
+            handle = await self.client.merge_positions(condition_id=condition_id, amount=amount, metadata="polyarb merge")
+            outcome = await handle.wait()
+        except Exception as exc:
+            log.warning("merge %s failed: %s", condition_id, exc)
+            return False, None
+        tx = getattr(outcome, "transaction_hash", None)
+        return True, str(tx) if tx else None
+
+    def warm_markets(self, markets: Iterable[Market]) -> int:
+        """Seed the SDK's order-metadata cache from Gamma Market rows to avoid 2 HTTP calls per cold token."""
+        try:
+            ctx = getattr(self.client, "_ctx", None)
+            cache = getattr(ctx, "order_metadata", None)
+            if cache is None:
+                return 0
+            from polymarket._internal.actions.orders.market_data import _ALLOWED_TICK_SIZES, MarketInfo, PlatformFeeInfo
+
+            seeded = 0
+            for m in markets:
+                cid = m.condition_id
+                if not (cid and cid.startswith("0x") and len(cid) == 66 and m.yes_token and m.no_token):
+                    continue
+                tick_dec = Decimal(str(m.tick_size))
+                if tick_dec not in _ALLOWED_TICK_SIZES:
+                    continue
+                info = MarketInfo(
+                    fee_info=PlatformFeeInfo(rate=Decimal(str(m.fee.rate)), exponent=Decimal(str(m.fee.exponent))),
+                    neg_risk=bool(m.neg_risk),
+                    tick_size=tick_dec,
+                    token_ids=frozenset((m.yes_token, m.no_token)),
+                )
+                cache._conditions.set(m.yes_token, cid)
+                cache._conditions.set(m.no_token, cid)
+                cache._markets.set(cid, info)
+                seeded += 1
+            return seeded
+        except Exception as exc:
+            log.debug("warm_markets skipped: %s", exc)
+            return 0

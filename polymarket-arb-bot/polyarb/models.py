@@ -65,6 +65,8 @@ class Market:
     volume_24h: float = 0.0
     liquidity: float = 0.0
     fee_type: str = ""
+    created_at: datetime | None = None
+    creation_scoped: bool = False
 
     @property
     def is_yes_no(self) -> bool:
@@ -99,6 +101,9 @@ class Event:
     tags: tuple[str, ...] = ()
     cumulative: bool | None = None
     sort_by: str | None = None
+    metar_icao: str | None = None
+    metar_obs_date: str | None = None
+    metar_mode: str | None = None
 
     @property
     def tradeable_markets(self) -> list[Market]:

@@ -24,7 +24,7 @@ from polyarb.fees import fee_per_share
 from polyarb.models import Event, FeeSchedule, Opportunity, Outcome, Settlement
 from polyarb.sizing import LegBook, size_basket
 from polyarb.strategies.base import Books, Target, buy_leg, utc
-from polyarb.strategies.ladder_parse import Ladder, detect_ladders
+from polyarb.strategies.ladder_parse import Ladder, detect_ladders, valid_implication_window
 
 
 def _quote(levels: list[Level], fee: FeeSchedule) -> tuple[list[Level], float] | None:
@@ -50,27 +50,38 @@ class LadderArb:
         return out
 
     def top_edge(self, target: Target, books: Books) -> float | None:
-        """Best 1 - (NO_strong + fee) - (YES_weak + fee) over all implication pairs."""
+        """Best 1 - (NO_strong + fee) - (YES_weak + fee) over all valid implication pairs."""
+        ladder: Ladder = target.payload
+        rungs = ladder.rungs
         best = None
-        cheapest_yes = None  # min YES cost over the weaker rungs already visited
-        for rung in reversed(target.payload.rungs):
+        yes_costs: list[float | None] = []
+        for rung in rungs:
             book = books.get(rung.market.yes_token)
-            if book is None:
+            if book is not None and book.asks:
+                p_yes = book.asks[0].price
+                yes_costs.append(p_yes + fee_per_share(rung.market.fee, p_yes))
+            else:
+                yes_costs.append(None)
+        for i, strong in enumerate(rungs):
+            book = books.get(strong.market.yes_token)
+            if book is None or not book.bids:
                 continue
-            if cheapest_yes is not None and book.bids:
-                p_no = 1.0 - book.bids[0].price
-                edge = 1.0 - p_no - fee_per_share(rung.market.fee, p_no) - cheapest_yes
+            p_no = 1.0 - book.bids[0].price
+            c_no = p_no + fee_per_share(strong.market.fee, p_no)
+            for j in range(i + 1, len(rungs)):
+                c_yes = yes_costs[j]
+                if c_yes is None or not valid_implication_window(strong.market, rungs[j].market, ladder.direction):
+                    continue
+                edge = 1.0 - c_no - c_yes
                 if best is None or edge > best:
                     best = edge
-            if book.asks:
-                p_yes = book.asks[0].price
-                c_yes = p_yes + fee_per_share(rung.market.fee, p_yes)
-                if cheapest_yes is None or c_yes < cheapest_yes:
-                    cheapest_yes = c_yes
         return best
 
-    def evaluate(self, target: Target, books: Books, now: float) -> list[Opportunity]:
+    def evaluate(self, target: Target, books: Books, now: float, max_cost: float | None = None) -> list[Opportunity]:
         cfg = self.cfg
+        cap = self.max_trade_usd if max_cost is None else min(self.max_trade_usd, max_cost)
+        if cap <= 0:
+            return []
         ladder: Ladder = target.payload
         rungs = ladder.rungs
         now_dt = utc(now)
@@ -90,6 +101,8 @@ class LadderArb:
                 if quote is None or 1.0 - c_no - quote[1] < cfg.min_unit_edge:
                     continue
                 weak = rungs[j]
+                if not valid_implication_window(strong.market, weak.market, ladder.direction):
+                    continue
                 yes_b = quote[0]
                 ends = [d for d in (strong.market.end_date, weak.market.end_date) if d]
                 if not ends:
@@ -101,7 +114,7 @@ class LadderArb:
                     [LegBook(yes_b, weak.market.fee, weak.market.min_size), LegBook(no_a, strong.market.fee, strong.market.min_size)],
                     1.0,
                     min_unit_edge=cfg.min_unit_edge,
-                    max_cost=self.max_trade_usd,
+                    max_cost=cap,
                 )
                 if fill is None:
                     continue
@@ -127,6 +140,7 @@ class LadderArb:
                         "weak": weak.market.question,
                         "early_release_at": min(ends).isoformat(),
                         "bonus_state": "pays 2 if strong=NO and weak=YES",
+                        "condition_ids": [m.condition_id for m in (weak.market, strong.market) if m.condition_id],
                     },
                 )
                 apr = opp.apr(now_dt)
