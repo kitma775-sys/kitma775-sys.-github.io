@@ -21,7 +21,7 @@ class ConvertConfig:
     min_profit_usd: float = 0.25
     min_edge: float = 0.003
     min_unit_edge: float = 0.0005
-    max_legs: int = 12
+    max_legs: int = 25
     gas_usd: float = 0.0
 
 
@@ -35,10 +35,48 @@ class YesBasketConfig:
     min_apr: float = 0.25
     max_days: float = 45.0
     min_unit_edge: float = 0.002
-    max_legs: int = 12
+    max_legs: int = 20
     require_catch_all: bool = True
     min_ask_sum: float = 0.85
     resolution_lag_days: float = 1.0
+
+
+@dataclass
+class MetarConfig:
+    """Deterministic NOAA/AWC METAR temperature lock + surviving weather basket + fast 0.99+ flip."""
+
+    enabled: bool = True
+    min_profit_usd: float = 0.15
+    min_edge: float = 0.004
+    min_unit_edge: float = 0.002
+    basket_min_profit_usd: float = 0.25
+    basket_min_edge: float = 0.005
+    max_days: float = 3.0
+    resolution_lag_days: float = 0.5
+    fast_poll_s: float = 4.0
+    idle_poll_s: float = 15.0
+    glitch_delta_c: float = 12.0
+    flip_enabled: bool = True
+    flip_ask_price: float = 0.995
+    flip_min_instant_bid: float = 0.990
+    flip_min_profit_usd: float = 0.08
+
+
+@dataclass
+class MakerArbConfig:
+    """Lead-leg postOnly maker quote (0 maker fee) + instant FOK hedge & convert on fill."""
+
+    enabled: bool = True
+    min_profit_usd: float = 0.25
+    min_edge: float = 0.006
+    min_keep_edge: float = 0.002
+    min_volume_24h: float = 500.0
+    min_hedge_depth_ratio: float = 2.0
+    max_open_quotes: int = 2
+    max_legs: int = 8
+    max_ladder_days: float = 21.0
+    poll_s: float = 1.5
+    quote_ttl_s: float = 300.0
 
 
 @dataclass
@@ -76,6 +114,7 @@ class RiskConfig:
     cooldown_s: float = 30.0
     kill_file: str = "KILL"
     require_geo_ok: bool = True
+    liquid_reserve_usd: float = 0.0
 
 
 @dataclass
@@ -83,7 +122,10 @@ class ExecutionConfig:
     mode: str = "paper"
     slippage_ticks: int = 0
     recheck_books: bool = True
+    fast_ws_skip_recheck_s: float = 1.5
     max_unwind_loss_usd: float = 5.0
+    auto_redeem: bool = True
+    lifecycle_every_s: float = 20.0
     journal_path: str = "data/journal.jsonl"
     state_path: str = "data/state.json"
 
@@ -103,6 +145,8 @@ class Config:
     convert: ConvertConfig = field(default_factory=ConvertConfig)
     yes_basket: YesBasketConfig = field(default_factory=YesBasketConfig)
     ladder: LadderConfig = field(default_factory=LadderConfig)
+    metar: MetarConfig = field(default_factory=MetarConfig)
+    maker: MakerArbConfig = field(default_factory=MakerArbConfig)
     universe: UniverseConfig = field(default_factory=UniverseConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)
     execution: ExecutionConfig = field(default_factory=ExecutionConfig)

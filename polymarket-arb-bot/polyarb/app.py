@@ -19,9 +19,12 @@ from typing import Any, Mapping
 from polyarb.config import Config, use_data_dir
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
+from polyarb.data.metar import MetarFeed
 from polyarb.data.store import BookStore
 from polyarb.engine import Engine
 from polyarb.execution.executor import Executor
+from polyarb.execution.lifecycle import LifecycleManager
+from polyarb.execution.maker_arb import MakerArbManager
 from polyarb.execution.paper import PaperGateway
 from polyarb.journal import Journal
 from polyarb.monitor import Monitor, RuntimeInfo
@@ -109,7 +112,16 @@ class RedactSecrets(logging.Filter):
 def redact_logs(environ: Mapping[str, str], root: logging.Logger | None = None) -> RedactSecrets | None:
     """Attach the filter to every handler on the root logger (call again after adding handlers)."""
     key = environ.get("POLYMARKET_PRIVATE_KEY", "").strip()
-    values = [key, key[2:] if key.lower().startswith("0x") else "", environ.get("POLYARB_DASHBOARD_PASSWORD", "")]
+    values = [
+        key,
+        key[2:] if key.lower().startswith("0x") else "",
+        environ.get("POLYARB_DASHBOARD_PASSWORD", ""),
+        environ.get("POLYMARKET_RELAYER_API_KEY", ""),
+        environ.get("POLYMARKET_BUILDER_API_KEY", ""),
+        environ.get("POLYMARKET_BUILDER_SECRET", ""),
+        environ.get("POLYMARKET_BUILDER_PASSPHRASE", ""),
+        environ.get("PASSWORD", ""),
+    ]
     if not any(values):
         return None
     root = root or logging.getLogger()
@@ -133,12 +145,14 @@ def session_key(data_dir: Path) -> bytes:
         return secrets.token_bytes(32)
 
 
-async def _refresh_info(info: RuntimeInfo, risk: RiskManager, gateway: Any, geo_every_s: float = 600.0, wallet_every_s: float = 60.0) -> None:
+async def _refresh_info(info: RuntimeInfo, risk: RiskManager, gateway: Any, geo_every_s: float = 600.0, wallet_every_s: float = 30.0) -> None:
     next_geo = time.monotonic() + geo_every_s
     while True:
         if info.mode == "live" and hasattr(gateway, "balance"):
             try:
-                info.wallet = {**(info.wallet or {}), "balance": round(await gateway.balance(), 2), "updated_at": round(time.time(), 1)}
+                bal = float(await gateway.balance())
+                risk.wallet_balance = bal
+                info.wallet = {**(info.wallet or {}), "balance": round(bal, 2), "updated_at": round(time.time(), 1)}
             except Exception as exc:
                 log.warning("wallet balance refresh failed: %s", exc)
         if time.monotonic() >= next_geo:
@@ -173,7 +187,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         try:
             from polyarb.execution.live import PolymarketGateway
 
-            gateway = await PolymarketGateway.create(key, wallet=environ.get("POLYMARKET_WALLET") or None)
+            gateway = await PolymarketGateway.create(key, wallet=environ.get("POLYMARKET_WALLET") or None, environ=environ)
             mode = "live"
             wallet = gateway.wallet_info()
         except Exception as exc:
@@ -191,16 +205,27 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         data_dir=str(data_dir), password_generated=generated,
     )
 
-    strategies = build_strategies(cfg)
+    metar_feed = MetarFeed(
+        fast_poll_s=cfg.metar.fast_poll_s,
+        idle_poll_s=cfg.metar.idle_poll_s,
+        glitch_delta_c=cfg.metar.glitch_delta_c,
+    ) if cfg.metar.enabled else None
+    strategies = build_strategies(cfg, metar_feed=metar_feed)
     store = BookStore(max_age_s=cfg.universe.max_book_age_s)
     risk = RiskManager(cfg.risk, cfg.execution.state_path)
     journal = Journal(cfg.execution.journal_path)
     if gateway is None:
         gateway = PaperGateway(store)
+    lifecycle = LifecycleManager(cfg, gateway, risk, journal, wallet_funder=(wallet or {}).get("funder"))
+    maker_arb = MakerArbManager(cfg, store, gateway, risk, journal)
 
     async with GammaClient() as gamma, ClobClient() as clob:
+        maker_arb.clob = clob
         executor = Executor(gateway, store, {s.name: s for s in strategies}, cfg.execution, clob)
-        engine = Engine(cfg, strategies, gamma, clob, store, executor, risk, journal)
+        engine = Engine(
+            cfg, strategies, gamma, clob, store, executor, risk, journal,
+            metar_feed=metar_feed, maker_arb=maker_arb, lifecycle=lifecycle,
+        )
         monitor = Monitor(engine, info)
         monitor.restore(journal.tail())
         monitor.attach_logging()
@@ -234,5 +259,8 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
             await asyncio.gather(stopper, *helpers, return_exceptions=True)
             monitor.detach_logging()
             await runner.cleanup()
+            if metar_feed is not None:
+                await metar_feed.close()
+            await lifecycle.close()
             await gateway.close()
         return code

@@ -171,7 +171,7 @@ class Monitor:
             self._slug(record)
             self.executions.append(record)
             self._count_execution(record)
-        elif kind not in ("hold_released", "universe"):
+        elif kind not in ("hold_released", "universe", "flip_closed", "redeemed", "hold_reconciled"):
             return
         self.emit(kind, record)
 
@@ -333,6 +333,8 @@ class Monitor:
                 "pnl_today": round(state.realized_today, 4),
                 "locked_profit": round(self._locked_profit(), 4),
                 "available": round(risk.available(), 2),
+                "reserved_usd": round(risk.reserved_usd, 2),
+                "wallet_balance": None if risk.wallet_balance is None else round(risk.wallet_balance, 2),
                 "bankroll": rcfg.bankroll_usd,
                 "hold_exposure": round(risk.hold_exposure, 2),
                 "trades": state.trades,
@@ -364,6 +366,9 @@ class Monitor:
                 "inflight": len(engine._inflight),
                 "eval_errors": engine.stats["eval_errors"],
                 "clients": self.subscribers,
+                "metar": engine.metar_feed.stats() if engine.metar_feed is not None else None,
+                "maker": engine.maker_arb.stats() if engine.maker_arb is not None else None,
+                "lifecycle": engine.lifecycle.stats() if engine.lifecycle is not None else None,
             },
             "risk": {
                 "killed": state.killed,
@@ -387,6 +392,7 @@ class Monitor:
                     "profit": round(h.payout - h.cost, 2),
                     "resolves_at": h.resolves_at,
                     "opened_at": h.opened_at,
+                    "exit_price": h.exit_price if h.exit_order_id else None,
                 }
                 for h in sorted(state.holds, key=lambda h: h.resolves_at or "")
             ],

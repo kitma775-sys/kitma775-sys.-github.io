@@ -7,18 +7,26 @@ import statistics
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+import inspect
+from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from polyarb.config import Config
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
+from polyarb.data.metar import MetarFeed
 from polyarb.data.store import BookStore
 from polyarb.data.ws import MarketStream
 from polyarb.execution.executor import Executor
 from polyarb.journal import Journal
-from polyarb.models import Event, Opportunity
+from polyarb.models import Event, Opportunity, Settlement
 from polyarb.risk import RiskManager, api_allowed
 from polyarb.strategies.base import Strategy, Target
 from polyarb.universe import Universe, build_universe
+
+if TYPE_CHECKING:
+    from polyarb.execution.lifecycle import LifecycleManager
+    from polyarb.execution.maker_arb import MakerArbManager
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +85,11 @@ async def scan_once(
     t1 = time.time()
     universe = build_universe(events, strategies, cfg.universe)
     t2 = time.time()
+    for strat in strategies:
+        feed = getattr(strat, "feed", None)
+        if isinstance(feed, MetarFeed):
+            feed.set_stations(t.event.metar_icao for t in universe.targets if t.strategy == "metar_lock" and t.event.metar_icao)
+            await feed.poll_once(hours=36)
     # A full sweep takes a few seconds; every book in this pass counts as fresh.
     store = BookStore(max_age_s=max(cfg.universe.max_book_age_s, 300.0))
     store.update_many(await clob.get_books(universe.tokens))
@@ -112,6 +125,10 @@ class Engine:
         executor: Executor,
         risk: RiskManager,
         journal: Journal,
+        *,
+        metar_feed: MetarFeed | None = None,
+        maker_arb: "MakerArbManager | None" = None,
+        lifecycle: "LifecycleManager | None" = None,
     ) -> None:
         self.cfg = cfg
         self.strategies = strategies
@@ -122,8 +139,14 @@ class Engine:
         self.executor = executor
         self.risk = risk
         self.journal = journal
+        self.metar_feed = metar_feed
+        self.maker_arb = maker_arb
+        self.lifecycle = lifecycle
+        if self.metar_feed is not None:
+            self.metar_feed.on_station_update = self._on_metar_station
         self.universe: Universe | None = None
         self.targets: dict[str, Target] = {}
+        self._by_station: dict[str, list[str]] = defaultdict(list)
         self.dirty: set[str] = set()
         self._wake = asyncio.Event()
         self._last_logged: dict[str, tuple] = {}
@@ -146,12 +169,32 @@ class Engine:
             return
         for t in self.universe.by_token.get(token, ()):
             self.dirty.add(t.key)
+        if self.maker_arb is not None:
+            self.maker_arb.notify_token(token)
         self._wake.set()
+
+    def _on_metar_station(self, icao: str) -> None:
+        keys = self._by_station.get(icao.upper())
+        if keys:
+            self.dirty.update(keys)
+            self._wake.set()
 
     async def refresh_universe(self) -> None:
         events = await load_events(self.cfg, self.gamma)
         self.universe = build_universe(events, self.strategies, self.cfg.universe)
         self.targets = {t.key: t for t in self.universe.targets}
+        self.store.prune(set(self.universe.tokens))
+        if self.executor is not None and hasattr(self.executor.gateway, "warm_markets"):
+            self.executor.gateway.warm_markets(m for ev in self.universe.events for m in ev.tradeable_markets)
+        by_st: dict[str, list[str]] = defaultdict(list)
+        for t in self.universe.targets:
+            if t.strategy == "metar_lock" and t.event.metar_icao:
+                by_st[t.event.metar_icao.upper()].append(t.key)
+        self._by_station = by_st
+        if self.metar_feed is not None:
+            self.metar_feed.set_stations(by_st.keys())
+        if self.maker_arb is not None:
+            self.maker_arb.set_targets(self.universe.targets)
         self.last_refresh_at = time.time()
         info = {"events": len(self.universe.events), "tokens": len(self.universe.tokens), "targets": self.universe.counts()}
         self.journal.write("universe", info)
@@ -193,17 +236,40 @@ class Engine:
 
     def hot_tokens(self) -> list[str]:
         assert self.universe is not None
+        tokens: dict[str, None] = {}
+        # Always keep today/yesterday METAR temperature markets and active maker quotes on WebSocket!
+        now_utc = datetime.now(timezone.utc)
+        lo_date = (now_utc - timedelta(days=2)).strftime("%Y-%m-%d")
+        hi_date = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
+        for t in self.universe.targets:
+            if t.strategy == "metar_lock" and t.event.metar_obs_date and lo_date <= t.event.metar_obs_date <= hi_date:
+                for token in t.tokens:
+                    tokens[token] = None
+        if self.maker_arb is not None:
+            for token in self.maker_arb.quoted_tokens():
+                tokens[token] = None
         ranked = []
         for t in self.universe.targets:
             edge = self.by_name[t.strategy].top_edge(t, self.store)
             if edge is not None:
                 ranked.append((edge, t))
         ranked.sort(key=lambda pair: -pair[0])
-        tokens: dict[str, None] = {}
         for _, t in ranked[: self.cfg.engine.ws_max_targets]:
             for token in t.tokens:
                 tokens[token] = None
         return list(tokens)
+
+    def _dynamic_budget(self, strategy_name: str, event_id: str) -> float | None:
+        if strategy_name == "negrisk_convert":
+            b = self.risk.budget_for(Settlement.CONVERT, event_id, fast_turnover=True)
+        elif strategy_name == "metar_lock":
+            b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=True)
+        else:
+            b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=False)
+        # When budget is >= $1.50 and below max_trade_usd, size down to fit instead of skipping!
+        if 1.5 <= b < self.cfg.risk.max_trade_usd:
+            return b
+        return None
 
     async def _handle(self, opp: Opportunity, target: Target) -> None:
         self.stats["opportunities"] += 1
@@ -227,8 +293,14 @@ class Engine:
         await asyncio.shield(task)
 
     async def _execute(self, opp: Opportunity, target: Target) -> None:
-        report = await self.executor.execute(opp, target, approve=self.risk.check_size)
+        max_cost = self._dynamic_budget(target.strategy, target.event.id)
+        if "max_cost" in inspect.signature(self.executor.execute).parameters:
+            report = await self.executor.execute(opp, target, approve=self.risk.check_size, max_cost=max_cost)
+        else:
+            report = await self.executor.execute(opp, target, approve=self.risk.check_size)
         self.risk.finish(report)
+        if self.lifecycle is not None and report.sent:
+            await self.lifecycle.sync_wallet_balance()
         if not report.sent:
             self.stats[report.action] += 1
             log.debug("not sent %s: %s", opp.key, report.action)
@@ -256,7 +328,8 @@ class Engine:
                     continue
                 self.stats["evaluations"] += 1
                 try:
-                    for opp in self.by_name[target.strategy].evaluate(target, self.store, now):
+                    budget = self._dynamic_budget(target.strategy, target.event.id)
+                    for opp in self.by_name[target.strategy].evaluate(target, self.store, now, max_cost=budget):
                         await self._handle(opp, target)
                 except Exception:
                     self.stats["eval_errors"] += 1
@@ -286,9 +359,11 @@ class Engine:
     async def _report_loop(self) -> None:
         while True:
             await asyncio.sleep(self.cfg.engine.report_every_s)
-            matured = self.risk.release_matured()
-            for h in matured:
-                self.journal.write("hold_released", {"key": h.key, "title": h.title, "strategy": h.strategy, "pnl": h.payout - h.cost})
+            is_paper = self.executor is None or self.executor.gateway.mode == "paper"
+            if is_paper:
+                matured = self.risk.release_matured()
+                for h in matured:
+                    self.journal.write("hold_released", {"key": h.key, "title": h.title, "strategy": h.strategy, "pnl": h.payout - h.cost})
             snapshot = {
                 **self.store.stats(),
                 "ws_msgs": self.stream.messages if self.stream else 0,
@@ -303,8 +378,10 @@ class Engine:
             log.info("heartbeat %s", snapshot)
 
     async def drain(self, timeout: float = 60.0) -> None:
-        """Refuse new executions and wait for the ones already sending orders."""
+        """Refuse new executions, cancel resting maker quotes, and wait for in-flight executions."""
         self.stopping = True
+        if self.maker_arb is not None:
+            await self.maker_arb.stop()
         pending = set(self._inflight)
         if not pending:
             return
@@ -322,11 +399,17 @@ class Engine:
             gc.set_threshold(50_000, 20, 100)
             self.phase = "loading"
             await self.refresh_universe()
+            if self.metar_feed is not None:
+                await self.metar_feed.start()
+            if self.lifecycle is not None:
+                await self.lifecycle.start()
             self.phase = "sweeping"
             await self.sweep()
             settle_heap()
             if self.stream:
                 await self.stream.start(self.hot_tokens())
+            if self.maker_arb is not None:
+                await self.maker_arb.start()
             tasks = [
                 asyncio.create_task(self._sweep_loop()),
                 asyncio.create_task(self._eval_loop()),
@@ -349,6 +432,10 @@ class Engine:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             await self.drain()
+            if self.metar_feed is not None:
+                await self.metar_feed.stop()
+            if self.lifecycle is not None:
+                await self.lifecycle.stop()
             if self.stream:
                 await self.stream.stop()
             self.risk.save()

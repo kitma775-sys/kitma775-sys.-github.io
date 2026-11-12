@@ -12,9 +12,12 @@ from typing import Any
 from polyarb.config import Config, env_overrides, load_config, use_data_dir
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
+from polyarb.data.metar import MetarFeed
 from polyarb.data.store import BookStore
 from polyarb.engine import Engine, ScanResult, scan_once
 from polyarb.execution.executor import Executor
+from polyarb.execution.lifecycle import LifecycleManager
+from polyarb.execution.maker_arb import MakerArbManager
 from polyarb.execution.paper import PaperGateway
 from polyarb.journal import Journal
 from polyarb.risk import RiskManager, api_allowed
@@ -32,6 +35,11 @@ UNGATED = {
     "ladder.min_edge": 0.0,
     "ladder.min_apr": 0.0,
     "ladder.max_days": 3650.0,
+    "metar.min_profit_usd": 0.0,
+    "metar.min_edge": 0.0,
+    "metar.basket_min_profit_usd": 0.0,
+    "metar.basket_min_edge": 0.0,
+    "metar.max_days": 365.0,
 }
 
 
@@ -79,19 +87,24 @@ def scan_payload(result: ScanResult, near: int = 25) -> dict[str, Any]:
 
 
 async def cmd_scan(cfg: Config, args: argparse.Namespace) -> int:
-    strategies = build_strategies(cfg)
+    metar_feed = MetarFeed() if cfg.metar.enabled else None
+    strategies = build_strategies(cfg, metar_feed=metar_feed)
     filters = dict(cfg.universe.gamma_filters)
-    async with GammaClient() as gamma, ClobClient() as clob:
-        events = None
-        if args.max_pages:
-            from polyarb.data.gamma import parse_event
+    try:
+        async with GammaClient() as gamma, ClobClient() as clob:
+            events = None
+            if args.max_pages:
+                from polyarb.data.gamma import parse_event
 
-            events = []
-            async for raw in gamma.iter_raw_events(max_pages=args.max_pages, **filters):
-                ev = parse_event(raw)
-                if len(ev.tradeable_markets) >= cfg.universe.min_markets:
-                    events.append(ev)
-        result = await scan_once(cfg, strategies, gamma, clob, events)
+                events = []
+                async for raw in gamma.iter_raw_events(max_pages=args.max_pages, **filters):
+                    ev = parse_event(raw)
+                    if len(ev.tradeable_markets) >= cfg.universe.min_markets:
+                        events.append(ev)
+            result = await scan_once(cfg, strategies, gamma, clob, events)
+    finally:
+        if metar_feed is not None:
+            await metar_feed.close()
     print_scan(result, args.top)
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
@@ -102,11 +115,17 @@ async def cmd_scan(cfg: Config, args: argparse.Namespace) -> int:
 
 async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
     mode = args.mode or cfg.execution.mode
-    strategies = build_strategies(cfg)
+    metar_feed = MetarFeed(
+        fast_poll_s=cfg.metar.fast_poll_s,
+        idle_poll_s=cfg.metar.idle_poll_s,
+        glitch_delta_c=cfg.metar.glitch_delta_c,
+    ) if cfg.metar.enabled else None
+    strategies = build_strategies(cfg, metar_feed=metar_feed)
     store = BookStore(max_age_s=cfg.universe.max_book_age_s)
     risk = RiskManager(cfg.risk, cfg.execution.state_path)
     journal = Journal(cfg.execution.journal_path)
     async with GammaClient() as gamma, ClobClient() as clob:
+        funder = None
         if mode == "live":
             if args.no_gates:
                 print("Refusing live mode with --no-gates.")
@@ -125,14 +144,23 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
                 print("POLYMARKET_PRIVATE_KEY is not set")
                 return 2
             gateway = await PolymarketGateway.create(key, wallet=os.environ.get("POLYMARKET_WALLET") or None)
+            funder = gateway.wallet_info().get("funder")
         else:
             cfg.risk.require_geo_ok = False
             gateway = PaperGateway(store, fail_prob=args.paper_fail_prob, seed=args.seed)
+        lifecycle = LifecycleManager(cfg, gateway, risk, journal, wallet_funder=funder)
+        maker_arb = MakerArbManager(cfg, store, gateway, risk, journal, clob=clob)
         executor = Executor(gateway, store, {s.name: s for s in strategies}, cfg.execution, clob)
-        engine = Engine(cfg, strategies, gamma, clob, store, executor, risk, journal)
+        engine = Engine(
+            cfg, strategies, gamma, clob, store, executor, risk, journal,
+            metar_feed=metar_feed, maker_arb=maker_arb, lifecycle=lifecycle,
+        )
         try:
             await engine.run(args.duration)
         finally:
+            if metar_feed is not None:
+                await metar_feed.close()
+            await lifecycle.close()
             await gateway.close()
     print(json.dumps({"stats": dict(engine.stats), "pnl_total": risk.state.realized_total, "holds": len(risk.state.holds)}, indent=2))
     return 0

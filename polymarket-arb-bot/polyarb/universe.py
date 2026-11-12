@@ -6,16 +6,19 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from polyarb.config import Config, UniverseConfig
+from polyarb.data.metar import MetarFeed
 from polyarb.models import Event
 from polyarb.strategies.base import Strategy, Target
 from polyarb.strategies.ladder import LadderArb
+from polyarb.strategies.metar import MetarLock
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
 
 
-def build_strategies(cfg: Config) -> list[Strategy]:
+def build_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
     cap = cfg.risk.max_trade_usd
     strategies: list[Strategy] = [
         NegRiskConvert(cfg.convert, cap),
+        MetarLock(cfg.metar, metar_feed, cap),
         NegRiskYesBasket(cfg.yes_basket, cap),
         LadderArb(cfg.ladder, cap),
     ]

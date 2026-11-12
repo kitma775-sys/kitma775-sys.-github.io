@@ -13,10 +13,13 @@
 
   const STRATS = {
     negrisk_convert: { name: '轉換套利', short: '轉換', color: '#19e6d4' },
+    metar_lock: { name: 'METAR 氣象鎖定', short: 'METAR 鎖定', color: '#2ef2a0' },
+    maker_convert: { name: '零費掛單轉換', short: '掛單轉換', color: '#38bdf8' },
+    maker_ladder: { name: '零費掛單階梯', short: '掛單階梯', color: '#fb7185' },
     negrisk_yes_basket: { name: 'YES 籃子', short: 'YES 籃子', color: '#8b6cff' },
     ladder: { name: '階梯套利', short: '階梯', color: '#ffc857' },
   };
-  const ORDER = ['negrisk_convert', 'negrisk_yes_basket', 'ladder'];
+  const ORDER = ['negrisk_convert', 'metar_lock', 'negrisk_yes_basket', 'ladder'];
   const strat = k => STRATS[k] || { name: k || '?', short: k || '?', color: '#5aa9ff' };
 
   const PHASES = {
@@ -53,6 +56,7 @@
     [/^skip:hold exposure cap$/, '持倉總額已達上限'],
     [/^skip:event exposure cap$/, '單一事件已達上限'],
     [/^skip:insufficient capital$/, '可用資金不足'],
+    [/^skip:liquid reserve protected$/, '保留流動預備金（只供閃電策略）'],
     [/^skip:trade above max_trade_usd$/, '超出單筆上限'],
     [/^skip:kill file present$/, '已手動暫停'],
     [/^skip:killed/, '熔斷中'],
@@ -67,7 +71,13 @@
   ];
   const ACTIONS = [
     [/^holding to resolution$/, '持有至結算'],
+    [/^instant flip$/, '閃電止盈平倉（0.99+）'],
+    [/^partial flip -> holding remainder$/, '部分閃電止盈・餘量待結算'],
     [/^converted$/, '已即時轉換為 pUSD'],
+    [/^maker filled -> converted$/, '零費掛單成交 → 已轉換 pUSD'],
+    [/^maker filled -> holding to resolution$/, '零費掛單成交 → 對沖持有'],
+    [/^partial hedge -> converted subset$/, '部分對沖 → 轉換已成交子集'],
+    [/^maker hedge missed -> unwind$/, '對沖未滿 → 已平倉保護'],
     [/^completed after retry$/, '重試後完成'],
     [/^convert filled subset$/, '轉換已成交部分'],
     [/^retry incomplete -> convert subset$/, '重試未完成，轉換已成交部分'],
@@ -758,7 +768,7 @@
 
   const ENGINE = [
     ['uptime', '運行時間'], ['sweep', '全量掃描'], ['refresh', '市場刷新'], ['ws', 'WebSocket'],
-    ['cpu', 'CPU'], ['rss', '記憶體'], ['eval', '策略評估'], ['clients', '控制台連線'],
+    ['metar', 'METAR 氣象源'], ['maker', '零費掛單對沖'], ['cpu', 'CPU'], ['rss', '記憶體'],
   ];
   setHTML($('#engine-grid'), ENGINE.map(([k, label]) => html`<div class="eg"><label>${label}</label><div class="v" data-k="${k}">—</div><div class="s" data-s="${k}">&nbsp;</div></div>`));
   const ev = k => $(`#engine-grid [data-k="${k}"]`);
@@ -1042,7 +1052,7 @@
   function renderKpis(t) {
     const k = t.kpi, e = t.engine, r = t.risk;
     tween(kv('available'), k.available, v => usd(v));
-    setText(ks('available'), `本金 ${usd(k.bankroll)}`);
+    setText(ks('available'), finite(k.wallet_balance) ? `鏈上 ${usd(k.wallet_balance)}・預留 ${usd(k.reserved_usd || 0)}` : `本金 ${usd(k.bankroll)}`);
     tween(kv('exposure'), k.hold_exposure, v => usd(v));
     setText(ks('exposure'), `上限 ${usd(r.max_hold_exposure_usd)}・${pct(r.max_hold_exposure_usd ? k.hold_exposure / r.max_hold_exposure_usd : null, 0)}`);
     setText(kv('rate'), k.complete_rate == null ? '—' : pct(k.complete_rate, 1));
@@ -1068,14 +1078,15 @@
     setText(es_('refresh'), `每 ${e.refresh_minutes} 分鐘重建`);
     setHTML(ev('ws'), html`<span class="dot ${e.ws_running ? 'ok' : 'bad'}"></span>${e.ws_running ? '已連線' : '未連線'}`);
     setText(es_('ws'), `${num(e.ws_tokens)} 簿・重連 ${num(e.ws_reconnects)}`);
+    const mt = e.metar || {}, mk = e.maker || {}, lc = e.lifecycle || {};
+    setText(ev('metar'), mt.stations ? `${num(mt.stations)} 機場站` : '關閉');
+    setText(es_('metar'), mt.polls ? `已追蹤 ${num(mt.days_tracked)} 日・輪詢 ${num(mt.polls)}` : '待啟動');
+    setText(ev('maker'), mk.enabled ? `${num(mk.open_quotes || 0)} 掛單中` : '關閉');
+    setText(es_('maker'), `成交 ${num(mk.filled || 0)}・閃電平倉 ${num(lc.flips_completed || 0)}・贖回 ${num(lc.redemptions || 0)}`);
     setText(ev('cpu'), finite(e.cpu_pct) ? `${e.cpu_pct.toFixed(1)}%` : '—');
-    setText(es_('cpu'), '佔單一核心');
+    setText(es_('cpu'), finite(e.eval_rate) ? `評估 ${nf0.format(e.eval_rate)}/秒` : '佔單一核心');
     setText(ev('rss'), finite(e.rss_mb) ? `${nf0.format(e.rss_mb)} MB` : '—');
-    setText(es_('rss'), 'RSS 常駐記憶體');
-    setText(ev('eval'), finite(e.eval_rate) ? `${nf0.format(e.eval_rate)}/秒` : '—');
-    setText(es_('eval'), `錯誤 ${num(e.eval_errors)}`);
-    setText(ev('clients'), `${num(e.clients)} 個`);
-    setText(es_('clients'), `執行中 ${num(e.inflight)}`);
+    setText(es_('rss'), `連線 ${num(e.clients)}・執行中 ${num(e.inflight)}`);
     setText($('#engine-hint'), `更新於 ${hhmmss(t.now)}`);
     const sec = Math.max(2.5, Math.min(8, 8 - Math.log10((e.ws_rate || 0) + 1) * 1.8));
     const streak = (Math.round(sec * 2) / 2).toFixed(1) + 's';
@@ -1133,7 +1144,7 @@
     setHTML(body, holds.map(h => html`<tr>
       <td class="title" title="${h.title}">${link(h.title, h.slug)}</td><td class="hide-sm">${chip(h.strategy)}</td>
       <td class="num">${usd(h.cost)}</td><td class="num hide-sm">${usd(h.payout)}</td><td class="num pos">${usd(h.profit, true)}</td>
-      <td class="num" title="${h.resolves_at || ''}">${until(h.resolves_at)}</td></tr>`));
+      <td class="num" title="${h.resolves_at || ''}">${h.exit_price ? `掛賣 @${h.exit_price.toFixed(3)}` : until(h.resolves_at)}</td></tr>`));
   }
 
   function renderReadiness(t) {
@@ -1267,6 +1278,9 @@
     on('execution', onExecution);
     on('log', e => appendLogs([e], false));
     on('hold_released', onRelease);
+    on('flip_closed', d => toast(`閃電止盈成交：${d.title}・${usd(d.pnl, true)}`, 'good'));
+    on('redeemed', d => toast(`已自動鏈上贖回：${d.title}・收回 ${usd(d.proceeds)}`, 'good'));
+    on('hold_reconciled', d => toast(`已同步外部平倉持倉：${d.title}`));
     on('universe', u => toast(`市場已刷新：${num(u.events)} 個事件・${num(u.tokens)} 個訂單簿`));
   }
 
