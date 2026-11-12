@@ -14,15 +14,18 @@ from polyarb.strategies.metar import MetarLock
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
 
 
-def build_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
+def build_all_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
     cap = cfg.risk.max_trade_usd
-    strategies: list[Strategy] = [
+    return [
         NegRiskConvert(cfg.convert, cap),
         MetarLock(cfg.metar, metar_feed, cap),
         NegRiskYesBasket(cfg.yes_basket, cap),
         LadderArb(cfg.ladder, cap),
     ]
-    return [s for s in strategies if s.enabled]
+
+
+def build_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
+    return [s for s in build_all_strategies(cfg, metar_feed=metar_feed) if s.enabled]
 
 
 def filter_events(events: Iterable[Event], ucfg: UniverseConfig) -> list[Event]:

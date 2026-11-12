@@ -83,6 +83,9 @@ python deploy/zeabur.py --server <專屬伺服器 ID>        # 或部署到你�
 | `POLYARB_LIVE_CONFIRM` | — | 實盤必須設為 `yes` |
 | `POLYMARKET_PRIVATE_KEY` | — | 實盤簽名私鑰，只放在 Zeabur 環境變數 |
 | `POLYMARKET_WALLET` | — | 只在沿用現有 Polymarket 代理錢包時需要；不設則使用此私鑰的 Deposit Wallet |
+| `TELEGRAM_BOT_TOKEN` | — | Telegram Bot Token；與 `POLYARB_TG_ALLOWED_USERS` 同時設定時，於同一進程內啟動繁體中文指揮中心 Bot（與網頁控制台 100% 同步） |
+| `POLYARB_TG_ALLOWED_USERS` | — | 准許操作 Telegram Bot 的用戶 ID 清單（逗號分隔）；非名單內帳號或未授權群組一律靜默拒絕 |
+| `POLYARB_PUBLIC_URL` | — | 可選：網頁控制台網址，供 Telegram 主面板顯示「開啟網頁版控制台」按鈕 |
 | `POLYARB__<區段>__<參數>` | — | 覆蓋 `config/default.yaml` 的任何設定，例如 `POLYARB__RISK__MAX_TRADE_USD=25`、`POLYARB__ENGINE__REST_SWEEP_S=10`。值按 YAML 解析；鍵名拼錯會拒絕啟動，不會被默默忽略 |
 
 ### 容器
@@ -177,7 +180,7 @@ pip install -e ".[dev,live]"     # 實盤：另外安裝官方 SDK polymarket-cl
 ## 測試
 
 ```bash
-pytest -q        # 147 個單元測試，全部離線執行，不需要網絡或私鑰
+pytest -q        # 153 個單元測試，全部離線執行，不需要網絡或私鑰
 ```
 
 測試覆蓋手續費與訂單簿計算、籃子定量、階梯解析、三個策略、風控（包括按官方地區規則判斷 API 下單、HTTP 403 拒單即熔斷）、執行器的所有修復路徑（補齊、轉換子集、平倉、保留倉位、轉換失敗）、實盤閘道（以假 SDK 模擬批量送單、延遲撮合對帳、交易錢包資料、地區拒單）、鏈上 calldata 編碼、WebSocket 處理及設定檔；以及控制台的部分：登入及 Cookie、登入限流、Origin 檢查、SSE、控制操作、靜態檔路徑穿越、環境變數覆蓋、日誌輪替、優雅關閉（不會中途切斷執行）、實盤就緒檢查及機密遮蔽。

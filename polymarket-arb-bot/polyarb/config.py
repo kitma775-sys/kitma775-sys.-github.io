@@ -141,6 +141,16 @@ class EngineConfig:
 
 
 @dataclass
+class TelegramConfig:
+    notify_executions: bool = True
+    notify_flips_redeems: bool = True
+    notify_risk: bool = True
+    notify_opportunities: bool = False
+    opportunity_min_profit_usd: float = 1.0
+    summary_hours: float = 4.0
+
+
+@dataclass
 class Config:
     convert: ConvertConfig = field(default_factory=ConvertConfig)
     yes_basket: YesBasketConfig = field(default_factory=YesBasketConfig)
@@ -151,6 +161,7 @@ class Config:
     risk: RiskConfig = field(default_factory=RiskConfig)
     execution: ExecutionConfig = field(default_factory=ExecutionConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
+    tg: TelegramConfig = field(default_factory=TelegramConfig)
 
 
 def _build(cls: type, data: Any, path: str) -> Any:

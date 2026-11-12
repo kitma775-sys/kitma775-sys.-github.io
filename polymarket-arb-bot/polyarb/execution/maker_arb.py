@@ -175,7 +175,7 @@ class MakerArbManager:
     def find_candidates(self, now: float | None = None) -> list[MakerQuotePlan]:
         now = now or time.time()
         mcfg = self.cfg.maker
-        plans: list[MakerQuotePlan] = []
+        best_by_event: dict[str, MakerQuotePlan] = {}
         now_dt = utc(now)
 
         for target in self.targets:
@@ -186,15 +186,17 @@ class MakerArbManager:
             if last is not None and now - last < self.cfg.risk.cooldown_s:
                 continue
 
+            plan = None
             if target.strategy == "negrisk_convert":
                 plan = self._plan_convert(target, mcfg)
-                if plan is not None:
-                    plans.append(plan)
             elif target.strategy == "ladder":
                 plan = self._plan_ladder(target, mcfg, now_dt)
-                if plan is not None:
-                    plans.append(plan)
+            if plan is not None:
+                prev = best_by_event.get(ev.id)
+                if prev is None or plan.profit > prev.profit:
+                    best_by_event[ev.id] = plan
 
+        plans = list(best_by_event.values())
         plans.sort(key=lambda p: (p.settlement is Settlement.CONVERT, p.profit * math.log1p(max(p.volume_24h, 1.0))), reverse=True)
         return plans
 
@@ -379,14 +381,21 @@ class MakerArbManager:
                 await self.cancel_all("paused or risk gate active")
             return
 
-        # 3. Open new quotes up to max_open_quotes.
+        # 3. Trim excess quotes if max_open_quotes was reduced dynamically, else open new quotes.
+        while len(self.active) > self.cfg.maker.max_open_quotes:
+            ev_id, oldest = min(self.active.items(), key=lambda item: item[1].placed_at)
+            await self.gateway.cancel(oldest.order_id)
+            self.active.pop(ev_id, None)
+            self._recompute_reserved()
+            self.quotes_canceled += 1
+
         slots = self.cfg.maker.max_open_quotes - len(self.active)
         if slots <= 0:
             return
         for plan in self.find_candidates(now):
             if len(self.active) >= self.cfg.maker.max_open_quotes:
                 break
-            if plan.total_cost > self.risk.available() + EPS:
+            if plan.event_id in self.active or plan.total_cost > self.risk.available() + EPS:
                 continue
             res = await self.gateway.place_limit(
                 token_id=plan.lead_market.token(plan.lead_outcome),

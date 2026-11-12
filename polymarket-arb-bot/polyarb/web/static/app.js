@@ -1086,7 +1086,8 @@
     setText(ev('cpu'), finite(e.cpu_pct) ? `${e.cpu_pct.toFixed(1)}%` : '—');
     setText(es_('cpu'), finite(e.eval_rate) ? `評估 ${nf0.format(e.eval_rate)}/秒` : '佔單一核心');
     setText(ev('rss'), finite(e.rss_mb) ? `${nf0.format(e.rss_mb)} MB` : '—');
-    setText(es_('rss'), `連線 ${num(e.clients)}・執行中 ${num(e.inflight)}`);
+    const tg = e.tg;
+    setText(es_('rss'), tg && tg.running ? `TG @${tg.username || 'bot'} 連線中・指令 ${num(tg.handled || 0)}` : `連線 ${num(e.clients)}・執行中 ${num(e.inflight)}`);
     setText($('#engine-hint'), `更新於 ${hhmmss(t.now)}`);
     const sec = Math.max(2.5, Math.min(8, 8 - Math.log10((e.ws_rate || 0) + 1) * 1.8));
     const streak = (Math.round(sec * 2) / 2).toFixed(1) + 's';
@@ -1171,6 +1172,50 @@
     setText($('#wallet-note'), t.mode === 'live' && w
       ? `交易錢包（入金地址）${w.funder || '?'}${w.type ? `〔${WALLETS[w.type] || w.type}〕` : ''}・簽名 ${w.signer || '?'}${finite(w.balance) ? `・餘額 ${usd(w.balance)} pUSD` : ''}`
       : '紙盤：每筆成交都按當刻真實訂單簿深度模擬，不會動用任何資金。實盤與紙盤帳本分開保存。');
+    const mbtn = $('#btn-switch-mode');
+    if (mbtn) {
+      setText(mbtn, t.mode === 'live' ? '切換回紙盤 PAPER（免重啟）' : '熱切換至實盤 LIVE（免重啟）');
+      mbtn.className = 'btn small ' + (t.mode === 'live' ? 'warn' : 'danger');
+    }
+  }
+
+  function renderSettings() {
+    const st = S.settings;
+    const tabsEl = $('#settings-tabs'), gridEl = $('#settings-grid');
+    if (!st || !st.categories || !tabsEl || !gridEl) return;
+    const cats = st.categories;
+    if (!S.setCat || !cats.some(c => c.id === S.setCat)) S.setCat = cats[0].id;
+    const sig = JSON.stringify([S.setCat, st]);
+    if (S.sigs.settings === sig) return;
+    S.sigs.settings = sig;
+
+    setHTML(tabsEl, cats.map(c => {
+      const ov = (c.items || []).filter(i => i.overridden).length;
+      const shortTitle = c.title.replace(/^[^\s]+\s*/, '');
+      return html`<button type="button" data-sc="${c.id}" class="${c.id === S.setCat ? 'on' : ''}">${shortTitle}${ov ? ` (${ov})` : ''}</button>`;
+    }));
+
+    const cur = cats.find(c => c.id === S.setCat) || cats[0];
+    setHTML(gridEl, (cur.items || []).map(it => {
+      const displayVal = it.unit === 'pct' ? +(it.value * 100).toFixed(4) : it.value;
+      const controls = it.kind === 'bool'
+        ? html`<button type="button" class="${it.value ? 'on' : ''}" data-skey="${it.key}" data-sval="${it.value ? '0' : '1'}" data-skind="bool">${it.value ? '🟢 已開啟（點擊關閉）' : '⚪ 已關閉（點擊開啟）'}</button>`
+        : html`${(it.presets || []).map(p => {
+            const pDisp = it.unit === 'pct' ? +(p * 100).toFixed(3) + '%' : it.unit === 'usd' ? '$' + p : p;
+            const active = Math.abs(Number(it.value) - Number(p)) < 1e-9;
+            return html`<button type="button" class="${active ? 'on' : ''}" data-skey="${it.key}" data-sval="${p}" data-skind="${it.kind}">${pDisp}</button>`;
+          })}<input type="number" step="any" value="${displayVal}" data-sinput="${it.key}" data-sunit="${it.unit}" data-skind="${it.kind}"><button type="button" data-ssave="${it.key}">套用</button>`;
+      return html`<div class="set-item${it.overridden ? ' ov' : ''}">
+        <div class="set-top"><b>${it.label}${it.overridden ? ' ✏️' : ''}</b><span class="val">${it.formatted}</span></div>
+        <div class="set-desc">${it.desc}</div>
+        <div class="set-ctrl">${controls}</div>
+      </div>`;
+    }));
+    const resetBtn = $('#btn-reset-settings');
+    if (resetBtn) {
+      resetBtn.disabled = !st.overrides_count;
+      setText(resetBtn, st.overrides_count ? `還原全部自訂設定（${st.overrides_count} 項）` : '目前使用預設設定');
+    }
   }
 
   // ------------------------------------------------------------------ event handlers
@@ -1179,12 +1224,14 @@
     S.meta = s.meta || {};
     S.series = s.series || null;
     S.ranking = s.ranking || null;
+    S.settings = s.settings || S.settings || null;
     S.opps = s.opportunities || [];
     S.execs = s.executions || [];
     renderFeed($('#opp-feed'), S.opps, oppItem, EMPTY_OPPS);
     renderFeed($('#exec-feed'), S.execs, execItem, EMPTY_EXECS);
     appendLogs(s.logs || [], true);
     onTick(s);
+    renderSettings();
     renderRanking();
     drawCharts();
     setText($('#foot-left'), `POLYARB v${S.meta.version || '?'}・數據目錄 ${S.meta.data_dir || '?'}`);
@@ -1281,6 +1328,10 @@
     on('flip_closed', d => toast(`閃電止盈成交：${d.title}・${usd(d.pnl, true)}`, 'good'));
     on('redeemed', d => toast(`已自動鏈上贖回：${d.title}・收回 ${usd(d.proceeds)}`, 'good'));
     on('hold_reconciled', d => toast(`已同步外部平倉持倉：${d.title}`));
+    on('setting', d => {
+      if (d.label) toast(`設定已同步（${d.source === 'telegram' ? 'Telegram' : '網頁'}）：${d.label} = ${d.formatted}`, 'good');
+    });
+    on('mode_switch', d => toast(`模式已熱切換至：${d.mode === 'live' ? '實盤 LIVE' : '紙盤 PAPER'}`, 'good'));
     on('universe', u => toast(`市場已刷新：${num(u.events)} 個事件・${num(u.tokens)} 個訂單簿`));
   }
 
@@ -1385,6 +1436,76 @@
     S.nearTab = b.dataset.k;
     $$('#near-tabs button').forEach(x => x.classList.toggle('on', x === b));
     renderNear();
+  });
+
+  $('#settings-tabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-sc]');
+    if (!b) return;
+    S.setCat = b.dataset.sc;
+    renderSettings();
+  });
+
+  $('#settings-grid').addEventListener('click', async e => {
+    const presetBtn = e.target.closest('button[data-skey]');
+    if (presetBtn) {
+      const key = presetBtn.dataset.skey;
+      const kind = presetBtn.dataset.skind;
+      const raw = presetBtn.dataset.sval;
+      const value = kind === 'bool' ? raw === '1' : kind === 'int' ? parseInt(raw, 10) : parseFloat(raw);
+      try {
+        const res = await post('/api/settings', { key, value });
+        S.settings = res.settings;
+        renderSettings();
+        toast(`已更新：${res.label} = ${res.formatted}`, 'good');
+      } catch (err) { toast('設定失敗：' + err.message, 'bad'); }
+      return;
+    }
+    const saveBtn = e.target.closest('button[data-ssave]');
+    if (saveBtn) {
+      const key = saveBtn.dataset.ssave;
+      const inp = $(`#settings-grid input[data-sinput="${key}"]`);
+      if (!inp) return;
+      let numVal = parseFloat(inp.value);
+      if (!Number.isFinite(numVal)) { toast('請輸入有效數字', 'bad'); return; }
+      if (inp.dataset.sunit === 'pct') numVal /= 100.0;
+      if (inp.dataset.skind === 'int') numVal = Math.round(numVal);
+      try {
+        const res = await post('/api/settings', { key, value: numVal });
+        S.settings = res.settings;
+        renderSettings();
+        toast(`已更新：${res.label} = ${res.formatted}`, 'good');
+      } catch (err) { toast('設定失敗：' + err.message, 'bad'); }
+    }
+  });
+
+  $('#btn-reset-settings').addEventListener('click', async () => {
+    const ok = await modal({ title: '還原全部自訂設定？', text: '所有在網頁或 Telegram 修改過的參數將恢復為系統預設值。', okText: '確認還原' });
+    if (ok === null) return;
+    try {
+      const res = await post('/api/settings', { action: 'reset' });
+      S.settings = res.settings;
+      renderSettings();
+      toast(`已還原 ${res.removed} 項設定`, 'good');
+    } catch (err) { toast('還原失敗：' + err.message, 'bad'); }
+  });
+
+  $('#btn-switch-mode').addEventListener('click', async () => {
+    const isLive = S.tick && S.tick.mode === 'live';
+    if (isLive) {
+      const ok = await modal({ title: '切換回紙盤模式？', text: '將立即停止實盤落單並切換至紙盤模擬帳本，無需重啟容器。', okText: '切換至紙盤' });
+      if (ok === null) return;
+      try {
+        const res = await control('switch_mode', { mode: 'paper' });
+        toast(res.message || '已切換至紙盤', 'good');
+      } catch (err) { toast('切換失敗：' + err.message, 'bad'); }
+    } else {
+      const v = await modal({ title: '熱切換至實盤 LIVE', text: '請確認實盤安全條件已全部通過。切換後會先保持「暫停」讓你核對餘額，輸入 LIVE 確認：', expect: 'LIVE', okText: '切換至實盤' });
+      if (v === null) return;
+      try {
+        const res = await control('switch_mode', { mode: 'live', confirm: v, pause_first: true });
+        toast(res.message || '已切換至實盤（保持暫停）', 'good');
+      } catch (err) { toast('切換失敗：' + err.message, 'bad'); }
+    }
   });
 
   $('#log-filter').addEventListener('click', e => {

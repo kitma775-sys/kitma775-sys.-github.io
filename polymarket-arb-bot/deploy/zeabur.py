@@ -240,8 +240,8 @@ def main() -> int:
     if not token:
         raise SystemExit("請先設定 ZEABUR_TOKEN 環境變數")
     overrides = dict(item.split("=", 1) for item in args.env)
-    if any(k.startswith("POLYMARKET_") for k in overrides):
-        raise SystemExit("錢包相關的機密請直接在 Zeabur 控制台輸入，不要經過指令列")
+    if any(k.startswith("POLYMARKET_") or k == "TELEGRAM_BOT_TOKEN" for k in overrides):
+        raise SystemExit("錢包私鑰及 TELEGRAM_BOT_TOKEN 請透過 Zeabur 環境變數 API 或控制台設定，不要經過指令列參數")
     region = args.region or f"server-{args.server}"
 
     project, env = find_or_create_project(token, args.project, region)

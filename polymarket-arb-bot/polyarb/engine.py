@@ -126,13 +126,16 @@ class Engine:
         risk: RiskManager,
         journal: Journal,
         *,
+        all_strategies: list[Strategy] | None = None,
+        initial_events: list[Event] | None = None,
         metar_feed: MetarFeed | None = None,
         maker_arb: "MakerArbManager | None" = None,
         lifecycle: "LifecycleManager | None" = None,
     ) -> None:
         self.cfg = cfg
+        self.all_strategies = list(all_strategies) if all_strategies is not None else list(strategies)
         self.strategies = strategies
-        self.by_name = {s.name: s for s in strategies}
+        self.by_name = {s.name: s for s in self.all_strategies}
         self.gamma = gamma
         self.clob = clob
         self.store = store
@@ -142,6 +145,8 @@ class Engine:
         self.metar_feed = metar_feed
         self.maker_arb = maker_arb
         self.lifecycle = lifecycle
+        self._initial_events = initial_events
+        self._raw_events: list[Event] | None = None
         if self.metar_feed is not None:
             self.metar_feed.on_station_update = self._on_metar_station
         self.universe: Universe | None = None
@@ -180,8 +185,20 @@ class Engine:
             self.dirty.update(keys)
             self._wake.set()
 
-    async def refresh_universe(self) -> None:
-        events = await load_events(self.cfg, self.gamma)
+    async def refresh_universe(self, events: list[Event] | None = None) -> None:
+        if events is None:
+            if self._initial_events is not None:
+                events, self._initial_events = self._initial_events, None
+            else:
+                events = await load_events(self.cfg, self.gamma)
+        self._raw_events = events
+        self._apply_universe(events)
+        self.last_refresh_at = time.time()
+        info = {"events": len(self.universe.events), "tokens": len(self.universe.tokens), "targets": self.universe.counts()}
+        self.journal.write("universe", info)
+        log.info("universe: %s", info)
+
+    def _apply_universe(self, events: list[Event]) -> None:
         self.universe = build_universe(events, self.strategies, self.cfg.universe)
         self.targets = {t.key: t for t in self.universe.targets}
         self.store.prune(set(self.universe.tokens))
@@ -196,10 +213,42 @@ class Engine:
             self.metar_feed.set_stations(by_st.keys())
         if self.maker_arb is not None:
             self.maker_arb.set_targets(self.universe.targets)
-        self.last_refresh_at = time.time()
-        info = {"events": len(self.universe.events), "tokens": len(self.universe.tokens), "targets": self.universe.counts()}
-        self.journal.write("universe", info)
-        log.info("universe: %s", info)
+
+    async def apply_config_update(self) -> None:
+        """Hot-reload strategy caps, enable/disable flags, book TTL, METAR polling, and maker quotes in place."""
+        self.store.max_age_s = self.cfg.universe.max_book_age_s
+        prev_enabled = {s.name for s in self.strategies}
+        for s in self.all_strategies:
+            if hasattr(s, "cfg") and hasattr(s.cfg, "enabled"):
+                s.enabled = bool(s.cfg.enabled)
+            if hasattr(s, "max_trade_usd"):
+                s.max_trade_usd = self.cfg.risk.max_trade_usd
+        self.strategies = [s for s in self.all_strategies if s.enabled]
+        self.by_name = {s.name: s for s in self.all_strategies}
+        if self.executor is not None:
+            self.executor.strategies = self.by_name
+        if self.metar_feed is not None:
+            self.metar_feed.fast_poll_s = self.cfg.metar.fast_poll_s
+            self.metar_feed.idle_poll_s = self.cfg.metar.idle_poll_s
+            self.metar_feed.glitch_delta_c = self.cfg.metar.glitch_delta_c
+            if self.cfg.metar.enabled and self.metar_feed._task is None and self.phase == "running":
+                await self.metar_feed.start()
+            elif not self.cfg.metar.enabled and self.metar_feed._task is not None:
+                await self.metar_feed.stop()
+        now_enabled = {s.name for s in self.strategies}
+        if now_enabled != prev_enabled and self._raw_events is not None:
+            self._apply_universe(self._raw_events)
+        if self.maker_arb is not None:
+            if not self.cfg.maker.enabled:
+                if self.maker_arb.active:
+                    await self.maker_arb.cancel_all("maker disabled")
+            elif self.maker_arb._task is None and self.phase == "running":
+                await self.maker_arb.start()
+            else:
+                self.maker_arb._wake.set()
+        if self.universe is not None:
+            self.dirty.update(self.targets.keys())
+            self._wake.set()
 
     async def sweep(self) -> int:
         """Refresh every universe book over REST, parsing only books whose server hash moved."""

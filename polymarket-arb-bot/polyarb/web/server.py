@@ -9,7 +9,7 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 from urllib.parse import urlsplit
 
 from aiohttp import web
@@ -17,6 +17,7 @@ from aiohttp import web
 from polyarb import __version__
 from polyarb.fastjson import dumps
 from polyarb.monitor import Monitor
+from polyarb.settings import SettingsManager, format_setting_value
 
 log = logging.getLogger(__name__)
 
@@ -93,31 +94,121 @@ class Auth:
 
 
 class Controls:
-    """Operator actions: pause/resume via the kill file, and clearing a tripped kill switch."""
+    """Unified operator actions shared by the Web Dashboard and Telegram Bot."""
 
-    def __init__(self, monitor: Monitor) -> None:
+    def __init__(
+        self,
+        monitor: Monitor,
+        settings: SettingsManager | None = None,
+        mode_switcher: Callable[[str, bool | None], Awaitable[tuple[bool, str]]] | None = None,
+    ) -> None:
         self.monitor = monitor
+        self.settings = settings or monitor.settings
+        self.mode_switcher = mode_switcher
 
     @property
     def _kill_file(self) -> Path | None:
         path = self.monitor.engine.risk.cfg.kill_file
         return Path(path) if path else None
 
-    def pause(self) -> str | None:
+    def is_paused(self) -> bool:
+        path = self._kill_file
+        return bool(path and path.exists())
+
+    def pause(self, source: str = "dashboard") -> str | None:
         path = self._kill_file
         if path is None:
             return "kill_file is disabled in the config"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"paused from dashboard at {datetime.now(timezone.utc).isoformat()}\n")
+        path.write_text(f"paused from {source} at {datetime.now(timezone.utc).isoformat()}\n")
         return None
+
+    async def pause_async(self, source: str = "dashboard") -> str | None:
+        err = self.pause(source=source)
+        if err is None:
+            maker = self.monitor.engine.maker_arb
+            if maker is not None and maker.active:
+                await maker.cancel_all(f"paused from {source}")
+            self.monitor.engine.journal.write("control", {"action": "pause", "source": source})
+        return err
 
     def resume(self) -> None:
         path = self._kill_file
         if path is not None:
             path.unlink(missing_ok=True)
 
+    async def resume_async(self, source: str = "dashboard") -> None:
+        self.resume()
+        maker = self.monitor.engine.maker_arb
+        if maker is not None:
+            maker._wake.set()
+        self.monitor.engine.journal.write("control", {"action": "resume", "source": source})
+
     def reset_kill(self) -> None:
         self.monitor.engine.risk.reset()
+
+    async def reset_kill_async(self, source: str = "dashboard") -> None:
+        self.reset_kill()
+        self.monitor.engine.journal.write("control", {"action": "reset_kill", "source": source})
+
+    async def cancel_quotes(self, source: str = "dashboard") -> int:
+        maker = self.monitor.engine.maker_arb
+        if maker is None or not maker.active:
+            return 0
+        n = len(maker.active)
+        await maker.cancel_all(f"manual cancel from {source}")
+        self.monitor.engine.journal.write("control", {"action": "cancel_quotes", "count": n, "source": source})
+        return n
+
+    async def trigger_lifecycle(self, source: str = "dashboard") -> dict[str, Any]:
+        lc = self.monitor.engine.lifecycle
+        if lc is None:
+            return {}
+        await lc.step()
+        self.monitor.engine.journal.write("control", {"action": "trigger_lifecycle", "source": source})
+        return lc.stats()
+
+    async def trigger_metar_poll(self, source: str = "dashboard") -> int:
+        feed = self.monitor.engine.metar_feed
+        if feed is None:
+            return 0
+        changed = await feed.poll_once(hours=3)
+        return len(changed)
+
+    async def update_setting(self, key: str, value: Any, source: str = "dashboard") -> tuple[str, str]:
+        if self.settings is None:
+            raise ValueError("settings manager is not enabled")
+        cfg = self.monitor.engine.cfg
+        spec, clean = self.settings.set_value(key, value, cfg=cfg)
+        await self.monitor.engine.apply_config_update()
+        formatted = format_setting_value(spec, clean)
+        self.monitor.engine.journal.write(
+            "setting",
+            {"key": key, "label": spec.label, "value": clean, "formatted": formatted, "source": source},
+        )
+        self.monitor.emit("state", self.monitor.snapshot())
+        return spec.label, formatted
+
+    async def reset_settings(self, category: str | None = None, key: str | None = None, source: str = "dashboard") -> int:
+        if self.settings is None:
+            raise ValueError("settings manager is not enabled")
+        cfg = self.monitor.engine.cfg
+        removed = self.settings.reset(category=category, key=key, cfg=cfg)
+        await self.monitor.engine.apply_config_update()
+        self.monitor.engine.journal.write(
+            "setting",
+            {"action": "reset", "category": category, "key": key, "removed": removed, "source": source},
+        )
+        self.monitor.emit("state", self.monitor.snapshot())
+        return removed
+
+    async def switch_mode(self, target_mode: str, pause_first: bool | None = None, source: str = "dashboard") -> tuple[bool, str]:
+        if self.mode_switcher is None:
+            return False, "目前執行環境不支援熱切換模式"
+        ok, msg = await self.mode_switcher(target_mode, pause_first)
+        if ok:
+            self.monitor.engine.journal.write("mode_switch", {"mode": target_mode, "source": source})
+        return ok, msg
 
 
 MONITOR_KEY = web.AppKey("monitor", Monitor)
@@ -256,21 +347,67 @@ async def control(request: web.Request) -> web.Response:
         return _json({"error": "expected JSON"}, 400)
     action = body.get("action") if isinstance(body, dict) else None
     if action == "pause":
-        error = controls.pause()
+        error = await controls.pause_async(source="dashboard")
         if error:
             return _json({"error": error}, 409)
     elif action == "resume":
-        controls.resume()
+        await controls.resume_async(source="dashboard")
     elif action == "reset_kill":
         if body.get("confirm") != "RESET":
             return _json({"error": 'reset_kill needs {"confirm": "RESET"}'}, 400)
-        controls.reset_kill()
+        await controls.reset_kill_async(source="dashboard")
+    elif action == "cancel_quotes":
+        n = await controls.cancel_quotes(source="dashboard")
+        return _json({"ok": True, "canceled": n, "risk": request.app[MONITOR_KEY].tick()["risk"]})
+    elif action == "switch_mode":
+        target = str(body.get("mode") or "").lower()
+        if target not in ("paper", "live"):
+            return _json({"error": "mode must be 'paper' or 'live'"}, 400)
+        if target == "live" and body.get("confirm") != "LIVE":
+            return _json({"error": 'switching to live requires {"confirm": "LIVE"}'}, 400)
+        pause_first = body.get("pause_first") if isinstance(body.get("pause_first"), bool) else None
+        ok, msg = await controls.switch_mode(target, pause_first=pause_first, source="dashboard")
+        if not ok:
+            return _json({"error": msg}, 409)
+        return _json({"ok": True, "mode": request.app[MONITOR_KEY].info.mode, "message": msg})
     else:
         return _json({"error": f"unknown action {action!r}"}, 400)
     monitor = request.app[MONITOR_KEY]
-    monitor.engine.journal.write("control", {"action": action, "client": client_ip(request)})
     log.warning("dashboard control: %s from %s", action, client_ip(request))
     return _json({"ok": True, "risk": monitor.tick()["risk"]})
+
+
+async def get_settings(request: web.Request) -> web.Response:
+    monitor = request.app[MONITOR_KEY]
+    if monitor.settings is None:
+        return _json({"error": "settings not enabled"}, 404)
+    return _json(monitor.settings.public_snapshot(monitor.engine.cfg))
+
+
+async def post_settings(request: web.Request) -> web.Response:
+    controls = request.app[CONTROLS_KEY]
+    monitor = request.app[MONITOR_KEY]
+    try:
+        body = await request.json()
+    except ValueError:
+        return _json({"error": "expected JSON"}, 400)
+    if not isinstance(body, dict):
+        return _json({"error": "expected JSON object"}, 400)
+    try:
+        if body.get("action") == "reset":
+            removed = await controls.reset_settings(
+                category=body.get("category"),
+                key=body.get("key"),
+                source="dashboard",
+            )
+            return _json({"ok": True, "removed": removed, "settings": monitor.settings.public_snapshot(monitor.engine.cfg)})
+        key = str(body.get("key") or "")
+        if "value" not in body or not key:
+            return _json({"error": "requires key and value"}, 400)
+        label, formatted = await controls.update_setting(key, body["value"], source="dashboard")
+    except ValueError as exc:
+        return _json({"error": str(exc)}, 400)
+    return _json({"ok": True, "label": label, "formatted": formatted, "settings": monitor.settings.public_snapshot(monitor.engine.cfg)})
 
 
 async def healthz(request: web.Request) -> web.Response:
@@ -284,11 +421,11 @@ async def favicon(request: web.Request) -> web.FileResponse:
     return web.FileResponse(STATIC_DIR / "favicon.svg", headers={"Content-Type": "image/svg+xml"})
 
 
-def create_app(monitor: Monitor, auth: Auth) -> web.Application:
+def create_app(monitor: Monitor, auth: Auth, controls: Controls | None = None) -> web.Application:
     app = web.Application(middlewares=[_guard], client_max_size=64 * 1024)
     app[MONITOR_KEY] = monitor
     app[AUTH_KEY] = auth
-    app[CONTROLS_KEY] = Controls(monitor)
+    app[CONTROLS_KEY] = controls or Controls(monitor)
     app.on_response_prepare.append(_headers)
     app.router.add_get("/", index)
     app.router.add_get("/login", login_page)
@@ -297,6 +434,8 @@ def create_app(monitor: Monitor, auth: Auth) -> web.Application:
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/stream", stream)
     app.router.add_post("/api/control", control)
+    app.router.add_get("/api/settings", get_settings)
+    app.router.add_post("/api/settings", post_settings)
     app.router.add_get("/healthz", healthz)
     app.router.add_get("/favicon.ico", favicon)
     app.router.add_static("/static/", STATIC_DIR)

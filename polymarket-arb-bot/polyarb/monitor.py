@@ -11,12 +11,15 @@ import time
 from bisect import bisect_left, bisect_right
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from polyarb import __version__
 from polyarb.engine import Engine
 from polyarb.fastjson import dumps
 from polyarb.risk import api_allowed
+
+if TYPE_CHECKING:
+    from polyarb.settings import SettingsManager
 
 log = logging.getLogger(__name__)
 
@@ -100,7 +103,30 @@ class Monitor:
         self._event_slugs: dict[str, str] = {}
         self._slugs_universe: object = None
         self._tap = _LogTap(self)
+        self.settings: "SettingsManager | None" = None
+        self.tg_bot: Any = None
+        self.event_hooks: list[Callable[[str, dict], None]] = []
         engine.journal.listeners.append(self._on_record)
+
+    def rebind(self, engine: Engine, info: RuntimeInfo, records: list[dict] | None = None) -> None:
+        """Swap the underlying Engine + RuntimeInfo cleanly during a live/paper mode switch."""
+        if self._on_record in self.engine.journal.listeners:
+            self.engine.journal.listeners.remove(self._on_record)
+        self.engine = engine
+        self.info = info
+        self.opportunities.clear()
+        self.executions.clear()
+        self.series.clear()
+        self.exec_counts.clear()
+        self.opps_seen.clear()
+        self._last_sample = None
+        self._opps_since_sample = 0
+        self._event_slugs.clear()
+        self._slugs_universe = None
+        engine.journal.listeners.append(self._on_record)
+        if records:
+            self.restore(records)
+        self.emit("state", self.snapshot())
 
     # ------------------------------------------------------------------ inputs
 
@@ -171,9 +197,14 @@ class Monitor:
             self._slug(record)
             self.executions.append(record)
             self._count_execution(record)
-        elif kind not in ("hold_released", "universe", "flip_closed", "redeemed", "hold_reconciled"):
+        elif kind not in ("hold_released", "universe", "flip_closed", "redeemed", "hold_reconciled", "control", "setting", "mode_switch"):
             return
         self.emit(kind, record)
+        for hook in list(self.event_hooks):
+            try:
+                hook(kind, record)
+            except Exception:
+                log.debug("monitor event hook failed", exc_info=True)
 
     def push_log(self, entry: dict) -> None:
         self.logs.append(entry)
@@ -369,6 +400,7 @@ class Monitor:
                 "metar": engine.metar_feed.stats() if engine.metar_feed is not None else None,
                 "maker": engine.maker_arb.stats() if engine.maker_arb is not None else None,
                 "lifecycle": engine.lifecycle.stats() if engine.lifecycle is not None else None,
+                "tg": self.tg_bot.stats() if self.tg_bot is not None and hasattr(self.tg_bot, "stats") else None,
             },
             "risk": {
                 "killed": state.killed,
@@ -426,7 +458,7 @@ class Monitor:
                 "password_generated": self.info.password_generated,
             },
             "config": {
-                "strategies": {s.name: s.enabled for s in self.engine.strategies},
+                "strategies": {s.name: s.enabled for s in self.engine.all_strategies},
                 "convert_min_profit": cfg.convert.min_profit_usd,
                 "yes_basket_min_apr": cfg.yes_basket.min_apr,
                 "ladder_min_apr": cfg.ladder.min_apr,
@@ -434,6 +466,7 @@ class Monitor:
                 "recheck_books": cfg.execution.recheck_books,
                 "ws_max_targets": cfg.engine.ws_max_targets,
             },
+            "settings": self.settings.public_snapshot(cfg) if self.settings is not None else None,
             "opportunities": opportunities,
             "executions": executions,
             "logs": list(self.logs)[-150:],

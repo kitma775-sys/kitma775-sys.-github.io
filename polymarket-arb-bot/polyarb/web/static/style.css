@@ -397,6 +397,21 @@ td.title a:hover { text-decoration: underline; }
 .toast.good { border-color: rgba(46, 242, 160, 0.55); box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.9), 0 0 30px -8px rgba(46, 242, 160, 0.6); }
 .toast.bad { border-color: rgba(255, 92, 122, 0.6); }
 
+/* ------------------------------------------------------------- live settings */
+
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+.set-item { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.025); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.set-item.ov { border-color: rgba(25, 230, 212, 0.42); background: rgba(25, 230, 212, 0.04); }
+.set-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.set-top b { font-size: 13.5px; color: var(--text); }
+.set-top .val { font-family: var(--mono); font-size: 13px; color: var(--mint); font-weight: 700; }
+.set-desc { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.set-ctrl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: auto; }
+.set-ctrl button { border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.05); color: #cfd6f6; border-radius: 8px; padding: 4px 9px; font-size: 11.5px; cursor: pointer; font-family: var(--mono); }
+.set-ctrl button.on { background: rgba(25, 230, 212, 0.2); border-color: var(--teal); color: #fff; }
+.set-ctrl button:hover { border-color: var(--teal); color: #fff; }
+.set-ctrl input { width: 86px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.35); color: var(--text); font-family: var(--mono); font-size: 12px; }
+
 .foot { max-width: 1640px; margin: 0 auto; padding: 0 28px 36px; color: var(--dim); font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
 
 /* ------------------------------------------------------------- login */

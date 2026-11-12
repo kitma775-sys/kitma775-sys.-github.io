@@ -99,3 +99,11 @@ engine:
   ws_max_targets: 300
   ws_assets_per_conn: 400
   report_every_s: 60.0
+
+tg:
+  notify_executions: true
+  notify_flips_redeems: true
+  notify_risk: true
+  notify_opportunities: false
+  opportunity_min_profit_usd: 1.0
+  summary_hours: 4.0
