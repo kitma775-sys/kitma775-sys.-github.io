@@ -287,7 +287,7 @@ class Engine:
     def hot_tokens(self) -> list[str]:
         assert self.universe is not None
         tokens: dict[str, None] = {}
-        # Always keep today/yesterday METAR temperature markets and active maker quotes on WebSocket!
+        # Always keep today/yesterday METAR temperature markets, active maker quotes, and held positions on WebSocket!
         now_utc = datetime.now(timezone.utc)
         lo_date = (now_utc - timedelta(days=2)).strftime("%Y-%m-%d")
         hi_date = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -298,6 +298,11 @@ class Engine:
         if self.maker_arb is not None:
             for token in self.maker_arb.quoted_tokens():
                 tokens[token] = None
+        for h in self.risk.state.holds:
+            for leg in h.legs:
+                yt = str(leg.get("yes_token") or "")
+                if yt:
+                    tokens[yt] = None
         ranked = []
         for t in self.universe.targets:
             edge = self.by_name[t.strategy].top_edge(t, self.store)

@@ -42,6 +42,16 @@ def _extract_metar_spec(title: str, description: str) -> tuple[str | None, str |
     return u.group(1).upper(), obs_date, mode
 
 
+def _extract_oracle_sig(description: str) -> str | None:
+    low = description.lower()
+    if "binance" in low and "12:00" in low and "1 minute candle" in low:
+        m = re.search(r"binance\.com/en/trade/([a-z0-9_]+)", low)
+        return f"binance_1200et:{m.group(1)}" if m else "binance_1200et"
+    if "published by pyth" in low and "close price" in low:
+        return "pyth_close"
+    return None
+
+
 def _json_list(value: Any) -> list:
     if isinstance(value, list):
         return value
@@ -151,6 +161,7 @@ def parse_event(raw: Mapping[str, Any]) -> Event:
     title = str(raw.get("title") or "")
     first_desc = str((raw_markets[0].get("description") if raw_markets and isinstance(raw_markets[0], Mapping) else "") or raw.get("description") or "")
     metar_icao, metar_obs_date, metar_mode = _extract_metar_spec(title, first_desc)
+    oracle_sig = _extract_oracle_sig(first_desc)
     return Event(
         id=str(raw.get("id")),
         slug=str(raw.get("slug") or ""),
@@ -167,6 +178,7 @@ def parse_event(raw: Mapping[str, Any]) -> Event:
         metar_icao=metar_icao,
         metar_obs_date=metar_obs_date,
         metar_mode=metar_mode,
+        oracle_sig=oracle_sig,
     )
 
 

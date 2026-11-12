@@ -48,6 +48,7 @@ class HoldPosition:
     opened_at: float
     legs: list[dict] = field(default_factory=list)
     condition_ids: list[str] = field(default_factory=list)
+    extra_event_ids: list[str] = field(default_factory=list)
     exit_order_id: str | None = None
     exit_price: float = 0.0
 
@@ -205,11 +206,15 @@ class RiskManager:
                             "outcome": r.leg.outcome.value,
                             "shares": r.shares,
                             "tick": r.leg.tick_size,
+                            "min_size": r.leg.min_size,
+                            "fee_rate": r.leg.fee_schedule.rate,
+                            "fee_exponent": r.leg.fee_schedule.exponent,
                         }
                         for r in report.legs + report.retries
                         if r.ok and r.shares > 0
                     ],
                     condition_ids=list(opp.meta.get("condition_ids") or []),
+                    extra_event_ids=[str(eid) for eid in (opp.meta.get("event_ids") or []) if str(eid) != opp.event_id],
                 )
             )
         if any(r.status == REGION_REJECTED for r in report.legs + report.retries):

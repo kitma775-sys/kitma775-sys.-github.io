@@ -10,13 +10,51 @@ from polyarb.book import take
 from polyarb.config import ExecutionConfig
 from polyarb.data.clob import ClobClient
 from polyarb.data.store import BookStore
-from polyarb.execution.base import ExecutionReport, Gateway
+from polyarb.execution.base import ExecutionReport, Gateway, SellResult
 from polyarb.execution.settlement import index_set
-from polyarb.models import Leg, Opportunity, Outcome, Settlement
+from polyarb.models import FeeSchedule, Leg, Opportunity, Outcome, Settlement
 from polyarb.sizing import floor_shares
 from polyarb.strategies.base import Strategy, Target
 
 log = logging.getLogger(__name__)
+
+
+async def liquidate_surplus_yes(
+    gateway: Gateway,
+    store: BookStore,
+    specs: list[dict] | tuple[dict, ...],
+    shares: float,
+    burned_market_ids: set[str] | None = None,
+    min_net_usd: float = 0.05,
+) -> list[SellResult]:
+    """Sweep free YES shares minted on ``m not in S`` during ``convertPositions`` into resting bids."""
+    if not specs or shares <= 0:
+        return []
+    burned = burned_market_ids or set()
+    sells: list[SellResult] = []
+    for spec in specs:
+        mid = str(spec.get("market_id") or "")
+        if mid and mid in burned:
+            continue
+        yes_token = str(spec.get("yes_token") or "")
+        min_sz = float(spec.get("min_size") or 5.0)
+        tick = float(spec.get("tick_size") or 0.01)
+        if not yes_token or shares < min_sz - 1e-6:
+            continue
+        book = store.raw(yes_token)
+        if book is None or not book.bids:
+            continue
+        fee = FeeSchedule(
+            rate=float(spec.get("fee_rate") or 0.0),
+            exponent=float(spec.get("fee_exponent") or 1.0),
+        )
+        est = take(book.bids, shares, fee)
+        if est.shares <= 0.05 or (est.notional - est.fee) < min_net_usd:
+            continue
+        res = await gateway.sell(yes_token, Outcome.YES, yes_token, shares, tick, fee, tick)
+        if res.ok and res.shares > 0:
+            sells.append(res)
+    return sells
 
 
 @dataclass
@@ -252,7 +290,13 @@ class Executor:
         report.convert_tx = tx
         report.proceeds += proceeds
         report.settled_shares = q
-        report.action = report.action or "converted"
+        burned_ids = {h.leg.market_id for h in held.values()}
+        surplus_sells = await liquidate_surplus_yes(
+            self.gateway, self.store, opp.meta.get("surplus_yes") or [], q, burned_market_ids=burned_ids
+        )
+        if surplus_sells:
+            report.sells.extend(surplus_sells)
+        report.action = report.action or ("converted + surplus sold" if surplus_sells else "converted")
         for h in held.values():
             rest = h.shares - q
             if rest >= h.leg.min_size and self._sell_value(h.leg, rest) >= 1.0:

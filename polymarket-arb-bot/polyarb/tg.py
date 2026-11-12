@@ -50,8 +50,11 @@ log = logging.getLogger(__name__)
 STRAT_NAMES = {
     "negrisk_convert": "轉換套利",
     "metar_lock": "METAR 氣象鎖定",
+    "twin_arb": "雙生跨盤套利",
     "maker_convert": "零費掛單轉換",
     "maker_ladder": "零費掛單階梯",
+    "maker_yes_basket": "零費掛單籃子",
+    "maker_twin": "零費掛單雙生",
     "negrisk_yes_basket": "YES 籃子",
     "ladder": "階梯套利",
 }
@@ -352,6 +355,13 @@ class TelegramBot:
                 f"市場：<b>{_esc(record.get('title'))}</b>\n"
                 f"賣出：{record.get('shares')} 股 @ {record.get('price')}\n"
                 f"收回：<b>{_usd(record.get('proceeds'))}</b>｜淨利潤：<b>{_usd(record.get('pnl'), True)}</b>"
+            )
+        elif kind == "early_harvest" and tcfg.notify_flips_redeems:
+            self.enqueue_alert(
+                f"💎 <b>提前收割／中間帶雙重派彩完成！</b>\n"
+                f"市場：<b>{_esc(record.get('title'))}</b>\n"
+                f"主腿鎖定收回：<b>{_usd(record.get('primary_usd'))}</b>｜副腿額外紅利：<b>+{_usd(record.get('bonus_usd'))}</b>\n"
+                f"總收回：<b>{_usd(record.get('proceeds'))}</b>｜淨利潤：<b>{_usd(record.get('pnl'), True)}</b>"
             )
         elif kind == "redeemed" and tcfg.notify_flips_redeems:
             self.enqueue_alert(
@@ -758,7 +768,7 @@ class TelegramBot:
             f"• 監控範圍：<b>{e['events']:,}</b> 事件｜<b>{e['fresh']:,}/{e['books']:,}</b> 新鮮簿｜WS <b>{int(e.get('ws_rate') or 0)}/秒</b>",
             f"• 零費掛單（Maker）：<b>{mk.get('open_quotes', 0)}</b> 張掛單中（已掛 {mk.get('placed', 0)}｜成交 {mk.get('filled', 0)}｜撤單 {mk.get('canceled', 0)}）",
             f"• METAR 氣象鎖定：追蹤 <b>{mt.get('stations', 0)}</b> 機場站（輪詢 {mt.get('polls', 0)} 次）",
-            f"• 資金回收：閃電止盈 <b>{lc.get('flips_completed', 0)}</b> 次｜自動贖回 <b>{lc.get('redemptions', 0)}</b> 次｜成交 <b>{k['trades']}</b> 筆",
+            f"• 資金回收：閃電止盈 <b>{lc.get('flips_completed', 0)}</b> 次｜提前收割 <b>{lc.get('early_harvests', 0)}</b> 次｜自動贖回 <b>{lc.get('redemptions', 0)}</b> 次｜成交 <b>{k['trades']}</b> 筆",
             f"• 資源與自訂設定：CPU <b>{e.get('cpu_pct', 0):.1f}%</b>｜RAM <b>{e.get('rss_mb', 0):.0f} MB</b>｜自訂覆蓋 <b>{ov_n}</b> 項",
         ]
         return "\n".join(lines), self._home_Summary_kb()
@@ -769,7 +779,7 @@ class TelegramBot:
         lines = [
             "🎯 <b>零費掛單對沖（Maker-First）</b>",
             f"狀態：{'🟢 開啟' if mk.get('enabled') else '⚪ 關閉'}｜掛單中：<b>{mk.get('open_quotes', 0)}</b> / {self.monitor.engine.cfg.maker.max_open_quotes}",
-            f"預留資金：<b>{_usd(mk.get('reserved_usd', 0.0))}</b>｜累計：已掛 {mk.get('placed', 0)}・成交 {mk.get('filled', 0)}・撤單 {mk.get('canceled', 0)}",
+            f"預留資金：<b>{_usd(mk.get('reserved_usd', 0.0))}</b>｜累計：已掛 {mk.get('placed', 0)}・成交 {mk.get('filled', 0)}・移倉 {mk.get('repegged', 0)}・撤單 {mk.get('canceled', 0)}",
             "",
         ]
         if not quotes:
@@ -888,6 +898,7 @@ class TelegramBot:
             for k, label in (
                 ("negrisk_convert", "轉換"),
                 ("metar_lock", "METAR"),
+                ("twin_arb", "雙生"),
                 ("negrisk_yes_basket", "YES籃"),
                 ("ladder", "階梯"),
             )

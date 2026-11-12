@@ -23,6 +23,8 @@ class ConvertConfig:
     min_unit_edge: float = 0.0005
     max_legs: int = 25
     gas_usd: float = 0.0
+    surplus_haircut: float = 0.85
+    surplus_min_depth_ratio: float = 2.0
 
 
 @dataclass
@@ -72,11 +74,29 @@ class MakerArbConfig:
     min_keep_edge: float = 0.002
     min_volume_24h: float = 500.0
     min_hedge_depth_ratio: float = 2.0
-    max_open_quotes: int = 2
+    max_open_quotes: int = 6
+    max_quotes_per_event: int = 2
+    pool_hedge_slots: int = 2
+    allow_join_bid: bool = True
+    repeg_after_s: float = 3.0
     max_legs: int = 8
     max_ladder_days: float = 21.0
     poll_s: float = 1.5
     quote_ttl_s: float = 300.0
+
+
+@dataclass
+class TwinConfig:
+    """Cross-event same-oracle Range Bracket <-> Cumulative Above partition arbitrage."""
+
+    enabled: bool = True
+    min_profit_usd: float = 0.20
+    min_edge: float = 0.004
+    min_apr: float = 0.20
+    max_days: float = 14.0
+    min_unit_edge: float = 0.001
+    max_legs: int = 5
+    resolution_lag_days: float = 0.5
 
 
 @dataclass
@@ -125,6 +145,9 @@ class ExecutionConfig:
     fast_ws_skip_recheck_s: float = 1.5
     max_unwind_loss_usd: float = 5.0
     auto_redeem: bool = True
+    early_exit_enabled: bool = True
+    early_exit_min_bid: float = 0.992
+    early_exit_min_profit_usd: float = 0.05
     lifecycle_every_s: float = 20.0
     journal_path: str = "data/journal.jsonl"
     state_path: str = "data/state.json"
@@ -155,6 +178,7 @@ class Config:
     convert: ConvertConfig = field(default_factory=ConvertConfig)
     yes_basket: YesBasketConfig = field(default_factory=YesBasketConfig)
     ladder: LadderConfig = field(default_factory=LadderConfig)
+    twin: TwinConfig = field(default_factory=TwinConfig)
     metar: MetarConfig = field(default_factory=MetarConfig)
     maker: MakerArbConfig = field(default_factory=MakerArbConfig)
     universe: UniverseConfig = field(default_factory=UniverseConfig)

@@ -1,13 +1,15 @@
 # polyarb default configuration. Every key is optional; omitted keys use the
 # dataclass defaults in polyarb/config.py. Money values are pUSD (= USD).
 
-convert:                 # NegRisk NO-basket -> convertPositions -> pUSD (risk: low)
+convert:                 # NegRisk NO-basket -> convertPositions -> pUSD + surplus YES liquidation (risk: low)
   enabled: true
   min_profit_usd: 0.25   # absolute profit after taker fees
   min_edge: 0.003        # profit / capital
   min_unit_edge: 0.0005  # every marginal basket unit must still earn this
   max_legs: 25           # batched 15 per POST /orders call
   gas_usd: 0.0           # relayer (deposit / proxy / Safe wallet) is gasless; ~0.02 for EOA wallets
+  surplus_haircut: 0.85  # conservative valuation haircut for deep minted surplus YES bids (0 = post-convert bonus only)
+  surplus_min_depth_ratio: 2.0
 
 yes_basket:              # buy YES on every outcome of an exhaustive NegRisk event (risk: medium)
   enabled: true
@@ -48,6 +50,16 @@ metar:                   # NOAA/AWC METAR deterministic temperature lock + 0.995
   flip_min_instant_bid: 0.990
   flip_min_profit_usd: 0.08
 
+twin:                    # Cross-event same-oracle Range Bracket <-> Cumulative Above partition lock (risk: low-medium)
+  enabled: true
+  min_profit_usd: 0.20
+  min_edge: 0.004
+  min_apr: 0.20
+  max_days: 14.0
+  min_unit_edge: 0.001
+  max_legs: 5
+  resolution_lag_days: 0.5
+
 maker:                   # postOnly zero-fee lead leg + instant FOK hedge & convert on fill (risk: low-medium)
   enabled: true
   min_profit_usd: 0.25
@@ -55,7 +67,11 @@ maker:                   # postOnly zero-fee lead leg + instant FOK hedge & conv
   min_keep_edge: 0.002   # cancel resting quote immediately if hedge-leg drift drops edge below this
   min_volume_24h: 500.0
   min_hedge_depth_ratio: 2.0
-  max_open_quotes: 2
+  max_open_quotes: 6
+  max_quotes_per_event: 2
+  pool_hedge_slots: 2    # reserve 100% of resting lead costs + full hedge cash for top N simultaneous fills
+  allow_join_bid: true   # allow postOnly join-bid on liquid 1-tick spread books when edge clears min_edge
+  repeg_after_s: 3.0     # immediately cancel & re-peg outbid maker quotes after 3s
   max_legs: 8
   max_ladder_days: 21.0
   poll_s: 1.5
@@ -88,6 +104,9 @@ execution:
   fast_ws_skip_recheck_s: 1.5  # skip REST recheck on fast_turnover snipes when WS books are sub-1.5s fresh
   max_unwind_loss_usd: 5.0 # partial fill whose unwind would lose more: keep legs, trip kill switch
   auto_redeem: true      # automatically redeem resolved winning CTF/NegRisk positions into pUSD
+  early_exit_enabled: true # sell 0.992+ locked dominant leg early & harvest middle-zone sibling windfalls
+  early_exit_min_bid: 0.992
+  early_exit_min_profit_usd: 0.05
   lifecycle_every_s: 20.0
   journal_path: data/journal.jsonl
   state_path: data/state.json

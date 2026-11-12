@@ -1,13 +1,17 @@
-"""Post-trade capital recycler: resting 0.995 flip exits, gasless auto-redemption, and hold reconciliation.
+"""Post-trade capital recycler: 0.995 maker flips, dominant-leg + middle-zone windfall harvest, auto-redeem, and reconciliation.
 
-Why this matters for PnL:
-1. Single-leg METAR locks resolve in <24h, but bonding bots regularly bid 0.992-0.999
+Why this matters for PnL & capital velocity:
+1. Single-leg METAR locks resolve in <24h, and bonding bots regularly bid 0.992-0.999
    within minutes. Posting a resting ``postOnly`` SELL order (0 maker fee) turns
    positions back into liquid pUSD in minutes so the same capital compounds all day.
-2. When a held position (ladder, YES basket, or METAR lock) resolves on-chain,
-   ``AutoRedeemer`` cancels any resting exit order and calls ``redeem_positions``
-   to return $1.00/sh pUSD directly to the wallet without waiting days or needing
-   manual clicks on polymarket.com.
+2. Multi-leg holds (``ladder``, ``maker_ladder``, ``negrisk_yes_basket``, ``maker_yes_basket``,
+   ``twin_arb``, ``maker_twin``) exhibit the **Ladder Middle-Zone Singularity**:
+   when a weak barrier is hit mid-month (or an earlier date rung expires NO), one leg
+   alone reaches ``>= 0.992`` bid (or resolves to ``$1.00``), ALREADY covering 100% of
+   the hold's cost + base profit with zero leg risk, while the sibling leg is still
+   live and bidding ``$0.20-$0.85``. Selling/redeeming the winning leg first and
+   immediately harvesting the live sibling leg turns a +1.5% risk-free trade into a
+   +20% to +85% realized windfall AND frees capital weeks early!
 3. ``reconcile_holds`` syncs ``state.holds`` with actual on-chain conditional token
    balances so externally sold/redeemed positions never block ``hold_exposure``.
 """
@@ -16,16 +20,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any
 
 import httpx
 
+from polyarb.book import take
 from polyarb.config import Config
 from polyarb.data.gamma import GAMMA_URL, parse_event
+from polyarb.data.store import BookStore
 from polyarb.execution.base import Gateway
 from polyarb.journal import Journal
-from polyarb.models import Outcome, Side
+from polyarb.models import FeeSchedule, Outcome, Side
 from polyarb.risk import HoldPosition, RiskManager
 
 DATA_API_URL = "https://data-api.polymarket.com"
@@ -41,17 +48,20 @@ class LifecycleManager:
         journal: Journal,
         wallet_funder: str | None = None,
         http: httpx.AsyncClient | None = None,
+        store: BookStore | None = None,
     ) -> None:
         self.cfg = cfg
         self.gateway = gateway
         self.risk = risk
         self.journal = journal
         self.wallet_funder = wallet_funder
+        self.store: BookStore | None = store if store is not None else getattr(gateway, "books", None)
         self._own_http = http is None
         self._http = http or httpx.AsyncClient(timeout=20.0)
         self._task: asyncio.Task | None = None
         self._last_paper_redeem_at: float = 0.0
         self.flips_completed = 0
+        self.early_harvests = 0
         self.redemptions = 0
         self.reconciled = 0
 
@@ -69,6 +79,7 @@ class LifecycleManager:
     async def step(self) -> None:
         await self.sync_wallet_balance()
         await self._manage_flip_orders()
+        await self._harvest_decided_holds()
         if self.gateway.mode == "live":
             if self.cfg.execution.auto_redeem:
                 await self._auto_redeem_live()
@@ -78,6 +89,131 @@ class LifecycleManager:
             if now - self._last_paper_redeem_at >= 60.0:
                 self._last_paper_redeem_at = now
                 await self._auto_redeem_paper()
+
+    async def _sell_sibling_legs(self, hold: HoldPosition, skip_tokens: set[str]) -> float:
+        """Liquidate remaining live legs into resting bids once principal + profit is already banked."""
+        if self.store is None or not hasattr(self.gateway, "sell"):
+            return 0.0
+        bonus = 0.0
+        for leg in hold.legs:
+            tok = str(leg.get("token") or "")
+            if not tok or tok in skip_tokens:
+                continue
+            yes_tok = str(leg.get("yes_token") or tok)
+            outcome = Outcome(str(leg.get("outcome") or "YES"))
+            shares = float(leg.get("shares") or 0.0)
+            min_sz = float(leg.get("min_size") or 5.0)
+            tick = float(leg.get("tick") or 0.01)
+            if shares < min_sz - 1e-6:
+                continue
+            book = self.store.raw(yes_tok)
+            if book is None:
+                continue
+            levels = book.bids if outcome is Outcome.YES else book.no_bids()
+            if not levels:
+                continue
+            fee = FeeSchedule(
+                rate=float(leg.get("fee_rate") or 0.0),
+                exponent=float(leg.get("fee_exponent") or 1.0),
+            )
+            est = take(levels, shares, fee)
+            if est.shares <= 0.05 or (est.notional - est.fee) < 0.05:
+                continue
+            sr = await self.gateway.sell(tok, outcome, yes_tok, shares, tick, fee, tick)
+            if sr.ok and sr.shares > 0:
+                bonus += sr.net
+        return bonus
+
+    async def _harvest_decided_holds(self) -> None:
+        """Atomic early exit on multi-leg holds when 1 dominant leg covers total cost + profit (plus sibling bonus!)."""
+        ecfg = self.cfg.execution
+        if not ecfg.early_exit_enabled or self.store is None or not hasattr(self.gateway, "sell"):
+            return
+        if self.risk.state.killed or (self.cfg.risk.kill_file and _file_exists(self.cfg.risk.kill_file)):
+            return
+
+        min_bid = ecfg.early_exit_min_bid
+        min_profit = ecfg.early_exit_min_profit_usd
+
+        for hold in list(self.risk.state.holds):
+            if len(hold.legs) < 2:
+                continue
+            target_net = hold.cost + min_profit
+            dominant_candidate: tuple[dict, Outcome, float, FeeSchedule, float] | None = None
+
+            for leg in hold.legs:
+                tok = str(leg.get("token") or "")
+                yes_tok = str(leg.get("yes_token") or tok)
+                outcome = Outcome(str(leg.get("outcome") or "YES"))
+                shares = float(leg.get("shares") or 0.0)
+                min_sz = float(leg.get("min_size") or 5.0)
+                tick = float(leg.get("tick") or 0.01)
+                if not tok or shares < min_sz - 1e-6:
+                    continue
+                book = self.store.raw(yes_tok)
+                if book is None:
+                    continue
+                levels = book.bids if outcome is Outcome.YES else book.no_bids()
+                if not levels or levels[0].price < min_bid - 1e-9:
+                    continue
+                good = [lvl for lvl in levels if lvl.price >= min_bid - 1e-9]
+                fee = FeeSchedule(
+                    rate=float(leg.get("fee_rate") or 0.0),
+                    exponent=float(leg.get("fee_exponent") or 1.0),
+                )
+                fill = take(good, shares, fee)
+                if fill.shares < shares - 0.05 or (fill.notional - fill.fee) < target_net - 1e-6:
+                    continue
+                floor_px = max(
+                    min_bid,
+                    math.ceil((target_net / shares) / tick - 1e-9) * tick,
+                )
+                if floor_px >= 1.0:
+                    continue
+                if dominant_candidate is None or (fill.notional - fill.fee) > dominant_candidate[4]:
+                    dominant_candidate = (leg, outcome, floor_px, fee, fill.notional - fill.fee)
+
+            if dominant_candidate is None:
+                continue
+
+            dom_leg, dom_out, floor_px, dom_fee, _ = dominant_candidate
+            dom_tok = str(dom_leg["token"])
+            dom_yes = str(dom_leg.get("yes_token") or dom_tok)
+            dom_sh = float(dom_leg["shares"])
+            dom_tick = float(dom_leg.get("tick") or 0.01)
+
+            if hold.exit_order_id:
+                await self.gateway.cancel(hold.exit_order_id)
+                hold.exit_order_id = None
+
+            dom_sell = await self.gateway.sell(dom_tok, dom_out, dom_yes, dom_sh, floor_px, dom_fee, dom_tick)
+            if not dom_sell.ok or dom_sell.shares < dom_sh - 0.05:
+                continue
+            # Principal + base profit is now 100% locked in cash; harvest any live middle-zone sibling legs!
+            bonus = await self._sell_sibling_legs(hold, {dom_tok})
+            total_proceeds = dom_sell.net + bonus
+            pnl = self.risk.close_hold(hold, total_proceeds)
+            self.early_harvests += 1
+            self.journal.write(
+                "early_harvest",
+                {
+                    "key": hold.key,
+                    "title": hold.title,
+                    "strategy": hold.strategy,
+                    "primary_usd": round(dom_sell.net, 4),
+                    "bonus_usd": round(bonus, 4),
+                    "proceeds": round(total_proceeds, 4),
+                    "pnl": round(pnl, 4),
+                },
+            )
+            log.info(
+                "EARLY HARVEST %s primary=$%.2f bonus=$%.2f pnl=$%.3f",
+                hold.title[:48],
+                dom_sell.net,
+                bonus,
+                pnl,
+            )
+            await self.sync_wallet_balance()
 
     async def _manage_flip_orders(self) -> None:
         if not self.cfg.metar.flip_enabled:
@@ -122,7 +258,6 @@ class LifecycleManager:
                     hold.exit_order_id = None
                     changed = True
 
-            # Place a resting postOnly maker SELL order when none is open and we aren't paused/killed.
             if hold.exit_order_id is None and not self.risk.state.killed:
                 if self.cfg.risk.kill_file and _file_exists(self.cfg.risk.kill_file):
                     continue
@@ -189,8 +324,11 @@ class LifecycleManager:
                 await self.gateway.cancel(hold.exit_order_id)
                 hold.exit_order_id = None
             conds: dict[str, float] = {}
+            matched_tokens: set[str] = set()
             for leg in matched_legs:
-                cond, val = redeemables[str(leg["token"])]
+                tok = str(leg["token"])
+                matched_tokens.add(tok)
+                cond, val = redeemables[tok]
                 conds[cond] = conds.get(cond, 0.0) + val
             total_redeemed = 0.0
             all_ok = True
@@ -204,7 +342,12 @@ class LifecycleManager:
                 else:
                     all_ok = False
             if all_ok and total_redeemed > 0:
-                pnl = self.risk.close_hold(hold, total_redeemed)
+                # If a middle-zone ladder rung redeemed early while a sibling leg is still live, monetize it too!
+                bonus = 0.0
+                if total_redeemed >= hold.cost - 0.01 and len(matched_tokens) < len(hold.legs):
+                    bonus = await self._sell_sibling_legs(hold, matched_tokens)
+                total_proceeds = total_redeemed + bonus
+                pnl = self.risk.close_hold(hold, total_proceeds)
                 self.redemptions += 1
                 self.journal.write(
                     "redeemed",
@@ -212,46 +355,72 @@ class LifecycleManager:
                         "key": hold.key,
                         "title": hold.title,
                         "strategy": hold.strategy,
-                        "proceeds": round(total_redeemed, 4),
+                        "proceeds": round(total_proceeds, 4),
+                        "bonus_usd": round(bonus, 4),
                         "pnl": round(pnl, 4),
                         "txs": txs,
                     },
                 )
-                log.info("AUTO-REDEEMED %s proceeds=$%.2f pnl=$%.3f", hold.title[:50], total_redeemed, pnl)
+                log.info(
+                    "AUTO-REDEEMED %s proceeds=$%.2f (bonus=$%.2f) pnl=$%.3f",
+                    hold.title[:50],
+                    total_proceeds,
+                    bonus,
+                    pnl,
+                )
                 await self.sync_wallet_balance()
 
     async def _auto_redeem_paper(self) -> None:
-        """Settle paper holds against real Gamma on-chain resolution outcomes as soon as markets resolve."""
+        """Settle paper holds against real Gamma resolution outcomes (including partial-win ladder windfalls & twin events)."""
         by_event: dict[str, Any] = {}
         for hold in list(self.risk.state.holds):
             if not hold.event_id or not hold.legs:
                 continue
-            if hold.event_id not in by_event:
-                try:
-                    resp = await self._http.get(f"{GAMMA_URL}/events/{hold.event_id}")
-                    by_event[hold.event_id] = parse_event(resp.json()) if resp.status_code == 200 else None
-                except Exception:
-                    by_event[hold.event_id] = None
-            ev = by_event.get(hold.event_id)
-            if ev is None:
+            ev_ids = [hold.event_id, *(hold.extra_event_ids or ())]
+            markets = []
+            fetch_ok = True
+            for eid in dict.fromkeys(ev_ids):
+                if eid not in by_event:
+                    try:
+                        resp = await self._http.get(f"{GAMMA_URL}/events/{eid}")
+                        by_event[eid] = parse_event(resp.json()) if resp.status_code == 200 else None
+                    except Exception:
+                        by_event[eid] = None
+                ev = by_event.get(eid)
+                if ev is None:
+                    fetch_ok = False
+                    break
+                markets.extend(ev.markets)
+            if not fetch_ok or not markets:
                 continue
-            mkt_by_id = {m.id: m for m in ev.markets}
-            mkt_by_tok = {t: m for m in ev.markets for t in (m.yes_token, m.no_token)}
+
+            mkt_by_id = {m.id: m for m in markets}
+            mkt_by_tok = {t: m for m in markets for t in (m.yes_token, m.no_token)}
             resolved_all = True
+            resolved_tokens: set[str] = set()
             proceeds = 0.0
             for leg in hold.legs:
-                m = mkt_by_id.get(str(leg.get("market_id") or "")) or mkt_by_tok.get(str(leg.get("token") or ""))
+                tok = str(leg.get("token") or "")
+                m = mkt_by_id.get(str(leg.get("market_id") or "")) or mkt_by_tok.get(tok)
                 if m is None or not m.closed or m.resolved_outcome not in ("YES", "NO"):
                     resolved_all = False
-                    break
+                    continue
+                resolved_tokens.add(tok)
                 if m.resolved_outcome == str(leg.get("outcome") or "").upper():
                     proceeds += float(leg.get("shares") or 0.0)
-            if not resolved_all:
+
+            # Settle either when all legs resolved OR when resolved winning leg(s) already cover full floor!
+            early_win_locked = (not resolved_all) and proceeds >= max(hold.cost, hold.payout - 0.01)
+            if not resolved_all and not early_win_locked:
                 continue
             if hold.exit_order_id:
                 await self.gateway.cancel(hold.exit_order_id)
                 hold.exit_order_id = None
-            pnl = self.risk.close_hold(hold, proceeds)
+            bonus = 0.0
+            if early_win_locked:
+                bonus = await self._sell_sibling_legs(hold, resolved_tokens)
+            total_proceeds = proceeds + bonus
+            pnl = self.risk.close_hold(hold, total_proceeds)
             self.redemptions += 1
             self.journal.write(
                 "redeemed",
@@ -259,12 +428,19 @@ class LifecycleManager:
                     "key": hold.key,
                     "title": hold.title,
                     "strategy": hold.strategy,
-                    "proceeds": round(proceeds, 4),
+                    "proceeds": round(total_proceeds, 4),
+                    "bonus_usd": round(bonus, 4),
                     "pnl": round(pnl, 4),
                     "txs": ["paper-gamma-verified"],
                 },
             )
-            log.info("PAPER AUTO-REDEEMED %s proceeds=$%.2f pnl=$%.3f", hold.title[:50], proceeds, pnl)
+            log.info(
+                "PAPER AUTO-REDEEMED %s proceeds=$%.2f (bonus=$%.2f) pnl=$%.3f",
+                hold.title[:50],
+                total_proceeds,
+                bonus,
+                pnl,
+            )
 
     async def _reconcile_external(self) -> None:
         if not self.risk.state.holds:
@@ -306,7 +482,7 @@ class LifecycleManager:
                 return None
             body = resp.json()
             if (body.get("pagination") or {}).get("has_more"):
-                return None  # fall back to per-token queries if >500 positions
+                return None
             rows = body.get("data") or []
         except Exception:
             return None
@@ -350,6 +526,7 @@ class LifecycleManager:
         return {
             "open_flips": open_flips,
             "flips_completed": self.flips_completed,
+            "early_harvests": self.early_harvests,
             "redemptions": self.redemptions,
             "reconciled": self.reconciled,
             "wallet_balance": None if self.risk.wallet_balance is None else round(self.risk.wallet_balance, 2),

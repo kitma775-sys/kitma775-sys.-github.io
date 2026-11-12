@@ -281,7 +281,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         journal = Journal(run_cfg.execution.journal_path)
         if gateway is None:
             gateway = PaperGateway(shared_store)
-        lifecycle = LifecycleManager(run_cfg, gateway, risk, journal, wallet_funder=(wallet or {}).get("funder"))
+        lifecycle = LifecycleManager(run_cfg, gateway, risk, journal, wallet_funder=(wallet or {}).get("funder"), store=shared_store)
         maker_arb = MakerArbManager(run_cfg, shared_store, gateway, risk, journal, clob=clob)
         executor = Executor(gateway, shared_store, {s.name: s for s in all_strats}, run_cfg.execution, clob)
         engine = Engine(

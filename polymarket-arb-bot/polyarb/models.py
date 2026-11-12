@@ -104,6 +104,7 @@ class Event:
     metar_icao: str | None = None
     metar_obs_date: str | None = None
     metar_mode: str | None = None
+    oracle_sig: str | None = None
 
     @property
     def tradeable_markets(self) -> list[Market]:

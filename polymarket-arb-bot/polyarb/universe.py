@@ -12,6 +12,7 @@ from polyarb.strategies.base import Strategy, Target
 from polyarb.strategies.ladder import LadderArb
 from polyarb.strategies.metar import MetarLock
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
+from polyarb.strategies.twin import TwinPartitionArb
 
 
 def build_all_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> list[Strategy]:
@@ -19,6 +20,7 @@ def build_all_strategies(cfg: Config, metar_feed: MetarFeed | None = None) -> li
     return [
         NegRiskConvert(cfg.convert, cap),
         MetarLock(cfg.metar, metar_feed, cap),
+        TwinPartitionArb(cfg.twin, cap),
         NegRiskYesBasket(cfg.yes_basket, cap),
         LadderArb(cfg.ladder, cap),
     ]

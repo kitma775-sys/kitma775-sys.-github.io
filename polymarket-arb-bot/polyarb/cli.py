@@ -35,6 +35,10 @@ UNGATED = {
     "ladder.min_edge": 0.0,
     "ladder.min_apr": 0.0,
     "ladder.max_days": 3650.0,
+    "twin.min_profit_usd": 0.0,
+    "twin.min_edge": 0.0,
+    "twin.min_apr": 0.0,
+    "twin.max_days": 365.0,
     "metar.min_profit_usd": 0.0,
     "metar.min_edge": 0.0,
     "metar.basket_min_profit_usd": 0.0,
@@ -148,7 +152,7 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         else:
             cfg.risk.require_geo_ok = False
             gateway = PaperGateway(store, fail_prob=args.paper_fail_prob, seed=args.seed)
-        lifecycle = LifecycleManager(cfg, gateway, risk, journal, wallet_funder=funder)
+        lifecycle = LifecycleManager(cfg, gateway, risk, journal, wallet_funder=funder, store=store)
         maker_arb = MakerArbManager(cfg, store, gateway, risk, journal, clob=clob)
         executor = Executor(gateway, store, {s.name: s for s in strategies}, cfg.execution, clob)
         engine = Engine(
