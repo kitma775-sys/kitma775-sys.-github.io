@@ -15,7 +15,13 @@ from __future__ import annotations
 
 import httpx
 
-POLYGON_RPC = "https://polygon.drpc.org"
+POLYGON_RPC = "https://polygon-bor-rpc.publicnode.com"
+POLYGON_RPC_FALLBACKS = (
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://1rpc.io/matic",
+    "https://rpc-mainnet.matic.quiknode.pro",
+    "https://polygon.drpc.org",
+)
 CONDITIONAL_TOKENS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 NEG_RISK_ADAPTER = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
 NEG_RISK_CTF_COLLATERAL_ADAPTER = "0xadA2005600Dec949baf300f4C6120000bDB6eAab"
@@ -83,15 +89,25 @@ class ChainReader:
             await self._http.aclose()
 
     async def call(self, to: str, data: str) -> str:
-        resp = await self._http.post(
-            self.rpc_url,
-            json={"jsonrpc": "2.0", "id": 1, "method": "eth_call", "params": [{"to": to, "data": data}, "latest"]},
-        )
-        resp.raise_for_status()
-        body = resp.json()
-        if "error" in body:
-            raise RuntimeError(f"eth_call failed: {body['error']}")
-        return body["result"]
+        urls = [self.rpc_url, *(u for u in POLYGON_RPC_FALLBACKS if u != self.rpc_url)]
+        last_exc: Exception | None = None
+        for url in urls:
+            try:
+                resp = await self._http.post(
+                    url,
+                    json={"jsonrpc": "2.0", "id": 1, "method": "eth_call", "params": [{"to": to, "data": data}, "latest"]},
+                )
+                resp.raise_for_status()
+                body = resp.json()
+                if "error" in body:
+                    raise RuntimeError(f"eth_call failed: {body['error']}")
+                return body["result"]
+            except Exception as exc:
+                last_exc = exc
+                if self._http is not None and len(urls) == 1:
+                    break
+        assert last_exc is not None
+        raise last_exc
 
     async def fee_bips(self, market_id: str) -> int:
         return int(await self.call(NEG_RISK_ADAPTER, "0x" + SEL_GET_FEE_BIPS + _bytes32(market_id)), 16)

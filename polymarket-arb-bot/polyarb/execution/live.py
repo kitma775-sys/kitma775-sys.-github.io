@@ -19,6 +19,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from polyarb.execution.base import LegResult, LimitOrderResult, OrderState, SellResult
 from polyarb.execution.settlement import (
     NEG_RISK_CTF_COLLATERAL_ADAPTER,
+    POLYGON_RPC_FALLBACKS,
     ChainReader,
     encode_convert_positions,
     expected_convert_proceeds,
@@ -77,6 +78,14 @@ def resolve_gateway_api_key(private_key: str, environ: Mapping[str, str] | None 
     return None
 
 
+def _sdk_environment(rpc_url: str) -> Any:
+    from dataclasses import replace as dc_replace
+    import polymarket.environments as env_mod
+
+    cfg = dc_replace(env_mod.PRODUCTION._config, rpc_url=rpc_url)
+    return env_mod._create_environment(name="production", config=cfg)
+
+
 class PolymarketGateway:
     mode = "live"
 
@@ -96,19 +105,38 @@ class PolymarketGateway:
     ) -> "PolymarketGateway":
         from polymarket import AsyncSecureClient
 
-        api_key = resolve_gateway_api_key(private_key, environ)
-        client = await AsyncSecureClient.create(private_key=private_key, wallet=wallet, api_key=api_key)
-        if setup_approvals:
+        env = os.environ if environ is None else environ
+        api_key = resolve_gateway_api_key(private_key, env)
+        custom_rpc = (env.get("POLYGON_RPC_URL") or "").strip()
+        rpc_candidates = [custom_rpc] if custom_rpc else list(POLYGON_RPC_FALLBACKS)
+
+        last_exc: Exception | None = None
+        for rpc_url in rpc_candidates:
+            client = None
             try:
-                # Includes ConditionalTokens.setApprovalForAll(NegRiskCtfCollateralAdapter) needed by convert.
-                await client.setup_trading_approvals()
+                client = await AsyncSecureClient.create(
+                    private_key=private_key,
+                    wallet=wallet,
+                    api_key=api_key,
+                    environment=_sdk_environment(rpc_url),
+                )
+                if setup_approvals:
+                    try:
+                        # Includes ConditionalTokens.setApprovalForAll(NegRiskCtfCollateralAdapter) needed by convert.
+                        await client.setup_trading_approvals()
+                    except Exception as exc:
+                        if api_key is None and "Gasless transactions require" in str(exc):
+                            log.warning("skipping gasless approval setup without relayer key (%s); existing approvals will be used", exc)
+                        else:
+                            raise
+                return cls(client, chain=ChainReader(rpc_url=rpc_url))
             except Exception as exc:
-                if api_key is None and "Gasless transactions require" in str(exc):
-                    log.warning("skipping gasless approval setup without relayer key (%s); existing approvals will be used", exc)
-                else:
+                last_exc = exc
+                if client is not None:
                     await client.close()
-                    raise
-        return cls(client)
+                log.warning("live gateway init via %s failed (%s); trying next RPC", rpc_url, exc)
+        assert last_exc is not None
+        raise last_exc
 
     def wallet_info(self) -> dict[str, str]:
         """The wallet the SDK resolved (the one to fund) and its type; only EOA wallets pay their own gas."""
