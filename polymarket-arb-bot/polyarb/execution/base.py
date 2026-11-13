@@ -80,6 +80,23 @@ class ExecutionReport:
     def spent(self) -> float:
         return sum(r.cost for r in self.legs + self.retries if r.ok)
 
+    def materially_filled(self) -> bool:
+        """True only when tokens or cash actually moved.
+
+        A live FOK on a 5m/15m/1h book often comes back unmatched. That is not a
+        trade: nothing was spent, nothing is held, and it must not be shown as
+        one or counted toward the incomplete-execution kill switch.
+        """
+        if self.orphaned or self.locked_cost >= 0.05:
+            return True
+        if self.proceeds >= 0.05 or self.spent >= 0.05:
+            return True
+        if any(r.ok and r.shares >= 0.5 for r in self.legs + self.retries):
+            return True
+        if any(s.ok and s.shares >= 0.5 and s.net >= 0.05 for s in self.sells):
+            return True
+        return False
+
     def summary(self) -> dict:
         return {
             "mode": self.mode,
@@ -106,6 +123,24 @@ class ExecutionReport:
             "sells": [{"outcome": s.outcome.value, "ok": s.ok, "shares": s.shares, "net": round(s.net, 4)} for s in self.sells],
             "error": self.error,
         }
+
+
+def record_materially_filled(record: dict) -> bool:
+    """Journal/dashboard view of :meth:`ExecutionReport.materially_filled`."""
+    if record.get("orphaned"):
+        return True
+    if float(record.get("locked_cost") or 0) >= 0.05:
+        return True
+    if float(record.get("proceeds") or 0) >= 0.05 or float(record.get("spent") or 0) >= 0.05:
+        return True
+    if any(x.get("ok") and float(x.get("shares") or 0) >= 0.5 for x in record.get("legs") or []):
+        return True
+    if any(
+        x.get("ok") and float(x.get("shares") or 0) >= 0.5 and float(x.get("net") or 0) >= 0.05
+        for x in record.get("sells") or []
+    ):
+        return True
+    return False
 
 
 class Gateway(Protocol):

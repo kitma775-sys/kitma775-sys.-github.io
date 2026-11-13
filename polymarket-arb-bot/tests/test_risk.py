@@ -128,6 +128,20 @@ def test_exposure_caps_apply_to_holds_only(risk):
     assert risk.check(opp(cost=70, event="E2", settlement=Settlement.CONVERT), T0) is None
 
 
+def test_zero_fill_is_not_a_trade_and_does_not_trip_the_kill_switch(risk):
+    o = opp()
+    missed = ExecutionReport(opp=o, mode="live", started_at=T0, finished_at=T0 + 1, sent=True, complete=False)
+    missed.legs = [LegResult(o.legs[0], False, shares=0, spent=0, status="unmatched")]
+    missed.action = "no fills"
+    for _ in range(5):
+        risk.finish(missed)
+    assert not missed.materially_filled()
+    assert risk.state.trades == 0
+    assert risk.state.consecutive_failures == 0
+    assert risk.state.realized_total == 0
+    assert not risk.state.killed
+
+
 def test_finish_tracks_pnl_failures_and_kills(risk):
     risk.finish(report(opp(), pnl=1.5))
     assert risk.state.trades == 1 and risk.state.realized_total == pytest.approx(1.5)

@@ -185,6 +185,15 @@ class RiskManager:
         self.inflight_events.discard(opp.event_id)
         if not report.sent:
             return
+        region_hit = any(r.status == REGION_REJECTED for r in report.legs + report.retries)
+        if region_hit:
+            self.kill("Polymarket refused orders from this server (HTTP 403, e.g. region restriction); check the geoblock policy before reset-kill")
+        # Unmatched FOK / dust: the order was submitted and rejected with no inventory.
+        # Booking it as a trade paints $0 fills on Telegram and trips the kill switch.
+        if not report.materially_filled():
+            if region_hit:
+                self.save()
+            return
         self._roll_day(report.finished_at or time.time())
         self.state.trades += 1
         self.state.realized_today += report.realized_pnl
@@ -224,8 +233,6 @@ class RiskManager:
                     extra_event_ids=[str(eid) for eid in (opp.meta.get("event_ids") or []) if str(eid) != opp.event_id],
                 )
             )
-        if any(r.status == REGION_REJECTED for r in report.legs + report.retries):
-            self.kill("Polymarket refused orders from this server (HTTP 403, e.g. region restriction); check the geoblock policy before reset-kill")
         if report.orphaned:
             self.kill(f"{report.action or 'positions kept'} on {opp.key}; review positions before reset-kill")
         if self.state.consecutive_failures >= self.cfg.max_consecutive_failures:

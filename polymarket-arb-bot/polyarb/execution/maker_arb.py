@@ -1251,6 +1251,15 @@ class MakerArbManager:
     ) -> None:
         plan = quote.plan
         q = floor_shares(filled_shares)
+        # A cancelled 5m quote can report a sub-dollar "match". That is not inventory.
+        if q < 1.0 or q * fill_price < 1.0:
+            log.info(
+                "ignore dust maker fill on %s (%.4f sh @ %.3f)",
+                plan.title[:42],
+                filled_shares,
+                fill_price,
+            )
+            return
         is_zero_leg = not plan.hedge_legs
         self.quotes_filled += 1 + len(co_fills or ())
         est_reb = q * maker_rebate_per_share(plan.lead_market.fee, fill_price)
@@ -1486,6 +1495,9 @@ class MakerArbManager:
             report.realized_pnl = report.proceeds + sells - report.spent
 
         self.risk.finish(report)
+        if not report.materially_filled():
+            log.info("MISS maker %s -> %s (no inventory, not booked)", opp.title[:48], report.action)
+            return
         self.journal.write("opportunity", opp.summary())
         self.journal.write("execution", report.summary())
         log.info(

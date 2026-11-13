@@ -29,6 +29,7 @@ from typing import Any
 import httpx
 
 from polyarb import __version__
+from polyarb.execution.base import record_materially_filled
 from polyarb.monitor import Monitor
 from polyarb.settings import (
     BY_CATEGORY,
@@ -345,7 +346,7 @@ class TelegramBot:
 
     def _on_monitor_event(self, kind: str, record: dict) -> None:
         tcfg = self.monitor.engine.cfg.tg
-        if kind == "execution" and tcfg.notify_executions:
+        if kind == "execution" and tcfg.notify_executions and record_materially_filled(record):
             strat = STRAT_NAMES.get(str(record.get("strategy")), str(record.get("strategy")))
             mode_zh = "🔴實盤" if record.get("mode") == "live" else "🔵紙盤"
             icon = "⚠️" if record.get("orphaned") else ("✅" if record.get("complete") else "◐")

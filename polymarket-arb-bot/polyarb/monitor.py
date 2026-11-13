@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from polyarb import __version__
 from polyarb.engine import Engine
+from polyarb.execution.base import record_materially_filled
 from polyarb.fastjson import dumps
 from polyarb.risk import api_allowed
 
@@ -144,7 +145,7 @@ class Monitor:
             if kind == "opportunity":
                 self.opportunities.append(rec)
                 self.opps_seen.add(rec.get("key", ""))
-            elif kind == "execution":
+            elif kind == "execution" and record_materially_filled(rec):
                 self.executions.append(rec)
                 self._count_execution(rec)
             elif kind == "heartbeat" and rec.get("ts", 0) >= cutoff:
@@ -194,6 +195,8 @@ class Monitor:
             self.opps_seen.add(record.get("key", ""))
             self._opps_since_sample += 1
         elif kind == "execution":
+            if not record_materially_filled(record):
+                return
             self._slug(record)
             self.executions.append(record)
             self._count_execution(record)

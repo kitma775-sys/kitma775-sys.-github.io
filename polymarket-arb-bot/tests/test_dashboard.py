@@ -129,7 +129,8 @@ def test_monitor_restore_rebuilds_feeds_counters_and_pnl_curve(tmp_path):
     now = time.time()
     monitor.restore([
         {"ts": now - 100, "kind": "opportunity", "key": "yes:1", "strategy": "negrisk_yes_basket", "title": "A"},
-        {"ts": now - 90, "kind": "execution", "key": "yes:1", "complete": True, "orphaned": False},
+        {"ts": now - 90, "kind": "execution", "key": "yes:1", "complete": True, "orphaned": False, "spent": 10.0, "locked_cost": 10.0},
+        {"ts": now - 85, "kind": "execution", "key": "cshort:btc", "strategy": "crypto_short", "complete": False, "orphaned": False, "spent": 0, "locked_cost": 0, "realized_pnl": 0, "action": "no fills"},
         {"ts": now - 80, "kind": "execution", "key": "yes:2", "complete": False, "orphaned": True},
         {"ts": now - 70, "kind": "heartbeat", "pnl_total": 1.5, "pnl_today": 0.5, "locked": 2.0, "hold_exposure": 10, "fresh": 5},
         {"ts": now - 90_000, "kind": "heartbeat", "pnl_total": 0.0},

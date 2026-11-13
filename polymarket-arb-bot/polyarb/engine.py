@@ -480,11 +480,11 @@ class Engine:
         else:
             report = await self.executor.execute(opp, target, approve=self.risk.check_size)
         self.risk.finish(report)
-        if self.lifecycle is not None and report.sent:
+        if self.lifecycle is not None and report.sent and report.materially_filled():
             await self.lifecycle.sync_wallet_balance()
-        if not report.sent:
-            self.stats[report.action] += 1
-            log.debug("not sent %s: %s", opp.key, report.action)
+        if not report.sent or not report.materially_filled():
+            self.stats[report.action or "no fills"] += 1
+            log.info("MISS %s %s -> %s (no inventory, not booked)", report.mode, opp.title[:50], report.action or "no fills")
             return
         self.stats["executions"] += 1
         self.journal.write("execution", report.summary())
