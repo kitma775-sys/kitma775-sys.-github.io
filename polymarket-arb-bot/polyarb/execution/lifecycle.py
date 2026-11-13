@@ -86,7 +86,12 @@ class LifecycleManager:
             await self._reconcile_external()
         elif self.cfg.execution.auto_redeem and self.risk.state.holds:
             now = time.monotonic()
-            if now - self._last_paper_redeem_at >= 60.0:
+            has_fast_short = any(
+                h.strategy in ("crypto_short", "maker_crypto_short", "maker_crypto_pair")
+                for h in self.risk.state.holds
+            )
+            redeem_gap = 12.0 if has_fast_short else 60.0
+            if now - self._last_paper_redeem_at >= redeem_gap:
                 self._last_paper_redeem_at = now
                 await self._auto_redeem_paper()
 
@@ -216,15 +221,24 @@ class LifecycleManager:
             await self.sync_wallet_balance()
 
     async def _manage_flip_orders(self) -> None:
-        if not (self.cfg.metar.flip_enabled or self.cfg.binance.flip_enabled):
+        if not (self.cfg.metar.flip_enabled or self.cfg.binance.flip_enabled or self.cfg.crypto_short.flip_enabled):
             return
         changed = False
         for hold in list(self.risk.state.holds):
-            if hold.strategy not in ("metar_lock", "binance_lock", "maker_metar", "maker_binance") or len(hold.legs) != 1:
+            if hold.strategy not in (
+                "metar_lock",
+                "binance_lock",
+                "crypto_short",
+                "maker_metar",
+                "maker_binance",
+                "maker_crypto_short",
+            ) or len(hold.legs) != 1:
                 continue
             if hold.strategy in ("metar_lock", "maker_metar") and not self.cfg.metar.flip_enabled:
                 continue
             if hold.strategy in ("binance_lock", "maker_binance") and not self.cfg.binance.flip_enabled:
+                continue
+            if hold.strategy in ("crypto_short", "maker_crypto_short") and not self.cfg.crypto_short.flip_enabled:
                 continue
             leg = hold.legs[0]
             token = str(leg.get("token") or "")

@@ -24,6 +24,7 @@ from polyarb.data.binance import BinanceFeed
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
 from polyarb.data.metar import MetarFeed
+from polyarb.data.rtds import ChainlinkRtdsFeed
 from polyarb.data.store import BookStore
 from polyarb.engine import Engine
 from polyarb.execution.executor import Executor
@@ -227,6 +228,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         burst_poll_s=cfg.binance.burst_poll_s,
         idle_poll_s=cfg.binance.idle_poll_s,
     )
+    rtds_feed = ChainlinkRtdsFeed()
     switch_lock = asyncio.Lock()
     holder: list[_ActiveRuntime] = []
 
@@ -279,7 +281,9 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
         )
 
         shared_store.max_age_s = run_cfg.universe.max_book_age_s
-        all_strats = build_all_strategies(run_cfg, metar_feed=metar_feed, binance_feed=binance_feed)
+        all_strats = build_all_strategies(
+            run_cfg, metar_feed=metar_feed, binance_feed=binance_feed, rtds_feed=rtds_feed
+        )
         active_strats = [s for s in all_strats if s.enabled]
         risk = RiskManager(run_cfg.risk, run_cfg.execution.state_path)
         risk.geo = geo
@@ -303,6 +307,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
             initial_events=cached_events,
             metar_feed=metar_feed,
             binance_feed=binance_feed,
+            rtds_feed=rtds_feed,
             maker_arb=maker_arb,
             lifecycle=lifecycle,
         )
@@ -420,6 +425,7 @@ async def serve(cfg: Config, environ: Mapping[str, str] | None = None, host: str
             await runner.cleanup()
             await metar_feed.close()
             await binance_feed.close()
+            await rtds_feed.close()
             await cur.lifecycle.close()
             await cur.gateway.close()
         return code

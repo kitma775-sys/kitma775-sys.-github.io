@@ -80,6 +80,25 @@ class BinanceClockConfig:
 
 
 @dataclass
+class CryptoShortConfig:
+    """Safe BTC/ETH/SOL/XRP 5m · 15m · 1h arbitrage (post-close 0-risk lock, exact-integral TWAP lock, 5m<->15m & 1h cross-locks)."""
+
+    enabled: bool = True
+    min_profit_usd: float = 0.08
+    min_edge: float = 0.004
+    min_unit_edge: float = 0.002
+    postclose_window_s: float = 75.0
+    preclose_lock_enabled: bool = True
+    shock_bps: float = 90.0
+    max_left_s: float = 20.0
+    min_left_s: float = 2.0
+    preclose_max_ask: float = 0.985
+    sync_pair_enabled: bool = True
+    poll_slugs_s: float = 20.0
+    flip_enabled: bool = True
+
+
+@dataclass
 class MakerArbConfig:
     """Lead-leg postOnly maker quote (0 maker fee) + instant FOK hedge & convert on fill."""
 
@@ -198,6 +217,7 @@ class Config:
     twin: TwinConfig = field(default_factory=TwinConfig)
     metar: MetarConfig = field(default_factory=MetarConfig)
     binance: BinanceClockConfig = field(default_factory=BinanceClockConfig)
+    crypto_short: CryptoShortConfig = field(default_factory=CryptoShortConfig)
     maker: MakerArbConfig = field(default_factory=MakerArbConfig)
     universe: UniverseConfig = field(default_factory=UniverseConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)

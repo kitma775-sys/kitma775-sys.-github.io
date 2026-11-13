@@ -15,17 +15,20 @@
     negrisk_convert: { name: '轉換套利', short: '轉換', color: '#19e6d4' },
     metar_lock: { name: 'METAR 氣象鎖定', short: 'METAR 鎖定', color: '#2ef2a0' },
     binance_lock: { name: '幣安收盤鎖定', short: '幣安鎖定', color: '#f59e0b' },
+    crypto_short: { name: '5m/15m/1h 短週期套利', short: '短週期加密', color: '#06b6d4' },
     twin_arb: { name: '雙生跨盤套利', short: '雙生跨盤', color: '#f472b6' },
     maker_convert: { name: '零費掛單轉換', short: '掛單轉換', color: '#38bdf8' },
     maker_metar: { name: '零費 METAR 保底', short: 'METAR 搶單', color: '#34d399' },
     maker_binance: { name: '零費幣安保底', short: '幣安搶單', color: '#fbbf24' },
+    maker_crypto_short: { name: '零費 5m/15m/1h 保底', short: '短週期搶單', color: '#22d3ee' },
+    maker_crypto_pair: { name: '零費 5m/15m/1h 跨盤', short: '短週期跨盤', color: '#67e8f9' },
     maker_ladder: { name: '零費掛單階梯', short: '掛單階梯', color: '#fb7185' },
     maker_yes_basket: { name: '零費掛單籃子', short: '掛單籃子', color: '#a78bfa' },
     maker_twin: { name: '零費掛單雙生', short: '掛單雙生', color: '#f9a8d4' },
     negrisk_yes_basket: { name: 'YES 籃子', short: 'YES 籃子', color: '#8b6cff' },
     ladder: { name: '階梯套利', short: '階梯', color: '#ffc857' },
   };
-  const ORDER = ['negrisk_convert', 'metar_lock', 'binance_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
+  const ORDER = ['negrisk_convert', 'crypto_short', 'metar_lock', 'binance_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
   const strat = k => STRATS[k] || { name: k || '?', short: k || '?', color: '#5aa9ff' };
 
   const SKINS = {
@@ -1391,7 +1394,8 @@
     if (!box) return;
     const mt = (t.engine && t.engine.metar) || {};
     const bn = (t.engine && t.engine.binance) || {};
-    const sig = JSON.stringify([mt, bn]);
+    const rt = (t.engine && t.engine.rtds) || {};
+    const sig = JSON.stringify([mt, bn, rt]);
     if (S.sigs.oracles === sig) return;
     S.sigs.oracles = sig;
 
@@ -1401,8 +1405,9 @@
     }
     const latest = bn.latest || {};
     const coinEntries = Object.entries(latest).slice(0, 6);
+    const clTwap = Object.entries(rt.twap || {}).slice(0, 4);
 
-    setHTML($('#oracle-pill'), html`${num(mt.stations || 0)} 機場 · ${num(bn.symbols || 0)} 幣種實時`);
+    setHTML($('#oracle-pill'), html`${num(mt.stations || 0)} 機場 · 幣安 · Chainlink 5m/15m`);
     setHTML(box, html`
       <div class="ora-box">
         <div class="ora-head">🌤️ NOAA AWC METAR 航空氣象源 <span>${num(mt.polls || 0)} 輪 · ${num(mt.days_tracked || 0)} 站日</span></div>
@@ -1411,10 +1416,12 @@
           : html`<div class="muted" style="font-size:11.5px">正在同步全球 48 個國際機場例行 METAR 實測報文…</div>`}
       </div>
       <div class="ora-box">
-        <div class="ora-head">⚡ Binance Spot 已收盤 K 線源 <span>${num(bn.hourly_closes || 0)} 根不可變 K 線</span></div>
-        ${coinEntries.length
-          ? html`<div class="coin-tags">${coinEntries.map(([sym, px]) => html`<span class="coin-tag">${sym.replace('USDT', '')} <b>$${Number(px).toLocaleString('en-US', { maximumFractionDigits: px >= 100 ? 1 : 4 })}</b></span>`)}</div>`
-          : html`<div class="muted" style="font-size:11.5px">嚴格只採信已收盤 1h / 1m 現貨 K 線（整點 0.5s 衝刺輪詢）</div>`}
+        <div class="ora-head">⚡ Chainlink 60s-TWAP (5m/15m) ＆ 幣安 1h 收盤源 <span>RTDS ${num(rt.messages || 0)} 訊 · K線 ${num(bn.hourly_closes || 0)} 根</span></div>
+        ${clTwap.length
+          ? html`<div class="coin-tags">${clTwap.map(([sym, px]) => html`<span class="coin-tag">${sym}/USD <b>$${Number(px).toLocaleString('en-US', { maximumFractionDigits: px >= 100 ? 2 : 4 })}</b></span>`)}</div>`
+          : coinEntries.length
+            ? html`<div class="coin-tags">${coinEntries.map(([sym, px]) => html`<span class="coin-tag">${sym.replace('USDT', '')} <b>$${Number(px).toLocaleString('en-US', { maximumFractionDigits: px >= 100 ? 1 : 4 })}</b></span>`)}</div>`
+            : html`<div class="muted" style="font-size:11.5px">實時串流 Chainlink 60s TWAP 與幣安已收盤 1h K 線…</div>`}
       </div>
     `);
   }

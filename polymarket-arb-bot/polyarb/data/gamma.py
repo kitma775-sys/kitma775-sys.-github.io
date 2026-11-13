@@ -47,6 +47,9 @@ def _extract_metar_spec(title: str, description: str) -> tuple[str | None, str |
 
 def _extract_oracle_sig(description: str) -> str | None:
     low = description.lower()
+    if "chainlink" in low and "twap" in low and "streams/" in low:
+        m = re.search(r"streams/([a-z0-9]+)-usd-twap", low)
+        return f"chainlink_twap60:{m.group(1)}" if m else "chainlink_twap60"
     if "binance" in low:
         m = re.search(r"binance\.com/en/trade/([a-z0-9_]+)", low) or re.search(r"\b(btc|eth|sol|xrp|bnb|doge)/usdt\b", low)
         pair = m.group(1).replace("/", "_") if m else "crypto_usdt"
@@ -128,6 +131,9 @@ def parse_market(raw: Mapping[str, Any], event_end: datetime | None = None) -> M
             resolved = "YES"
         elif len(prices) == 2 and prices[1] >= 0.99:
             resolved = "NO"
+    cm_cfg = raw.get("cryptoMarketConfig")
+    c_asset = str(cm_cfg.get("asset") or "").lower() if isinstance(cm_cfg, Mapping) else ""
+    c_dur = str(cm_cfg.get("duration") or "").lower() if isinstance(cm_cfg, Mapping) else ""
     return Market(
         id=str(raw.get("id")),
         condition_id=str(raw.get("conditionId") or ""),
@@ -155,6 +161,9 @@ def parse_market(raw: Mapping[str, Any], event_end: datetime | None = None) -> M
         fee_type=str(raw.get("feeType") or ""),
         created_at=parse_dt(raw.get("createdAt")),
         creation_scoped=bool(_CREATION_SCOPE_RE.search(str(raw.get("description") or ""))),
+        event_start_time=parse_dt(raw.get("eventStartTime")),
+        crypto_asset=c_asset,
+        crypto_duration=c_dur,
     )
 
 
@@ -171,6 +180,12 @@ def parse_event(raw: Mapping[str, Any]) -> Event:
     first_desc = str((raw_markets[0].get("description") if raw_markets and isinstance(raw_markets[0], Mapping) else "") or raw.get("description") or "")
     metar_icao, metar_obs_date, metar_mode = _extract_metar_spec(title, first_desc)
     oracle_sig = _extract_oracle_sig(first_desc)
+    ev_meta = raw.get("eventMetadata") if isinstance(raw.get("eventMetadata"), Mapping) else {}
+    ptb_raw = ev_meta.get("priceToBeat")
+    fp_raw = ev_meta.get("finalPrice")
+    ptb = float(ptb_raw) if isinstance(ptb_raw, (int, float)) and not isinstance(ptb_raw, bool) else None
+    fp = float(fp_raw) if isinstance(fp_raw, (int, float)) and not isinstance(fp_raw, bool) else None
+    start_dt = parse_dt(raw.get("startTime")) or (markets[0].event_start_time if markets else None)
     return Event(
         id=str(raw.get("id")),
         slug=str(raw.get("slug") or ""),
@@ -188,6 +203,10 @@ def parse_event(raw: Mapping[str, Any]) -> Event:
         metar_obs_date=metar_obs_date,
         metar_mode=metar_mode,
         oracle_sig=oracle_sig,
+        start_time=start_dt,
+        series_slug=str(raw.get("seriesSlug") or ""),
+        price_to_beat=ptb,
+        final_price=fp,
     )
 
 

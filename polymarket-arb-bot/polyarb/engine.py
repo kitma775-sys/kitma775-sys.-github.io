@@ -16,6 +16,7 @@ from polyarb.data.binance import BinanceFeed
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
 from polyarb.data.metar import MetarFeed
+from polyarb.data.rtds import ChainlinkRtdsFeed, fetch_short_crypto_events
 from polyarb.data.store import BookStore
 from polyarb.data.ws import MarketStream
 from polyarb.execution.executor import Executor
@@ -69,8 +70,15 @@ def settle_heap() -> None:
     gc.freeze()
 
 
-async def load_events(cfg: Config, gamma: GammaClient) -> list[Event]:
-    return await gamma.fetch_events(min_markets=cfg.universe.min_markets, **cfg.universe.gamma_filters)
+async def load_events(cfg: Config, gamma: GammaClient, rtds_feed: ChainlinkRtdsFeed | None = None) -> list[Event]:
+    base = await gamma.fetch_events(min_markets=cfg.universe.min_markets, **cfg.universe.gamma_filters)
+    if cfg.crypto_short.enabled:
+        short_evs = await fetch_short_crypto_events(gamma._http, rtds_feed=rtds_feed, base_url=gamma._base)
+        by_id = {e.id: e for e in base}
+        for e in short_evs:
+            by_id[e.id] = e
+        return list(by_id.values())
+    return base
 
 
 async def scan_once(
@@ -81,8 +89,9 @@ async def scan_once(
     events: list[Event] | None = None,
 ) -> ScanResult:
     t0 = time.time()
+    rtds_in_strats = next((getattr(s, "rtds_feed", None) for s in strategies if getattr(s, "rtds_feed", None) is not None), None)
     if events is None:
-        events = await load_events(cfg, gamma)
+        events = await load_events(cfg, gamma, rtds_feed=rtds_in_strats)
     t1 = time.time()
     universe = build_universe(events, strategies, cfg.universe)
     t2 = time.time()
@@ -136,6 +145,7 @@ class Engine:
         initial_events: list[Event] | None = None,
         metar_feed: MetarFeed | None = None,
         binance_feed: BinanceFeed | None = None,
+        rtds_feed: ChainlinkRtdsFeed | None = None,
         maker_arb: "MakerArbManager | None" = None,
         lifecycle: "LifecycleManager | None" = None,
     ) -> None:
@@ -151,20 +161,25 @@ class Engine:
         self.journal = journal
         self.metar_feed = metar_feed
         self.binance_feed = binance_feed
+        self.rtds_feed = rtds_feed
         self.maker_arb = maker_arb
         if self.maker_arb is not None:
             self.maker_arb.set_strategies(self.by_name)
         self.lifecycle = lifecycle
         self._initial_events = initial_events
         self._raw_events: list[Event] | None = None
+        self._short_events: dict[str, Event] = {}
         if self.metar_feed is not None:
             self.metar_feed.on_station_update = self._on_metar_station
         if self.binance_feed is not None:
             self.binance_feed.on_symbol_update = self._on_binance_symbol
+        if self.rtds_feed is not None:
+            self.rtds_feed.on_asset_tick = self._on_rtds_asset
         self.universe: Universe | None = None
         self.targets: dict[str, Target] = {}
         self._by_station: dict[str, list[str]] = defaultdict(list)
         self._by_symbol: dict[str, list[str]] = defaultdict(list)
+        self._by_short_asset: dict[str, list[str]] = defaultdict(list)
         self.dirty: set[str] = set()
         self._wake = asyncio.Event()
         self._last_logged: dict[str, tuple] = {}
@@ -208,18 +223,40 @@ class Engine:
             if self.maker_arb is not None:
                 self.maker_arb._wake.set()
 
+    def _on_rtds_asset(self, asset: str) -> None:
+        keys = self._by_short_asset.get(asset.lower())
+        if keys:
+            self.dirty.update(keys)
+            self._wake.set()
+            if self.maker_arb is not None:
+                self.maker_arb._wake.set()
+
     async def refresh_universe(self, events: list[Event] | None = None) -> None:
         if events is None:
             if self._initial_events is not None:
                 events, self._initial_events = self._initial_events, None
             else:
-                events = await load_events(self.cfg, self.gamma)
+                events = await load_events(self.cfg, self.gamma, rtds_feed=self.rtds_feed)
         self._raw_events = events
-        self._apply_universe(events)
+        merged = self._merged_events(events)
+        self._apply_universe(merged)
         self.last_refresh_at = time.time()
         info = {"events": len(self.universe.events), "tokens": len(self.universe.tokens), "targets": self.universe.counts()}
         self.journal.write("universe", info)
         log.info("universe: %s", info)
+
+    def _merged_events(self, base_events: list[Event]) -> list[Event]:
+        if not self._short_events:
+            return base_events
+        now_s = time.time()
+        # Prune expired ephemeral short-crypto events (> 180s past end_date)
+        for eid, sev in list(self._short_events.items()):
+            if sev.end_date and (now_s - sev.end_date.timestamp()) > 180.0:
+                del self._short_events[eid]
+        by_id = {ev.id: ev for ev in base_events}
+        for eid, sev in self._short_events.items():
+            by_id[eid] = sev
+        return list(by_id.values())
 
     def _apply_universe(self, events: list[Event]) -> None:
         self.universe = build_universe(events, self.strategies, self.cfg.universe)
@@ -229,13 +266,19 @@ class Engine:
             self.executor.gateway.warm_markets(m for ev in self.universe.events for m in ev.tradeable_markets)
         by_st: dict[str, list[str]] = defaultdict(list)
         by_sym: dict[str, list[str]] = defaultdict(list)
+        by_sa: dict[str, list[str]] = defaultdict(list)
         for t in self.universe.targets:
             if t.strategy == "metar_lock" and t.event.metar_icao:
                 by_st[t.event.metar_icao.upper()].append(t.key)
             elif t.strategy == "binance_lock" and hasattr(t.payload, "symbol"):
                 by_sym[str(t.payload.symbol).upper()].append(t.key)
+            elif t.strategy == "crypto_short" and hasattr(t.payload, "asset"):
+                a_code = str(t.payload.asset).lower()
+                by_sa[a_code].append(t.key)
+                by_sym[f"{a_code.upper()}USDT"].append(t.key)
         self._by_station = by_st
         self._by_symbol = by_sym
+        self._by_short_asset = by_sa
         if self.metar_feed is not None:
             self.metar_feed.set_stations(by_st.keys())
         if self.binance_feed is not None:
@@ -253,10 +296,14 @@ class Engine:
                 s.enabled = bool(s.cfg.enabled)
             if hasattr(s, "max_trade_usd"):
                 s.max_trade_usd = self.cfg.risk.max_trade_usd
-            if s.name == "binance_lock":
+            if s.name in ("binance_lock", "crypto_short"):
                 s.flip_ask_price = self.cfg.metar.flip_ask_price
                 s.flip_min_instant_bid = self.cfg.metar.flip_min_instant_bid
-                s.flip_min_profit_usd = self.cfg.metar.flip_min_profit_usd
+                s.flip_min_profit_usd = (
+                    min(0.05, self.cfg.metar.flip_min_profit_usd)
+                    if s.name == "crypto_short"
+                    else self.cfg.metar.flip_min_profit_usd
+                )
         self.strategies = [s for s in self.all_strategies if s.enabled]
         self.by_name = {s.name: s for s in self.all_strategies}
         if self.executor is not None:
@@ -276,9 +323,14 @@ class Engine:
                 await self.binance_feed.start()
             elif not self.cfg.binance.enabled and self.binance_feed._task is not None:
                 await self.binance_feed.stop()
+        if self.rtds_feed is not None:
+            if self.cfg.crypto_short.enabled and self.rtds_feed._task is None and self.phase == "running":
+                await self.rtds_feed.start()
+            elif not self.cfg.crypto_short.enabled and self.rtds_feed._task is not None:
+                await self.rtds_feed.stop()
         now_enabled = {s.name for s in self.strategies}
         if now_enabled != prev_enabled and self._raw_events is not None:
-            self._apply_universe(self._raw_events)
+            self._apply_universe(self._merged_events(self._raw_events))
         if self.maker_arb is not None:
             if not self.cfg.maker.enabled:
                 if self.maker_arb.active:
@@ -342,6 +394,9 @@ class Engine:
                 if (t.event.end_date - now_utc).total_seconds() <= 36 * 3600:
                     for token in t.tokens:
                         tokens[token] = None
+            elif t.strategy == "crypto_short":
+                for token in t.tokens:
+                    tokens[token] = None
         if self.maker_arb is not None:
             for token in self.maker_arb.quoted_tokens():
                 tokens[token] = None
@@ -367,7 +422,7 @@ class Engine:
     def _dynamic_budget(self, strategy_name: str, event_id: str) -> float | None:
         if strategy_name == "negrisk_convert":
             b = self.risk.budget_for(Settlement.CONVERT, event_id, fast_turnover=True)
-        elif strategy_name in ("metar_lock", "binance_lock"):
+        elif strategy_name in ("metar_lock", "binance_lock", "crypto_short"):
             b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=True)
         else:
             b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=False)
@@ -452,6 +507,42 @@ class Engine:
                 log.warning("sweep failed: %s", exc)
             await asyncio.sleep(self.cfg.engine.rest_sweep_s)
 
+    async def _short_crypto_loop(self) -> None:
+        """Keep rolling 5m / 15m / 1h short-crypto targets & WS subscriptions fresh across every 5m rotation."""
+        while True:
+            now_s = time.time()
+            # Sleep shorter right around 5-minute (:00 / :05) boundaries so new slots & finalPrice benchmarks load immediately
+            rem_5m = 300.0 - (now_s % 300.0)
+            wait_s = 3.0 if (rem_5m <= 4.0 or (now_s % 300.0) <= 15.0) else max(8.0, self.cfg.crypto_short.poll_slugs_s)
+            await asyncio.sleep(wait_s)
+            if not self.cfg.crypto_short.enabled or self.gamma is None or self._raw_events is None:
+                continue
+            try:
+                short_evs = await fetch_short_crypto_events(
+                    self.gamma._http, rtds_feed=self.rtds_feed, base_url=self.gamma._base
+                )
+                prev_tokens = set(self.universe.tokens) if self.universe else set()
+                changed_ev = False
+                for sev in short_evs:
+                    old = self._short_events.get(sev.id)
+                    if old is None or old.price_to_beat != sev.price_to_beat or old.final_price != sev.final_price or len(old.tradeable_markets) != len(sev.tradeable_markets):
+                        changed_ev = True
+                    self._short_events[sev.id] = sev
+                if changed_ev and self._raw_events is not None:
+                    self._apply_universe(self._merged_events(self._raw_events))
+                    new_tokens = [t for t in self.universe.tokens if t not in prev_tokens]  # type: ignore[union-attr]
+                    if new_tokens and self.clob is not None:
+                        self.store.update_many(await self.clob.get_books(new_tokens))
+                    if new_tokens and self.stream is not None and self.stream.running:
+                        await self.stream.start(self.hot_tokens())
+                    for k_list in self._by_short_asset.values():
+                        self.dirty.update(k_list)
+                    self._wake.set()
+                    if self.maker_arb is not None:
+                        self.maker_arb._wake.set()
+            except Exception as exc:
+                log.debug("short crypto refresh skipped: %s", exc)
+
     async def _refresh_loop(self) -> None:
         while True:
             await asyncio.sleep(self.cfg.universe.refresh_minutes * 60)
@@ -511,6 +602,8 @@ class Engine:
                 await self.metar_feed.start()
             if self.binance_feed is not None and self.cfg.binance.enabled:
                 await self.binance_feed.start()
+            if self.rtds_feed is not None and self.cfg.crypto_short.enabled:
+                await self.rtds_feed.start()
             if self.lifecycle is not None:
                 await self.lifecycle.start()
             self.phase = "sweeping"
@@ -524,6 +617,7 @@ class Engine:
                 asyncio.create_task(self._sweep_loop()),
                 asyncio.create_task(self._eval_loop()),
                 asyncio.create_task(self._refresh_loop()),
+                asyncio.create_task(self._short_crypto_loop()),
                 asyncio.create_task(self._report_loop()),
             ]
             self.phase = "running"
@@ -546,6 +640,8 @@ class Engine:
                 await self.metar_feed.stop()
             if self.binance_feed is not None:
                 await self.binance_feed.stop()
+            if self.rtds_feed is not None:
+                await self.rtds_feed.stop()
             if self.lifecycle is not None:
                 await self.lifecycle.stop()
             if self.stream:

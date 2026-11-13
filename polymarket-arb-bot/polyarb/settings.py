@@ -70,6 +70,12 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("b_mp", "binance.min_profit_usd", "metar", "幣安鎖定最低利潤", "幣安確定性鎖定單的最低美元淨利潤", "float", "usd", 0.02, 500.0, (0.08, 0.12, 0.25, 0.50)),
     SettingSpec("b_bp", "binance.burst_poll_s", "metar", "整點收盤衝刺輪詢秒數", "每小時 :00 整點及正午收盤窗口的高頻輪詢間隔", "float", "s", 0.2, 10.0, (0.3, 0.5, 1.0, 2.0)),
     SettingSpec("b_fl", "binance.flip_enabled", "metar", "幣安鎖定閃電掛賣", "幣安單腿鎖定倉位自動掛 0.995 零費賣單秒速翻倉", "bool"),
+    SettingSpec("s_on", "crypto_short.enabled", "metar", "短週期 5m/15m/1h 套利開關", "追蹤 Chainlink 60s-TWAP 與幣安 1h 收盤，執行收盤零風險搶單、積分鎖定及 5m⇄15m / 1h 同源跨盤套利", "bool"),
+    SettingSpec("s_mp", "crypto_short.min_profit_usd", "metar", "短週期最低淨利潤", "5m/15m/1h 短週期套利單的最低美元淨利潤門檻", "float", "usd", 0.02, 500.0, (0.05, 0.08, 0.15, 0.30)),
+    SettingSpec("s_pl", "crypto_short.preclose_lock_enabled", "metar", "5m/15m 預收盤積分鎖定", "在最後 2–20 秒以已發生 Chainlink 秒級積分加極端閃崩緩衝提前鎖定勝方", "bool"),
+    SettingSpec("s_sb", "crypto_short.shock_bps", "metar", "預收盤防插針緩衝(bps)", "預收盤積分鎖定要求可抵禦的瞬時持續閃崩基點（90 bps > 7日 99.9% 極值兩倍）", "float", "", 30.0, 400.0, (60.0, 90.0, 120.0, 180.0)),
+    SettingSpec("s_pa", "crypto_short.preclose_max_ask", "metar", "預收盤最高買入價", "預收盤積分鎖定 Taker 掃單允許的最高賣一價", "float", "price", 0.70, 0.995, (0.950, 0.975, 0.985, 0.990)),
+    SettingSpec("s_sy", "crypto_short.sync_pair_enabled", "metar", "5m⇄15m 及 1h 跨盤鎖定", "啟用同源 5m⇄15m 末段同步鎖定與 1h 漲跌⇄行權價錨定套利（100% 零基差保底 $1）", "bool"),
     # --- maker ---
     SettingSpec("k_on", "maker.enabled", "maker", "零費掛單對沖開關", "於主導腿掛 postOnly 零費買單，成交即 FOK 對沖（關閉會即撤現有掛單）", "bool"),
     SettingSpec("k_mq", "maker.max_open_quotes", "maker", "同時最多掛單數", "同時在市場上維持的零費限價單上限", "int", "int", 1, 20, (2, 4, 6, 8, 12)),

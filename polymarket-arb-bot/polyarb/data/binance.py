@@ -91,8 +91,9 @@ class BinanceFeed:
         self.urls = urls
         self._url_idx = 0
 
-        # (symbol, end_et_key "YYYY-MM-DD HH:00") -> closed 1h Close price
+        # (symbol, end_et_key "YYYY-MM-DD HH:00") -> closed 1h Close price / immutable 1h Open price
         self._hourly_closes: dict[tuple[str, str], float] = {}
+        self._hourly_opens: dict[tuple[str, str], float] = {}
         # (symbol, et_date "YYYY-MM-DD") -> (min(c_1159, c_1200), max(c_1159, c_1200))
         self._noon_bands: dict[tuple[str, str], tuple[float, float]] = {}
         self._noon_parts: dict[tuple[str, str], dict[int, float]] = {}
@@ -112,6 +113,10 @@ class BinanceFeed:
     def hourly_close(self, symbol: str, end_et_key: str) -> float | None:
         """Return closed 1h candle Close ending at ``end_et_key`` ('YYYY-MM-DD HH:00' ET), or None if not yet closed."""
         return self._hourly_closes.get((symbol.upper().replace("_", ""), end_et_key))
+
+    def hourly_open(self, symbol: str, end_et_key: str) -> float | None:
+        """Return immutable 1h candle Open for the candle ending at ``end_et_key`` ('YYYY-MM-DD HH:00' ET)."""
+        return self._hourly_opens.get((symbol.upper().replace("_", ""), end_et_key))
 
     def noon_close_band(self, symbol: str, et_date: str) -> tuple[float, float] | None:
         """Return (lo_close, hi_close) across closed 11:59 & 12:00 ET 1m bars, or None until both close."""
@@ -151,8 +156,14 @@ class BinanceFeed:
                 continue
             open_ms = int(row[0])
             close_ms = int(row[6])
+            if interval == "1h" and open_ms <= cutoff_ms:
+                end_et_open = datetime.fromtimestamp((close_ms + 1) / 1000.0, ET_ZONE)
+                end_key_open = end_et_open.strftime("%Y-%m-%d %H:00")
+                open_p = float(row[1])
+                if self._hourly_opens.get((sym, end_key_open)) != open_p:
+                    self._hourly_opens[(sym, end_key_open)] = open_p
             if close_ms >= cutoff_ms:
-                continue  # NEVER trust an unclosed in-progress candle!
+                continue  # NEVER trust an unclosed in-progress candle for Close/High/Low!
             high_p = float(row[2])
             low_p = float(row[3])
             close_p = float(row[4])

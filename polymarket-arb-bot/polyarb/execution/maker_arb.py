@@ -44,12 +44,13 @@ from polyarb.models import Leg, Market, Opportunity, Outcome, Settlement, Side
 from polyarb.risk import RiskManager
 from polyarb.sizing import MIN_ORDER_NOTIONAL, floor_shares
 from polyarb.strategies.base import Target, utc
+from polyarb.strategies.crypto_short import ShortSingleSpec
 from polyarb.strategies.ladder_parse import Ladder, valid_implication_window
 from polyarb.strategies.negrisk import haircut_surplus_proceeds, surplus_yes_specs
 from polyarb.strategies.twin import TwinSlice
 
 log = logging.getLogger(__name__)
-ZERO_LEG_STRATS = frozenset({"maker_metar", "maker_binance"})
+ZERO_LEG_STRATS = frozenset({"maker_metar", "maker_binance", "maker_crypto_short"})
 
 
 def _round_tick_down(price: float, tick: float) -> float:
@@ -166,6 +167,7 @@ class MakerArbManager:
         self.clob = clob
         self.strategies: dict[str, Any] = dict(strategies or {})
         self.targets: list[Target] = []
+        self._target_map: dict[str, Target] = {}
         self.active: dict[str, ActiveQuote] = {}
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
@@ -187,11 +189,13 @@ class MakerArbManager:
                 "negrisk_convert",
                 "metar_lock",
                 "binance_lock",
+                "crypto_short",
                 "ladder",
                 "negrisk_yes_basket",
                 "twin_arb",
             )
         ]
+        self._target_map = {t.key: t for t in self.targets}
 
     def quoted_tokens(self) -> set[str]:
         tokens: set[str] = set()
@@ -349,8 +353,10 @@ class MakerArbManager:
             "maker_convert",
             "metar_lock",
             "binance_lock",
+            "crypto_short",
             "maker_metar",
             "maker_binance",
+            "maker_crypto_short",
         ):
             return max(1, mcfg.max_quotes_per_event)
         return 1
@@ -383,6 +389,8 @@ class MakerArbManager:
                 new_plans = self._plan_metar(target, mcfg, now_dt, exclude_leads=quoted_leads)
             elif target.strategy == "binance_lock":
                 new_plans = self._plan_binance(target, mcfg, now_dt, exclude_leads=quoted_leads)
+            elif target.strategy == "crypto_short":
+                new_plans = self._plan_crypto_short(target, mcfg, now_dt, now, exclude_leads=quoted_leads)
             elif target.strategy == "ladder":
                 p = self._plan_ladder(target, mcfg, now_dt)
                 if p is not None and (p.lead_market.id, p.lead_outcome) not in quoted_leads:
@@ -474,8 +482,9 @@ class MakerArbManager:
         locked_items: list[tuple[Market, Outcome, Any]],
         mcfg: Any,
         exclude_leads: set[tuple[str, Outcome]],
+        now_s: float | None = None,
     ) -> list[MakerQuotePlan]:
-        """Plan 0-hedge-leg postOnly quotes on mathematically decided METAR / Binance markets."""
+        """Plan 0-hedge-leg postOnly quotes on mathematically decided METAR / Binance / Short-Crypto markets."""
         if not locked_items:
             return []
         ev = target.event
@@ -486,16 +495,19 @@ class MakerArbManager:
 
         plans: list[MakerQuotePlan] = []
         req_edge = mcfg.deterministic_min_edge
-        det_floor = (
-            self.cfg.binance.min_profit_usd if strategy_name == "maker_binance" else self.cfg.metar.min_profit_usd
-        )
+        if strategy_name == "maker_crypto_short":
+            det_floor = self.cfg.crypto_short.min_profit_usd
+        elif strategy_name == "maker_binance":
+            det_floor = self.cfg.binance.min_profit_usd
+        else:
+            det_floor = self.cfg.metar.min_profit_usd
         req_profit = min(0.10, mcfg.min_profit_usd, det_floor)
-        now_s = time.time()
+        cur_now = time.time() if now_s is None else now_s
         for m, out, resolves_at in locked_items:
             if (m.id, out) in exclude_leads:
                 continue
             last_m = self.risk.last_attempt.get(f"mkt:{m.id}")
-            if last_m is not None and now_s - last_m < self.cfg.risk.cooldown_s:
+            if last_m is not None and cur_now - last_m < self.cfg.risk.cooldown_s:
                 continue
             b = self.store.get(m.yes_token)
             if b is None:
@@ -510,7 +522,8 @@ class MakerArbManager:
             if best_bid < 0.50:
                 continue
             vol_score = m.volume_24h + ev_vol * 0.1 + bids[0].size * best_bid
-            if vol_score < max(50.0, mcfg.min_volume_24h * 0.2):
+            min_vol_req = 10.0 if strategy_name == "maker_crypto_short" else max(50.0, mcfg.min_volume_24h * 0.2)
+            if vol_score < min_vol_req:
                 continue
 
             # Account for potential maker rebate when choosing max_lead, capped strictly <= 0.993 for flip headroom
@@ -605,7 +618,49 @@ class MakerArbManager:
             locked_items=strat.locked_markets(target, now_dt),
             mcfg=mcfg,
             exclude_leads=exclude_leads,
+            now_s=now_dt.timestamp(),
         )
+
+    def _plan_crypto_short(
+        self, target: Target, mcfg: Any, now_dt: Any, now_s: float, exclude_leads: set[tuple[str, Outcome]]
+    ) -> list[MakerQuotePlan]:
+        strat = self.strategies.get("crypto_short")
+        if strat is None:
+            return []
+        if isinstance(target.payload, ShortSingleSpec):
+            return self._plan_zero_leg_locks(
+                strategy_name="maker_crypto_short",
+                target=target,
+                locked_items=strat.locked_markets(target, now_dt),
+                mcfg=mcfg,
+                exclude_leads=exclude_leads,
+                now_s=now_s,
+            )
+        if hasattr(strat, "active_pair_legs"):
+            pair = strat.active_pair_legs(target.payload, now_s)
+            if pair is None:
+                return []
+            leg_specs, resolves_at, pair_title, ev_ids = pair
+            budget = self._planning_budget(Settlement.RESOLUTION, target.event.id, fast_turnover=True)
+            if budget < 4.0:
+                return []
+            ev_vol = max(sum(m.volume_24h for m, _ in leg_specs), mcfg.min_volume_24h)
+            p = self._plan_multi_leg_resolution(
+                strategy_name="maker_crypto_pair",
+                target_key=target.key,
+                event_id=target.event.id,
+                title=pair_title,
+                leg_specs=leg_specs,
+                resolves_at=resolves_at,
+                budget=budget,
+                ev_vol=ev_vol,
+                mcfg=mcfg,
+                extra_event_ids=[eid for eid in ev_ids if eid != target.event.id],
+                fast_turnover=True,
+            )
+            if p is not None and (p.lead_market.id, p.lead_outcome) not in exclude_leads:
+                return [p]
+        return []
 
     def _plan_convert(
         self,
@@ -1077,7 +1132,13 @@ class MakerArbManager:
         elif now - quote.placed_at > self.cfg.maker.quote_ttl_s:
             should_cancel, reason = True, "ttl expired"
         elif is_zero_leg:
-            if self.cfg.maker.repeg_after_s > 0 and now - quote.placed_at >= self.cfg.maker.repeg_after_s:
+            if quote.plan.strategy == "maker_crypto_short":
+                strat = self.strategies.get("crypto_short")
+                tgt = self._target_map.get(quote.plan.target_key)
+                if strat is not None and tgt is not None and hasattr(strat, "still_safely_locked"):
+                    if not strat.still_safely_locked(tgt, quote.plan.lead_outcome, now):
+                        should_cancel, reason = True, "short-window lock expired or cushion narrowed"
+            if not should_cancel and self.cfg.maker.repeg_after_s > 0 and now - quote.placed_at >= self.cfg.maker.repeg_after_s:
                 lb = self.store.get(quote.plan.lead_market.yes_token)
                 if lb is not None:
                     bids = lb.bids if quote.plan.lead_outcome is Outcome.YES else lb.no_bids()

@@ -67,10 +67,17 @@ class Market:
     fee_type: str = ""
     created_at: datetime | None = None
     creation_scoped: bool = False
+    event_start_time: datetime | None = None
+    crypto_asset: str = ""
+    crypto_duration: str = ""
 
     @property
     def is_yes_no(self) -> bool:
         return self.outcomes[0].strip().lower() == "yes" and self.outcomes[1].strip().lower() == "no"
+
+    @property
+    def is_up_down(self) -> bool:
+        return self.outcomes[0].strip().lower() == "up" and self.outcomes[1].strip().lower() == "down"
 
     @property
     def neg_risk_index(self) -> int | None:
@@ -105,6 +112,10 @@ class Event:
     metar_obs_date: str | None = None
     metar_mode: str | None = None
     oracle_sig: str | None = None
+    start_time: datetime | None = None
+    series_slug: str = ""
+    price_to_beat: float | None = None
+    final_price: float | None = None
 
     @property
     def tradeable_markets(self) -> list[Market]:

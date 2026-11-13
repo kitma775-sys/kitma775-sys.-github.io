@@ -14,6 +14,7 @@ from polyarb.data.binance import BinanceFeed
 from polyarb.data.clob import ClobClient
 from polyarb.data.gamma import GammaClient
 from polyarb.data.metar import MetarFeed
+from polyarb.data.rtds import ChainlinkRtdsFeed
 from polyarb.data.store import BookStore
 from polyarb.engine import Engine, ScanResult, scan_once
 from polyarb.execution.executor import Executor
@@ -48,6 +49,8 @@ UNGATED = {
     "binance.min_profit_usd": 0.0,
     "binance.min_edge": 0.0,
     "binance.max_days": 365.0,
+    "crypto_short.min_profit_usd": 0.0,
+    "crypto_short.min_edge": 0.0,
 }
 
 
@@ -97,7 +100,8 @@ def scan_payload(result: ScanResult, near: int = 25) -> dict[str, Any]:
 async def cmd_scan(cfg: Config, args: argparse.Namespace) -> int:
     metar_feed = MetarFeed() if cfg.metar.enabled else None
     binance_feed = BinanceFeed() if cfg.binance.enabled else None
-    strategies = build_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed)
+    rtds_feed = ChainlinkRtdsFeed() if cfg.crypto_short.enabled else None
+    strategies = build_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed, rtds_feed=rtds_feed)
     filters = dict(cfg.universe.gamma_filters)
     try:
         async with GammaClient() as gamma, ClobClient() as clob:
@@ -116,6 +120,8 @@ async def cmd_scan(cfg: Config, args: argparse.Namespace) -> int:
             await metar_feed.close()
         if binance_feed is not None:
             await binance_feed.close()
+        if rtds_feed is not None:
+            await rtds_feed.close()
     print_scan(result, args.top)
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +141,8 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         burst_poll_s=cfg.binance.burst_poll_s,
         idle_poll_s=cfg.binance.idle_poll_s,
     ) if cfg.binance.enabled else None
-    strategies = build_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed)
+    rtds_feed = ChainlinkRtdsFeed() if cfg.crypto_short.enabled else None
+    strategies = build_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed, rtds_feed=rtds_feed)
     store = BookStore(max_age_s=cfg.universe.max_book_age_s)
     risk = RiskManager(cfg.risk, cfg.execution.state_path)
     journal = Journal(cfg.execution.journal_path)
@@ -169,7 +176,7 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         executor = Executor(gateway, store, strat_map, cfg.execution, clob)
         engine = Engine(
             cfg, strategies, gamma, clob, store, executor, risk, journal,
-            metar_feed=metar_feed, binance_feed=binance_feed, maker_arb=maker_arb, lifecycle=lifecycle,
+            metar_feed=metar_feed, binance_feed=binance_feed, rtds_feed=rtds_feed, maker_arb=maker_arb, lifecycle=lifecycle,
         )
         try:
             await engine.run(args.duration)
@@ -178,6 +185,8 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
                 await metar_feed.close()
             if binance_feed is not None:
                 await binance_feed.close()
+            if rtds_feed is not None:
+                await rtds_feed.close()
             await lifecycle.close()
             await gateway.close()
     print(json.dumps({"stats": dict(engine.stats), "pnl_total": risk.state.realized_total, "holds": len(risk.state.holds)}, indent=2))
