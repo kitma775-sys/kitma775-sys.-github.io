@@ -203,13 +203,24 @@ def set_cfg_attr(cfg: Config, key: str, value: Any) -> None:
     setattr(getattr(cfg, section), field_name, value)
 
 
+VALID_SKINS = ("spatial", "obsidian", "cyber", "titanium", "orbital")
+SKIN_LABELS = {
+    "spatial": "量子空間玻璃 · Spatial Vision OS",
+    "obsidian": "黑曜石鎏金私銀 · Obsidian Gold",
+    "cyber": "超頻脈衝矩陣 · Cybernetic Pulse",
+    "titanium": "極晝鈦銀瑞士白 · Titanium Pro",
+    "orbital": "星際極光方舟 · Orbital Bento",
+}
+
+
 class SettingsManager:
-    """Persists runtime overrides & mode preference in ``<data_dir>/runtime_settings.json``."""
+    """Persists runtime overrides, mode & UI skin preference in ``<data_dir>/runtime_settings.json``."""
 
     def __init__(self, base_cfg: Config, path: str | Path | None = None) -> None:
         self.base_cfg = copy.deepcopy(base_cfg)
         self.path = Path(path) if path else None
         self.preferred_mode: str | None = None
+        self.preferred_skin: str = "spatial"
         self.overrides: dict[str, Any] = {}
         self._load()
 
@@ -226,6 +237,9 @@ class SettingsManager:
         pm = raw.get("preferred_mode")
         if pm in ("paper", "live"):
             self.preferred_mode = pm
+        ps = raw.get("preferred_skin")
+        if ps in VALID_SKINS:
+            self.preferred_skin = ps
         ov = raw.get("overrides")
         if isinstance(ov, dict):
             for k, v in ov.items():
@@ -242,7 +256,11 @@ class SettingsManager:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        payload = {"preferred_mode": self.preferred_mode, "overrides": self.overrides}
+        payload = {
+            "preferred_mode": self.preferred_mode,
+            "preferred_skin": self.preferred_skin,
+            "overrides": self.overrides,
+        }
         tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.path)
 
@@ -314,9 +332,18 @@ class SettingsManager:
         self.preferred_mode = mode
         self.save()
 
+    def set_preferred_skin(self, skin: str) -> str:
+        clean = str(skin or "").strip().lower()
+        if clean not in VALID_SKINS:
+            raise ValueError(f"invalid skin {skin!r}")
+        self.preferred_skin = clean
+        self.save()
+        return clean
+
     def public_snapshot(self, cfg: Config) -> dict[str, Any]:
         return {
             "preferred_mode": self.preferred_mode,
+            "preferred_skin": self.preferred_skin,
             "overrides_count": len(self.overrides),
             "overrides": dict(self.overrides),
             "categories": [

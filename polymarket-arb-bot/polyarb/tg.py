@@ -34,6 +34,8 @@ from polyarb.settings import (
     BY_CATEGORY,
     BY_CODE,
     CATEGORIES,
+    SKIN_LABELS,
+    VALID_SKINS,
     SettingSpec,
     SettingsManager,
     format_setting_value,
@@ -72,6 +74,7 @@ BOT_COMMANDS = [
     {"command": "near", "description": "各策略最接近套利排行榜"},
     {"command": "metar", "description": "全球 48 機場 METAR 實測氣溫狀態"},
     {"command": "mode", "description": "紙盤 / 實盤安全熱切換與就緒檢查"},
+    {"command": "skin", "description": "切換網頁控制台 5 款旗艦外觀主題"},
     {"command": "pause", "description": "立即暫停所有新交易並撤銷掛單"},
     {"command": "resume", "description": "恢復自動交易"},
 ]
@@ -495,6 +498,14 @@ class TelegramBot:
         elif cmd == "/mode":
             t_out, kb = self.render_mode()
             await self.send_message(cid, t_out, reply_markup=kb)
+        elif cmd == "/skin":
+            if arg.strip().lower() in VALID_SKINS:
+                clean = self.controls.set_skin(arg.strip().lower(), source="telegram")
+                t_out, kb = self.render_skin()
+                await self.send_message(cid, f"🎨 已同步網頁外觀為：<b>{_esc(SKIN_LABELS[clean])}</b>\n\n{t_out}", reply_markup=kb)
+            else:
+                t_out, kb = self.render_skin()
+                await self.send_message(cid, t_out, reply_markup=kb)
         elif cmd == "/pause":
             err = await self.controls.pause_async(source="telegram")
             note = f"⚠️ 無法暫停：{_esc(err)}" if err else "⏸ <b>已暫停交易，並已自動撤銷所有未成交掛單。</b>"
@@ -558,6 +569,8 @@ class TelegramBot:
                     t_out, kb = self.render_settings_categories()
                 elif target == "mode":
                     t_out, kb = self.render_mode()
+                elif target == "skin":
+                    t_out, kb = self.render_skin()
                 else:
                     t_out, kb = self.render_home()
                 await self.edit_or_send(cid, mid, t_out, reply_markup=kb)
@@ -688,6 +701,14 @@ class TelegramBot:
                     toast_msg = "🔴 已切換至實盤" if ok else f"無法啟動實盤：{msg}"
                     t_out, kb = self.render_mode()
                     await self.edit_or_send(cid, mid, f"{'✅' if ok else '⚠️'} {_esc(msg)}\n\n" + t_out, reply_markup=kb)
+
+            elif head == "sk":
+                sk = parts[1] if len(parts) > 1 else ""
+                if sk in VALID_SKINS:
+                    clean = self.controls.set_skin(sk, source="telegram")
+                    toast_msg = f"🎨 已套用：{SKIN_LABELS[clean]}"
+                    t_out, kb = self.render_skin()
+                    await self.edit_or_send(cid, mid, t_out, reply_markup=kb)
         finally:
             await self._call("answerCallbackQuery", callback_query_id=cqid, text=toast_msg[:190] if toast_msg else None)
 
@@ -716,6 +737,7 @@ class TelegramBot:
             ],
             [
                 {"text": "⚙️ 設定中心（全參數）", "callback_data": "nav:settings"},
+                {"text": "🎨 5 款主題", "callback_data": "nav:skin"},
                 {"text": "🔀 紙盤 / 實盤", "callback_data": "nav:mode"},
             ],
         ]
@@ -1093,3 +1115,17 @@ class TelegramBot:
             ]
         }
         return txt, kb
+
+    def render_skin(self) -> tuple[str, dict]:
+        cur = self.settings.preferred_skin
+        lines = [
+            "🎨 <b>網頁控制台 5 款旗艦外觀主題（Skin Studio）</b>",
+            f"目前預設主題：<b>{_esc(SKIN_LABELS.get(cur, cur))}</b>",
+            "點擊下方任一主題即可毫秒級即時推送至所有已開啟的桌面版與手機版瀏覽器：",
+        ]
+        rows = [
+            [{"text": ("✅ " if k == cur else "✨ ") + SKIN_LABELS[k], "callback_data": f"sk:{k}"}]
+            for k in VALID_SKINS
+        ]
+        rows.append([{"text": "🏠 返回主面板", "callback_data": "nav:home"}])
+        return "\n".join(lines), {"inline_keyboard": rows}

@@ -17,7 +17,7 @@ from aiohttp import web
 from polyarb import __version__
 from polyarb.fastjson import dumps
 from polyarb.monitor import Monitor
-from polyarb.settings import SettingsManager, format_setting_value
+from polyarb.settings import SKIN_LABELS, VALID_SKINS, SettingsManager, format_setting_value
 
 log = logging.getLogger(__name__)
 
@@ -210,6 +210,15 @@ class Controls:
             self.monitor.engine.journal.write("mode_switch", {"mode": target_mode, "source": source})
         return ok, msg
 
+    def set_skin(self, skin: str, source: str = "dashboard") -> str:
+        clean = str(skin or "").strip().lower()
+        if clean not in VALID_SKINS:
+            raise ValueError(f"unknown skin {skin!r}")
+        if self.settings is not None:
+            self.settings.set_preferred_skin(clean)
+        self.monitor.emit("skin", {"skin": clean, "label": SKIN_LABELS.get(clean, clean), "source": source})
+        return clean
+
 
 MONITOR_KEY = web.AppKey("monitor", Monitor)
 AUTH_KEY = web.AppKey("auth", Auth)
@@ -359,6 +368,15 @@ async def control(request: web.Request) -> web.Response:
     elif action == "cancel_quotes":
         n = await controls.cancel_quotes(source="dashboard")
         return _json({"ok": True, "canceled": n, "risk": request.app[MONITOR_KEY].tick()["risk"]})
+    elif action == "trigger_lifecycle":
+        stats = await controls.trigger_lifecycle(source="dashboard")
+        return _json({"ok": True, "lifecycle": stats})
+    elif action == "set_skin":
+        try:
+            clean = controls.set_skin(str(body.get("skin") or ""), source="dashboard")
+        except ValueError as exc:
+            return _json({"error": str(exc)}, 400)
+        return _json({"ok": True, "skin": clean, "label": SKIN_LABELS.get(clean, clean)})
     elif action == "switch_mode":
         target = str(body.get("mode") or "").lower()
         if target not in ("paper", "live"):

@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-skin="spatial" data-view="overview">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#04050c">
+<meta name="theme-color" content="#04060f" id="meta-theme-color">
 <meta name="robots" content="noindex, nofollow">
 <title>POLYARB · 套利指揮中心</title>
 <link rel="icon" href="/favicon.ico" type="image/svg+xml">
@@ -12,7 +12,8 @@
 <script src="/static/app.js?v={{V}}" defer></script>
 </head>
 <body>
-<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+<div class="hud-grid" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
 <header class="topbar">
@@ -20,61 +21,119 @@
     <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
       <defs>
         <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#19e6d4"/><stop offset=".55" stop-color="#8b6cff"/><stop offset="1" stop-color="#ff4d8d"/>
+          <stop offset="0" stop-color="var(--accent-1)"/><stop offset=".55" stop-color="var(--accent-2)"/><stop offset="1" stop-color="var(--accent-3)"/>
         </linearGradient>
       </defs>
-      <path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="rgba(25,230,212,.06)" stroke="url(#logo-g)" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="rgba(25,230,212,.08)" stroke="url(#logo-g)" stroke-width="2.4" stroke-linejoin="round"/>
       <path d="M14.5 30 21.5 22.5l5 5L33.5 18" fill="none" stroke="url(#logo-g)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="33.5" cy="18" r="2.8" fill="#2ef2a0"/>
+      <circle cx="33.5" cy="18" r="2.8" fill="var(--pos)"/>
     </svg>
-    <div>
-      <div class="brand-name">POLYARB</div>
-      <div class="brand-sub">Polymarket 結構性套利指揮中心</div>
+    <div class="brand-copy">
+      <div class="brand-row">
+        <span class="brand-name">POLYARB</span>
+        <span class="ver-chip" id="ver-pill">v0.7</span>
+      </div>
+      <div class="brand-sub">Polymarket 極致結構性與預言機套利指揮中心</div>
     </div>
   </div>
+
   <div class="status-strip">
     <span class="badge paper" id="mode-badge"><i></i><b>紙盤</b><small>PAPER</small></span>
     <span class="badge phase busy" id="phase-badge"><i></i><b>連線中</b></span>
+    <span class="top-pnl-pill" id="top-pnl-pill">$0.00</span>
     <span class="conn" id="conn" title="即時串流連線"><i></i><span>串流</span></span>
     <span class="clock" id="clock">--:--:--</span>
   </div>
+
   <div class="actions">
+    <button class="btn small skin-trigger" id="btn-skin" type="button" title="切換 5 款旗艦外觀主題（快捷鍵 1–5）">
+      <span class="skin-dot"></span><span class="skin-btn-label" id="cur-skin-short">量子玻璃</span>
+    </button>
     <button class="btn small warn" id="btn-pause" type="button" disabled>暫停交易</button>
     <button class="btn small" id="btn-logout" type="button">登出</button>
   </div>
 </header>
 
+<aside class="skin-drawer hidden" id="skin-drawer" role="dialog" aria-label="外觀主題工作室">
+  <div class="skin-drawer-box">
+    <div class="skin-drawer-head">
+      <div>
+        <h3>旗艦外觀工作室 <em>5-SKIN STUDIO</em></h3>
+        <p>一鍵零延遲切換全站材質、光影、PnL 圖表物理曲線與雷達配色（支援鍵盤 <code>1</code>–<code>5</code> 秒切及 Telegram <code>/skin</code> 跨裝置同步）</p>
+      </div>
+      <button class="btn small" id="skin-close" type="button">完成</button>
+    </div>
+    <div class="skin-cards" id="skin-cards"></div>
+    <div class="skin-drawer-foot">
+      <label class="auto-day-toggle">
+        <input type="checkbox" id="auto-daylight">
+        <span>日間自動極晝模式（07:00–18:00 自動套用「極晝鈦銀瑞士白」，夜間自動回復所選深色主題）</span>
+      </label>
+    </div>
+  </div>
+</aside>
+
 <div class="banners" id="banners" aria-live="polite"></div>
 
-<main class="layout">
+<main class="layout" id="main-layout">
 
-  <section class="card hero span-7">
+  <section class="card hero span-7" data-sec="overview">
     <div class="card-head">
       <h2>累計利潤<em>TOTAL P&amp;L</em></h2>
+      <span class="hi-lo-tag" id="pnl-hi-lo"></span>
       <span class="hint" id="pnl-hint">已實現 + 已鎖定（結算後入賬）</span>
     </div>
-    <div class="hero-value" id="pnl-total">$0.00</div>
-    <div class="hero-meta">
-      <div><label>已實現</label><span id="pnl-realized">$0.00</span></div>
-      <div><label>今日已實現</label><span id="pnl-today">$0.00</span></div>
-      <div><label>已鎖定・待結算</label><span id="pnl-locked">$0.00</span></div>
-      <div><label>本金回報</label><span id="pnl-roi">0.00%</span></div>
-      <div><label>已執行</label><span id="exec-count">0</span></div>
+
+    <div class="hero-top-grid">
+      <div class="hero-main-num">
+        <div class="hero-value" id="pnl-total">$0.00</div>
+        <div class="hero-sub-badges">
+          <span class="sub-chip">本金回報 <b id="pnl-roi">0.00%</b></span>
+          <span class="sub-chip">已執行 <b id="exec-count">0</b> 筆</span>
+        </div>
+      </div>
+
+      <div class="hero-meta">
+        <div class="hm-card">
+          <label>已實現淨利</label>
+          <span id="pnl-realized">$0.00</span>
+          <svg class="mini-spark" id="spark-realized" viewBox="0 0 88 22" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="hm-card">
+          <label>今日已實現</label>
+          <span id="pnl-today">$0.00</span>
+          <svg class="mini-spark" id="spark-today" viewBox="0 0 88 22" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="hm-card">
+          <label>已鎖定・待結算</label>
+          <span id="pnl-locked">$0.00</span>
+          <svg class="mini-spark" id="spark-locked" viewBox="0 0 88 22" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
     </div>
-    <div class="chart" id="pnl-chart"></div>
+
+    <div class="chart hero-chart" id="pnl-chart"></div>
+
     <div class="hero-foot">
       <div class="legend" id="pnl-legend"></div>
       <div class="seg" id="pnl-range" role="tablist">
+        <button type="button" data-r="900">15 分</button>
         <button type="button" data-r="3600">1 小時</button>
         <button type="button" data-r="21600">6 小時</button>
         <button type="button" data-r="86400" class="on">24 小時</button>
+        <button type="button" data-r="604800">全部</button>
       </div>
+    </div>
+
+    <div class="cap-alloc">
+      <div class="cap-bar" id="cap-bar"></div>
+      <div class="cap-legend" id="cap-legend"></div>
     </div>
   </section>
 
-  <section class="card radar-card span-5">
+  <section class="card radar-card span-5" data-sec="radar">
     <div class="card-head">
-      <h2>套利雷達<em>EDGE RADAR</em></h2>
+      <h2>360° 套利雷達<em>EDGE RADAR</em></h2>
       <span class="hint" id="radar-hint">越近中心越接近套利・點擊開啟市場</span>
     </div>
     <div class="radar-wrap">
@@ -85,9 +144,32 @@
     </div>
   </section>
 
-  <section class="kpis span-12" id="kpis"></section>
+  <section class="kpis span-12" id="kpis" data-sec="overview"></section>
 
-  <section class="card span-6">
+  <section class="card span-7 maker-card" data-sec="quotes">
+    <div class="card-head">
+      <h2>零費掛單矩陣<em>MAKER 3.0 MATRIX</em></h2>
+      <span class="pill" id="maker-pill">0 / 6 掛單中</span>
+      <button class="btn small" id="btn-cancel-quotes" type="button">撤銷全部掛單</button>
+    </div>
+    <div class="maker-matrix" id="maker-matrix"></div>
+  </section>
+
+  <section class="card span-5 oracle-card" data-sec="oracles">
+    <div class="card-head">
+      <h2>全球雙預言機鎖定<em>ORBITAL ORACLES</em></h2>
+      <span class="pill ok" id="oracle-pill">實時同步</span>
+    </div>
+    <div class="oracle-body">
+      <div class="globe-wrap">
+        <canvas id="oracle-globe" aria-label="全球 48 個 METAR 機場與幣安預言機節點地球儀"></canvas>
+        <div class="globe-caption">拖拽旋轉・48 國際機場 METAR 實測節點</div>
+      </div>
+      <div class="oracle-cards" id="oracle-cards"></div>
+    </div>
+  </section>
+
+  <section class="card span-6" data-sec="quotes">
     <div class="card-head">
       <h2>即時套利機會<em>OPPORTUNITIES</em></h2>
       <span class="pill" id="opp-count">0</span>
@@ -95,7 +177,7 @@
     <div class="feed" id="opp-feed"></div>
   </section>
 
-  <section class="card span-6">
+  <section class="card span-6" data-sec="overview quotes">
     <div class="card-head">
       <h2>成交紀錄<em>EXECUTIONS</em></h2>
       <span class="pill" id="exec-pill">0</span>
@@ -103,7 +185,7 @@
     <div class="feed" id="exec-feed"></div>
   </section>
 
-  <section class="card span-8">
+  <section class="card span-8" data-sec="radar">
     <div class="card-head">
       <h2>最接近套利<em>NEAR MISSES</em></h2>
       <div class="seg" id="near-tabs" role="tablist"></div>
@@ -117,7 +199,7 @@
     <p class="note" id="near-note">邊際 = 以最佳掛單價計，每組（派彩 $1）可賺取的金額；正數即可套利（未計深度與門檻）。</p>
   </section>
 
-  <section class="card span-4">
+  <section class="card span-4" data-sec="radar">
     <div class="card-head">
       <h2>邊際分佈<em>EDGE MAP</em></h2>
       <span class="hint" id="hist-hint">每 20 秒全市場重算</span>
@@ -125,9 +207,9 @@
     <div class="hist" id="hist"></div>
   </section>
 
-  <section class="card span-4">
+  <section class="card span-4" data-sec="risk">
     <div class="card-head">
-      <h2>風險控制<em>RISK</em></h2>
+      <h2>風險控制護盾<em>RISK SHIELD</em></h2>
       <span class="pill" id="kill-pill">—</span>
     </div>
     <div class="gauges" id="gauges"></div>
@@ -139,22 +221,23 @@
     </div>
   </section>
 
-  <section class="card span-8">
+  <section class="card span-8" data-sec="quotes risk">
     <div class="card-head">
-      <h2>持倉待結算<em>HOLDS</em></h2>
+      <h2>持倉待結算與收割<em>HOLDS &amp; HARVEST</em></h2>
       <span class="pill" id="hold-count">0</span>
+      <button class="btn small" id="btn-sync-holds" type="button">立即檢查贖回／收割</button>
     </div>
     <div class="table-wrap">
       <table id="holds-table">
-        <thead><tr><th>市場</th><th class="hide-sm">策略</th><th class="num">成本</th><th class="num hide-sm">保證派彩</th><th class="num">鎖定利潤</th><th class="num">結算</th></tr></thead>
+        <thead><tr><th>市場</th><th class="hide-sm">策略</th><th class="num">成本</th><th class="num hide-sm">保證派彩</th><th class="num">鎖定利潤</th><th class="num">結算／掛賣</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
   </section>
 
-  <section class="card span-7 engine-card">
+  <section class="card span-7 engine-card" data-sec="risk">
     <div class="card-head">
-      <h2>引擎狀態<em>ENGINE</em></h2>
+      <h2>引擎與吞吐脈衝<em>ENGINE PULSE</em></h2>
       <span class="hint" id="engine-hint"></span>
     </div>
     <div class="engine-grid" id="engine-grid"></div>
@@ -162,9 +245,9 @@
     <div class="legend" id="tp-legend"></div>
   </section>
 
-  <section class="card span-5">
+  <section class="card span-5" data-sec="risk">
     <div class="card-head">
-      <h2>轉實盤<em>GO LIVE</em></h2>
+      <h2>轉實盤就緒<em>GO LIVE</em></h2>
       <span class="pill" id="ready-pill">—</span>
     </div>
     <ul class="checklist" id="checklist"></ul>
@@ -185,8 +268,8 @@
           <div class="envline"><span>POLYARB__RISK__MAX_TRADE_USD=25</span><button type="button" data-copy="POLYARB__RISK__MAX_TRADE_USD=25">複製</button></div>
           <div class="envline"><span>POLYARB__RISK__MAX_HOLD_EXPOSURE_USD=150</span><button type="button" data-copy="POLYARB__RISK__MAX_HOLD_EXPOSURE_USD=150">複製</button></div>
         </li>
-        <li>按 Zeabur「重新啟動」。頂部徽章由「紙盤」變成「實盤」即代表成功；任何條件未通過，系統會自動維持紙盤並在頂部顯示原因。</li>
-        <li>隨時可按「暫停交易」，或把 <code>POLYARB_MODE</code> 改回 <code>paper</code> 再重啟。紙盤與實盤的帳本分開保存。</li>
+        <li>按下方「熱切換至實盤」或於 Telegram 輸入 <code>/mode</code> 即可免重啟切換；任何條件未通過，系統會自動維持紙盤並顯示原因。</li>
+        <li>隨時可按「暫停交易」，或一鍵切回 <code>paper</code>。紙盤與實盤的帳本分開保存。</li>
       </ol>
     </details>
     <p class="note" id="wallet-note"></p>
@@ -195,19 +278,19 @@
     </div>
   </section>
 
-  <section class="card span-12" id="settings-card">
+  <section class="card span-12" id="settings-card" data-sec="settings">
     <div class="card-head">
       <h2>即時參數設定（與 Telegram 同步）<em>LIVE SETTINGS</em></h2>
       <div class="seg" id="settings-tabs" role="tablist"></div>
     </div>
     <div class="settings-grid" id="settings-grid"></div>
     <div class="risk-actions" style="margin-top:12px;justify-content:space-between;align-items:center">
-      <span class="hint" id="tg-sync-note">修改即時熱更新並永久保存，與 Telegram Bot 雙向同步</span>
+      <span class="hint" id="tg-sync-note">全部 68 項參數即時熱更新並永久保存，與 Telegram Bot 雙向同步</span>
       <button class="btn small warn" id="btn-reset-settings" type="button">還原全部自訂設定</button>
     </div>
   </section>
 
-  <section class="card span-12">
+  <section class="card span-12" data-sec="settings">
     <div class="card-head">
       <h2>系統日誌<em>CONSOLE</em></h2>
       <div class="seg" id="log-filter" role="tablist">
@@ -220,6 +303,37 @@
   </section>
 
 </main>
+
+<nav class="mobile-dock" id="mobile-dock" aria-label="手機版快速導航">
+  <button type="button" data-mv="overview" class="on">
+    <svg viewBox="0 0 24 24"><path d="M4 13.5 10 8l4 3.5L20 5M4 19h16"/></svg>
+    <span>總覽</span>
+  </button>
+  <button type="button" data-mv="quotes">
+    <svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="7" height="6.5" rx="1.5"/><rect x="13.5" y="4.5" width="7" height="6.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="6.5" rx="1.5"/></svg>
+    <span>掛單</span>
+  </button>
+  <button type="button" data-mv="radar">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 12 18 6"/></svg>
+    <span>雷達</span>
+  </button>
+  <button type="button" data-mv="oracles">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.6 12h16.8M12 3.5c2.8 3.2 2.8 13.8 0 17M12 3.5c-2.8 3.2-2.8 13.8 0 17"/></svg>
+    <span>預言機</span>
+  </button>
+  <button type="button" data-mv="risk">
+    <svg viewBox="0 0 24 24"><path d="M12 3.5 19.5 6.5v5.3c0 4.6-3.1 7.9-7.5 9.2-4.4-1.3-7.5-4.6-7.5-9.2V6.5Z"/></svg>
+    <span>風控</span>
+  </button>
+  <button type="button" data-mv="settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg>
+    <span>設定</span>
+  </button>
+  <button type="button" data-mv="all">
+    <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <span>全覽</span>
+  </button>
+</nav>
 
 <footer class="foot">
   <span id="foot-left">POLYARB</span>

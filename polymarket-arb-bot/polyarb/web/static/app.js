@@ -28,6 +28,35 @@
   const ORDER = ['negrisk_convert', 'metar_lock', 'binance_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
   const strat = k => STRATS[k] || { name: k || '?', short: k || '?', color: '#5aa9ff' };
 
+  const SKINS = {
+    spatial: {
+      key: '1', short: '量子玻璃', name: '量子空間玻璃', sub: 'visionOS 光學磨砂・雙層極光帶',
+      bg: '#04060f', scheme: 'dark', main: '#2ef2a0', real: '#19e6d4', step: false,
+      swatchBg: 'linear-gradient(135deg,#04060f,#0b1d2e,#1c1238)',
+    },
+    obsidian: {
+      key: '2', short: '黑曜鎏金', name: '黑曜石鎏金私銀', sub: '24K 香檳金細線・瑞士私銀終端',
+      bg: '#08080a', scheme: 'dark', main: '#e5b869', real: '#10b981', step: false,
+      swatchBg: 'linear-gradient(135deg,#08080a,#1f1a12,#2c2314)',
+    },
+    cyber: {
+      key: '3', short: '超頻脈衝', name: '超頻脈衝矩陣', sub: '電光青激光階梯・戰術聲納 HUD',
+      bg: '#020611', scheme: 'dark', main: '#00ff9d', real: '#00f0ff', step: true,
+      swatchBg: 'linear-gradient(135deg,#020611,#032136,#042e27)',
+    },
+    titanium: {
+      key: '4', short: '極晝鈦銀', name: '極晝鈦銀瑞士白', sub: '陶瓷純白高對比・戶外強光清晰',
+      bg: '#f3f5fa', scheme: 'light', main: '#2563eb', real: '#059669', step: false,
+      swatchBg: 'linear-gradient(135deg,#ffffff,#e8eef9,#dbeafe)',
+    },
+    orbital: {
+      key: '5', short: '星際極光', name: '星際極光方舟', sub: '流體紫青極光絲帶・全息 Bento',
+      bg: '#070514', scheme: 'dark', main: '#c084fc', real: '#38bdf8', step: false,
+      swatchBg: 'linear-gradient(135deg,#09051c,#2e1065,#0c4a6e)',
+    },
+  };
+  const SKIN_ORDER = ['spatial', 'obsidian', 'cyber', 'titanium', 'orbital'];
+
   const PHASES = {
     idle: ['準備中', 'busy'], geo: ['檢查地區', 'busy'], loading: ['載入全市場', 'busy'], sweeping: ['首次掃描', 'busy'],
     running: ['運行中', 'running'], stopping: ['關閉中', 'busy'], stopped: ['已停止', 'down'],
@@ -217,6 +246,15 @@
   };
   const r1 = v => Math.round(v * 10) / 10;
 
+  function stepPath(pts) {
+    if (!pts.length) return '';
+    let d = `M${r1(pts[0][0])},${r1(pts[0][1])}`;
+    for (let i = 1; i < pts.length; i++) {
+      d += `L${r1(pts[i][0])},${r1(pts[i - 1][1])}L${r1(pts[i][0])},${r1(pts[i][1])}`;
+    }
+    return d;
+  }
+
   function monotonePath(pts) {
     const n = pts.length;
     if (!n) return '';
@@ -352,13 +390,47 @@
 
       const plot = svg('g', { 'clip-path': `url(#${this.uid}-clip)` });
       const base = y(Math.min(Math.max(0, lo), hi));
+
+      // Optional bottom volume/activity pulse bars (Concept 5 & Hero chart)
+      if (data.bars && data.bars.length === ts.length) {
+        let maxB = 0;
+        for (let i = i0; i < ts.length; i++) if (finite(data.bars[i]) && data.bars[i] > maxB) maxB = data.bars[i];
+        if (maxB > 0) {
+          const bw = Math.max(1.5, Math.min(6, iw / Math.max(24, ts.length - i0) * 0.65));
+          const bCol = data.barColor || CSSV('--accent-2') || '#8b6cff';
+          for (let i = i0; i < ts.length; i++) {
+            const bv = data.bars[i];
+            if (!finite(bv) || bv <= 0) continue;
+            const bh = Math.max(2, (bv / maxB) * ih * 0.22);
+            plot.append(svg('rect', {
+              x: r1(x(ts[i]) - bw / 2), y: r1(pt + ih - bh), width: r1(bw), height: r1(bh), rx: 1,
+              fill: bCol, 'fill-opacity': 0.22,
+            }));
+          }
+        }
+      }
+
+      // Optional vertical laser execution beams + markers (Concepts 1 & 3)
+      if (data.markers && data.markers.length) {
+        for (const m of data.markers) {
+          if (!finite(m.ts) || m.ts < tStart || m.ts > tEnd) continue;
+          const mx = r1(x(m.ts));
+          const mc = m.color || CSSV('--pos') || '#2ef2a0';
+          plot.append(svg('line', {
+            x1: mx, x2: mx, y1: pt + 4, y2: pt + ih,
+            stroke: mc, 'stroke-opacity': 0.28, 'stroke-width': 1.2, 'stroke-dasharray': '2 3',
+          }));
+          plot.append(svg('circle', { cx: mx, cy: pt + 6, r: 2.8, fill: mc }));
+        }
+      }
+
+      const pathFn = opts.step ? stepPath : monotonePath;
       data.series.forEach((s, si) => {
         const runs = [];
         let run = [], prev = -1;
         for (let i = i0; i < ts.length; i++) {
           const v = s.values[i];
           if (finite(v)) {
-            // A long silence (process down) is drawn as a break, not interpolated across.
             if (run.length && ts[i] - ts[prev] > opts.gap) { runs.push(run); run = []; }
             run.push([x(ts[i]), y(v)]);
             prev = i;
@@ -368,14 +440,14 @@
         if (s.area) {
           const gid = `${this.uid}-g${si}`;
           const lg = svg('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
-          lg.append(svg('stop', { offset: 0, 'stop-color': s.color, 'stop-opacity': 0.32 }), svg('stop', { offset: 1, 'stop-color': s.color, 'stop-opacity': 0 }));
+          lg.append(svg('stop', { offset: 0, 'stop-color': s.color, 'stop-opacity': 0.34 }), svg('stop', { offset: 1, 'stop-color': s.color, 'stop-opacity': 0 }));
           defs.append(lg);
           for (const r of runs) if (r.length > 1) {
-            plot.append(svg('path', { d: monotonePath(r) + `L${r1(r[r.length - 1][0])},${r1(base)}L${r1(r[0][0])},${r1(base)}Z`, fill: `url(#${gid})` }));
+            plot.append(svg('path', { d: pathFn(r) + `L${r1(r[r.length - 1][0])},${r1(base)}L${r1(r[0][0])},${r1(base)}Z`, fill: `url(#${gid})` }));
           }
         }
         for (const r of runs) {
-          const attrs = { d: monotonePath(r), fill: 'none', stroke: s.color, 'stroke-width': s.width || 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' };
+          const attrs = { d: pathFn(r), fill: 'none', stroke: s.color, 'stroke-width': s.width || 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' };
           if (s.dash) attrs['stroke-dasharray'] = s.dash;
           if (s.glow) attrs.style = `filter: drop-shadow(0 0 6px ${hexA(s.color, 0.55)})`;
           plot.append(svg('path', attrs));
@@ -383,13 +455,15 @@
         const last = runs.length ? runs[runs.length - 1] : null;
         if (s.glow && last) {
           const [lx, ly] = last[last.length - 1];
-          plot.append(svg('circle', { cx: r1(lx), cy: r1(ly), r: 3.5, fill: s.color, style: `filter: drop-shadow(0 0 6px ${s.color})` }));
+          plot.append(svg('circle', { class: 'pulse-dot', cx: r1(lx), cy: r1(ly), r: 3.5, fill: 'none', stroke: s.color, 'stroke-width': 1.6 }));
+          plot.append(svg('circle', { cx: r1(lx), cy: r1(ly), r: 3.8, fill: s.color, style: `filter: drop-shadow(0 0 7px ${s.color})` }));
         }
       });
       root.append(plot);
 
       this.cross = svg('line', { class: 'cross', x1: 0, x2: 0, y1: pt, y2: pt + ih, visibility: 'hidden' });
-      this.dots = data.series.map(s => svg('circle', { r: 4, fill: '#04050c', stroke: s.color, 'stroke-width': 2, visibility: 'hidden' }));
+      const dotBg = CSSV('--bg') || '#04060f';
+      this.dots = data.series.map(s => svg('circle', { r: 4.2, fill: dotBg, stroke: s.color, 'stroke-width': 2.2, visibility: 'hidden' }));
       root.append(this.cross, ...this.dots);
       this.view = { x, y, i0, ts, pl, iw, W, tStart, tEnd };
       if (this.lastPointer) this.hover(this.lastPointer);
@@ -419,7 +493,7 @@
           dot.setAttribute('cy', r1(v.y(val)));
           dot.setAttribute('visibility', 'visible');
         } else dot.setAttribute('visibility', 'hidden');
-        rows.push(html`<div class="row"><span class="sw" style="background:${s.color}"></span>${s.label}<span style="margin-left:auto;color:#e8ebf7">${(s.fmt || this.opts.yFmt)(val)}</span></div>`);
+        rows.push(html`<div class="row"><span class="sw" style="background:${s.color}"></span>${s.label}<span style="margin-left:auto;color:var(--text);font-family:var(--mono)">${(s.fmt || this.opts.yFmt)(val)}</span></div>`);
       });
       setHTML(this.tip, html`<b>${hhmmss(v.ts[i])}</b>${rows}`);
       const tw = this.tip.offsetWidth;
@@ -538,10 +612,17 @@
       const span = TAU / n, gap = 0.035;
       ctx.clearRect(0, 0, this.w, this.h);
 
+      const isLight = (SKINS[S.skin] && SKINS[S.skin].scheme === 'light');
+      const sweepHex = (SKINS[S.skin] && SKINS[S.skin].main) || '#2ef2a0';
+      const ringLine = isLight ? 'rgba(15,23,42,0.11)' : 'rgba(255,255,255,0.09)';
+      const borderLine = isLight ? 'rgba(15,23,42,0.16)' : 'rgba(255,255,255,0.12)';
+      const labelFill = isLight ? 'rgba(71,85,105,0.78)' : 'rgba(138,146,180,0.6)';
+      const centerFill = isLight ? 'rgba(15,23,42,0.88)' : 'rgba(232,235,247,0.92)';
+
       let g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-      g.addColorStop(0, 'rgba(46,242,160,0.09)');
-      g.addColorStop(0.3, 'rgba(25,230,212,0.03)');
-      g.addColorStop(1, 'rgba(139,108,255,0.035)');
+      g.addColorStop(0, hexA(sweepHex, isLight ? 0.12 : 0.09));
+      g.addColorStop(0.35, hexA('#19e6d4', isLight ? 0.05 : 0.03));
+      g.addColorStop(1, hexA('#8b6cff', isLight ? 0.05 : 0.035));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, TAU);
@@ -549,19 +630,19 @@
 
       this.sectors.forEach((name, si) => {
         const a0 = -Math.PI / 2 + si * span, a1 = a0 + span, col = strat(name).color;
-        ctx.fillStyle = hexA(col, 0.035);
+        ctx.fillStyle = hexA(col, isLight ? 0.06 : 0.035);
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.arc(cx, cy, R, a0 + gap, a1 - gap);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        ctx.strokeStyle = ringLine;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(a0) * r0, cy + Math.sin(a0) * r0);
         ctx.lineTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R);
         ctx.stroke();
-        ctx.strokeStyle = hexA(col, 0.6);
+        ctx.strokeStyle = hexA(col, 0.7);
         ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -576,15 +657,15 @@
       ctx.textBaseline = 'alphabetic';
       for (const [e, label] of RINGS) {
         const rr = radiusFrac(e, r0 / R) * R;
-        ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+        ctx.strokeStyle = ringLine;
         ctx.beginPath();
         ctx.arc(cx, cy, rr, 0, TAU);
         ctx.stroke();
-        ctx.fillStyle = 'rgba(138,146,180,0.55)';
+        ctx.fillStyle = labelFill;
         ctx.fillText(label, cx + 4, cy - rr - 3);
       }
       ctx.setLineDash([]);
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.strokeStyle = borderLine;
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, TAU);
       ctx.stroke();
@@ -593,30 +674,21 @@
       if (ctx.createConicGradient) {
         const cg = ctx.createConicGradient(sweep - W, cx, cy);
         const f = W / TAU;
-        cg.addColorStop(0, 'rgba(46,242,160,0)');
-        cg.addColorStop(f * 0.999, 'rgba(46,242,160,0.2)');
-        cg.addColorStop(f, 'rgba(46,242,160,0)');
-        cg.addColorStop(1, 'rgba(46,242,160,0)');
+        cg.addColorStop(0, hexA(sweepHex, 0));
+        cg.addColorStop(f * 0.999, hexA(sweepHex, isLight ? 0.24 : 0.2));
+        cg.addColorStop(f, hexA(sweepHex, 0));
+        cg.addColorStop(1, hexA(sweepHex, 0));
         ctx.fillStyle = cg;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.arc(cx, cy, R, sweep - W, sweep);
         ctx.closePath();
         ctx.fill();
-      } else {
-        for (let k = 0; k < 14; k++) {
-          ctx.fillStyle = `rgba(46,242,160,${0.17 * (1 - k / 14)})`;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy);
-          ctx.arc(cx, cy, R, sweep - (W * (k + 1)) / 14, sweep - (W * k) / 14);
-          ctx.closePath();
-          ctx.fill();
-        }
       }
       ctx.save();
-      ctx.strokeStyle = 'rgba(46,242,160,0.8)';
+      ctx.strokeStyle = hexA(sweepHex, 0.85);
       ctx.lineWidth = 1.5;
-      ctx.shadowColor = '#2ef2a0';
+      ctx.shadowColor = sweepHex;
       ctx.shadowBlur = 12;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -637,14 +709,14 @@
 
       const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
       g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r0 * (1.7 + 0.25 * pulse));
-      g.addColorStop(0, 'rgba(46,242,160,0.5)');
-      g.addColorStop(0.55, 'rgba(46,242,160,0.13)');
-      g.addColorStop(1, 'rgba(46,242,160,0)');
+      g.addColorStop(0, hexA(sweepHex, 0.45));
+      g.addColorStop(0.55, hexA(sweepHex, 0.13));
+      g.addColorStop(1, hexA(sweepHex, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(cx, cy, r0 * 2, 0, TAU);
       ctx.fill();
-      ctx.strokeStyle = `rgba(46,242,160,${0.45 + 0.3 * pulse})`;
+      ctx.strokeStyle = hexA(sweepHex, 0.45 + 0.3 * pulse);
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(cx, cy, r0, 0, TAU);
@@ -693,11 +765,11 @@
       ctx.font = `700 11px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(232,235,247,0.9)';
+      ctx.fillStyle = centerFill;
       ctx.fillText('套利', cx, cy);
       if (this.loading) {
         ctx.font = `500 12px ${FONT}`;
-        ctx.fillStyle = 'rgba(138,146,180,0.9)';
+        ctx.fillStyle = labelFill;
         ctx.fillText('正在載入全市場訂單簿…', cx, cy + r0 + 22);
       }
       this.pick();
@@ -745,26 +817,190 @@
     }
   }
 
-  // ------------------------------------------------------------------ state
+  // ------------------------------------------------------------------ 3D Orbital Oracle Globe
+
+  const AIRPORT_NODES = [
+    [40.64, -73.78, 'KJFK'], [33.94, -118.4, 'KLAX'], [41.97, -87.9, 'KORD'], [25.79, -80.29, 'KMIA'],
+    [47.45, -122.31, 'KSEA'], [39.86, -104.67, 'KDEN'], [30.19, -97.67, 'KAUS'], [29.99, -95.34, 'KIAH'],
+    [51.5, 0.05, 'EGLC'], [48.86, 2.35, 'LFPG'], [52.36, 13.5, 'EDDB'], [60.32, 24.96, 'EFHK'],
+    [40.47, -3.56, 'LEMD'], [41.8, 12.24, 'LIRF'], [32.01, 34.89, 'LLBG'], [25.25, 55.36, 'OMDB'],
+    [22.31, 113.91, 'VHHH'], [35.55, 139.78, 'RJTT'], [37.46, 126.44, 'RKSI'], [1.36, 103.99, 'WSSS'],
+    [25.08, 121.23, 'RCTP'], [-33.95, 151.18, 'YSSY'], [-23.43, -46.47, 'SBGR'], [-36.99, 174.79, 'NZAA'],
+  ];
+
+  class OrbitalGlobe {
+    constructor(canvas) {
+      this.c = canvas;
+      if (!canvas) return;
+      this.ctx = canvas.getContext('2d');
+      this.rot = 0.6;
+      this.drag = null;
+      this.hotIcaos = new Set();
+      this.resize();
+      new ResizeObserver(() => this.resize()).observe(canvas);
+      canvas.addEventListener('pointerdown', e => { this.drag = [e.clientX, this.rot]; canvas.setPointerCapture(e.pointerId); });
+      canvas.addEventListener('pointermove', e => { if (this.drag) this.rot = this.drag[1] + (e.clientX - this.drag[0]) * 0.012; });
+      canvas.addEventListener('pointerup', () => { this.drag = null; });
+      requestAnimationFrame(t => this.frame(t));
+    }
+    resize() {
+      if (!this.c) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = this.c.clientWidth || 186, h = this.c.clientHeight || 186;
+      this.w = w; this.h = h;
+      this.c.width = Math.round(w * dpr);
+      this.c.height = Math.round(h * dpr);
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    frame(tNow) {
+      if (!this.c) return;
+      requestAnimationFrame(t => this.frame(t));
+      if (document.hidden || !this.w) return;
+      if (!this.drag && !REDUCED) this.rot += 0.0045;
+      const ctx = this.ctx, cx = this.w / 2, cy = this.h / 2, R = Math.min(cx, cy) - 12;
+      const sk = SKINS[S.skin] || SKINS.spatial;
+      const isLight = sk.scheme === 'light';
+      const col = sk.main, col2 = sk.real;
+      ctx.clearRect(0, 0, this.w, this.h);
+
+      const grd = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R);
+      grd.addColorStop(0, hexA(col2, isLight ? 0.18 : 0.16));
+      grd.addColorStop(1, hexA(col, isLight ? 0.04 : 0.02));
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+
+      ctx.strokeStyle = isLight ? 'rgba(15,23,42,0.14)' : 'rgba(255,255,255,0.13)';
+      ctx.lineWidth = 1;
+      for (const lat of [-45, -15, 15, 45]) {
+        const rad = (lat * Math.PI) / 180;
+        const yy = cy - Math.sin(rad) * R * 0.92;
+        const rx = Math.cos(rad) * R;
+        ctx.beginPath(); ctx.ellipse(cx, yy, rx, rx * 0.18, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (let m = 0; m < 6; m++) {
+        const a = this.rot + (m * Math.PI) / 6;
+        ctx.beginPath(); ctx.ellipse(cx, cy, Math.abs(Math.sin(a)) * R, R, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.strokeStyle = hexA(col, 0.55);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+      // Orbiting satellite ring
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-0.34);
+      ctx.strokeStyle = hexA(col2, 0.45);
+      ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.ellipse(0, 0, R + 8, (R + 8) * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+      const satA = (tNow / 950) % (Math.PI * 2);
+      ctx.fillStyle = col2;
+      ctx.beginPath(); ctx.arc(Math.cos(satA) * (R + 8), Math.sin(satA) * (R + 8) * 0.3, 2.8, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      const tilt = 0.28;
+      for (const [lat, lon, icao] of AIRPORT_NODES) {
+        const phi = (lat * Math.PI) / 180;
+        const lam = (lon * Math.PI) / 180 + this.rot;
+        const x3 = Math.cos(phi) * Math.sin(lam);
+        const y3 = Math.sin(phi) * Math.cos(tilt) - Math.cos(phi) * Math.cos(lam) * Math.sin(tilt);
+        const z3 = Math.sin(phi) * Math.sin(tilt) + Math.cos(phi) * Math.cos(lam) * Math.cos(tilt);
+        if (z3 < -0.05) continue;
+        const px = cx + x3 * R, py = cy - y3 * R;
+        const hot = this.hotIcaos.has(icao);
+        ctx.fillStyle = hot ? col : col2;
+        ctx.globalAlpha = 0.35 + 0.65 * Math.max(0, z3);
+        ctx.beginPath(); ctx.arc(px, py, hot ? 3.2 : 2.1, 0, Math.PI * 2); ctx.fill();
+        if (hot && z3 > 0.25) {
+          ctx.font = `700 8.5px ${MONO}`;
+          ctx.fillStyle = isLight ? '#0f172a' : '#ffffff';
+          ctx.fillText(icao, px + 5, py + 3);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ------------------------------------------------------------------ state & skin manager
 
   const S = {
     meta: {}, tick: null, series: null, ranking: null, opps: [], execs: [], range: 86400,
     nearTab: ORDER[0], logFilter: 'all', sigs: {}, mode: null, phase: null, connected: false,
+    skin: 'spatial', chosenSkin: 'spatial', autoDaylight: false, mobileView: 'overview',
   };
   const FEED_MAX = 60;
   const LOG_MAX = 500;
+  let chartsQueued = false;
 
   const pnlChart = new LineChart($('#pnl-chart'), {
-    yFmt: v => usd(v), minSpan: 1, range: S.range, empty: '累積數據中…（每 10 秒取樣）',
+    yFmt: v => usd(v), minSpan: 0.5, range: S.range, empty: '累積數據中…（每 10 秒取樣）',
   });
   const tpChart = new LineChart($('#tp-chart'), {
     pad: [8, 12, 22, 44], yFmt: v => (finite(v) ? (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : nf0.format(v)) : '—'),
     minSpan: 10, nonneg: true, empty: '累積數據中…',
   });
   const radar = new Radar($('#radar'), $('#radar-tip'));
+  const globe = new OrbitalGlobe($('#oracle-globe'));
 
-  setHTML($('#pnl-legend'), html`<span><i style="background:#2ef2a0"></i>累計利潤（含已鎖定）</span><span><i style="background:#19e6d4"></i>已實現</span>`);
-  setHTML($('#tp-legend'), html`<span><i style="background:#19e6d4"></i>WebSocket 訊息／秒</span><span><i style="background:#8b6cff"></i>策略評估／秒</span>`);
+  function renderSkinCards() {
+    const box = $('#skin-cards');
+    if (!box) return;
+    setHTML(box, SKIN_ORDER.map(id => {
+      const sk = SKINS[id];
+      const pathD = sk.step ? 'M2,28 L24,28 L24,18 L52,18 L52,11 L82,11 L82,4 L108,4' : 'M2,28 C25,26 35,16 56,15 C78,14 88,5 108,4';
+      return html`<button type="button" class="skin-card${S.chosenSkin === id ? ' on' : ''}" data-pick-skin="${id}">
+        <div class="skin-swatch" style="background:${sk.swatchBg}">
+          <span class="skin-key-num">${sk.key}</span>
+          <svg viewBox="0 0 110 32" preserveAspectRatio="none">
+            <path d="${pathD}" fill="none" stroke="${sk.main}" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M2,30 C32,28 65,22 108,16" fill="none" stroke="${sk.real}" stroke-width="1.5" stroke-dasharray="3 3"/>
+          </svg>
+        </div>
+        <div>
+          <b>${sk.key}. ${sk.name}</b>
+          <small>${sk.sub}</small>
+        </div>
+      </button>`;
+    }));
+  }
+
+  function effectiveSkinId(chosen) {
+    if (S.autoDaylight) {
+      const hr = new Date().getHours();
+      if (hr >= 7 && hr < 18) return 'titanium';
+    }
+    return SKINS[chosen] ? chosen : 'spatial';
+  }
+
+  function applySkin(chosen, persistServer = false) {
+    if (!SKINS[chosen]) chosen = 'spatial';
+    S.chosenSkin = chosen;
+    const active = effectiveSkinId(chosen);
+    S.skin = active;
+    const sk = SKINS[active];
+    document.documentElement.setAttribute('data-skin', active);
+    document.documentElement.style.colorScheme = sk.scheme;
+    const mt = $('#meta-theme-color');
+    if (mt) mt.setAttribute('content', sk.bg);
+    setText($('#cur-skin-short'), sk.short);
+    pnlChart.opts.step = !!sk.step;
+    setHTML($('#pnl-legend'), html`<span><i style="background:${sk.main}"></i>累計利潤（含已鎖定）</span><span><i style="background:${sk.real}"></i>已實現淨利</span>`);
+    setHTML($('#tp-legend'), html`<span><i style="background:${sk.real}"></i>WebSocket 訊息／秒</span><span><i style="background:${sk.main}"></i>策略評估／秒</span>`);
+    renderSkinCards();
+    drawCharts();
+    try { localStorage.setItem('polyarb_skin', chosen); } catch (_) {}
+    if (persistServer) {
+      post('/api/control', { action: 'set_skin', skin: chosen }).catch(() => {});
+    }
+  }
+
+  try {
+    S.autoDaylight = localStorage.getItem('polyarb_auto_day') === '1';
+    const ad = $('#auto-daylight');
+    if (ad) ad.checked = S.autoDaylight;
+    applySkin(localStorage.getItem('polyarb_skin') || 'spatial', false);
+  } catch (_) {
+    applySkin('spatial', false);
+  }
 
   // ------------------------------------------------------------------ static scaffolding
 
@@ -863,7 +1099,17 @@
 
   // ------------------------------------------------------------------ charts
 
-  let chartsQueued = false;
+  function renderMiniSpark(id, values, color) {
+    const el = $(id);
+    if (!el) return;
+    const clean = (values || []).filter(finite).slice(-32);
+    if (clean.length < 2) { el.innerHTML = ''; return; }
+    let lo = Math.min(...clean), hi = Math.max(...clean);
+    if (hi - lo < 1e-6) { lo -= 0.5; hi += 0.5; }
+    const pts = clean.map((v, i) => [(i / (clean.length - 1)) * 86 + 1, 20 - ((v - lo) / (hi - lo)) * 18]);
+    el.innerHTML = `<path d="${monotonePath(pts)}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round"/>`;
+  }
+
   function drawCharts() {
     if (chartsQueued) return;
     chartsQueued = true;
@@ -871,21 +1117,40 @@
       chartsQueued = false;
       const s = S.series;
       if (!s || !s.t) return;
+      const sk = SKINS[S.skin] || SKINS.spatial;
       const total = s.t.map((_, i) => (finite(s.pnl[i]) ? s.pnl[i] + (finite(s.locked[i]) ? s.locked[i] : 0) : null));
+      const markers = (S.execs || [])
+        .filter(x => x.sent && finite(x.ts))
+        .slice(-24)
+        .map(x => ({ ts: x.ts, color: x.complete ? sk.main : '#ffc857' }));
+
+      const validTotal = total.filter(finite);
+      if (validTotal.length >= 2) {
+        const hi = Math.max(...validTotal), lo = Math.min(...validTotal);
+        setText($('#pnl-hi-lo'), `區間高 ${usd(hi, true)} · 低 ${usd(lo, true)}`);
+      }
+
       pnlChart.range = S.range;
       pnlChart.set({
         t: s.t,
+        bars: s.opps || null,
+        barColor: sk.real,
+        markers,
         series: [
-          { label: '累計利潤', color: '#2ef2a0', values: total, area: true, glow: true, width: 2.4 },
-          { label: '已實現', color: '#19e6d4', values: s.pnl, dash: '4 4', width: 1.6 },
+          { label: '累計利潤', color: sk.main, values: total, area: true, glow: true, width: 2.5 },
+          { label: '已實現淨利', color: sk.real, values: s.pnl, dash: '4 4', width: 1.7 },
         ],
       });
+      renderMiniSpark('#spark-realized', s.pnl, sk.real);
+      renderMiniSpark('#spark-today', s.today, sk.main);
+      renderMiniSpark('#spark-locked', s.locked, '#ffc857');
+
       tpChart.range = 3 * 3600;
       tpChart.set({
         t: s.t,
         series: [
-          { label: 'WS 訊息／秒', color: '#19e6d4', values: s.ws, area: true },
-          { label: '評估／秒', color: '#8b6cff', values: s.evals },
+          { label: 'WS 訊息／秒', color: sk.real, values: s.ws, area: true },
+          { label: '評估／秒', color: sk.main, values: s.evals },
         ],
       });
     });
@@ -1049,6 +1314,8 @@
     const hero = $('#pnl-total');
     tween(hero, total, v => usd(v, true), 1100);
     hero.classList.toggle('neg', total < -0.005);
+    const topPill = $('#top-pnl-pill');
+    if (topPill) setText(topPill, usd(total, true));
     tween($('#pnl-realized'), k.pnl_total, v => usd(v, true));
     tween($('#pnl-today'), k.pnl_today, v => usd(v, true));
     tween($('#pnl-locked'), k.locked_profit, v => usd(v, true));
@@ -1058,6 +1325,98 @@
     $('#pnl-today').className = k.pnl_today < -0.005 ? 'neg' : '';
     setText($('#pnl-hint'), (t.mode === 'live' ? '實盤' : '紙盤模擬') + '・已實現 + 已鎖定（結算後入賬）');
     document.title = `${usd(total, true)} · POLYARB ${t.mode === 'live' ? '實盤' : '紙盤'}`;
+
+    // Capital Allocation Segmented Bar (Concept 4 & Concept 2 pool breakdown)
+    const avail = Math.max(0, k.available || 0);
+    const resv = Math.max(0, k.reserved_usd || 0);
+    const hold = Math.max(0, k.hold_exposure || 0);
+    const sumCap = Math.max(1e-6, avail + resv + hold);
+    const sk = SKINS[S.skin] || SKINS.spatial;
+    setHTML($('#cap-bar'), html`
+      <i style="width:${((avail / sumCap) * 100).toFixed(1)}%;background:${sk.main}"></i>
+      <i style="width:${((resv / sumCap) * 100).toFixed(1)}%;background:${sk.real}"></i>
+      <i style="width:${((hold / sumCap) * 100).toFixed(1)}%;background:#ffc857"></i>`);
+    setHTML($('#cap-legend'), html`
+      <span><em style="background:${sk.main}"></em>立即可用 <b>${usd(avail)}</b></span>
+      <span><em style="background:${sk.real}"></em>池化掛單預留 <b>${usd(resv)}</b></span>
+      <span><em style="background:#ffc857"></em>持倉鎖定 <b>${usd(hold)}</b></span>`);
+  }
+
+  function renderMakerMatrix(t) {
+    const box = $('#maker-matrix');
+    if (!box) return;
+    const mk = (t.engine && t.engine.maker) || {};
+    const quotes = mk.quotes || [];
+    const maxSlots = Math.max(6, quotes.length);
+    const sig = JSON.stringify([mk.enabled, mk.open_quotes, mk.reserved_usd, mk.rebates_est_usd, quotes]);
+    if (S.sigs.makerMatrix === sig) return;
+    S.sigs.makerMatrix = sig;
+
+    const pill = $('#maker-pill');
+    if (pill) {
+      setText(pill, mk.enabled ? `${quotes.length} 掛單中 · 預留 ${usd(mk.reserved_usd || 0)}` : '已關閉');
+      pill.className = 'pill ' + (quotes.length ? 'ok' : '');
+    }
+    const cancelBtn = $('#btn-cancel-quotes');
+    if (cancelBtn) cancelBtn.disabled = !quotes.length;
+
+    const slots = [];
+    for (let i = 0; i < Math.min(maxSlots, 6); i++) {
+      const q = quotes[i];
+      const tag = `ARB-0${i + 1}`;
+      if (q) {
+        const ttlPct = Math.max(6, Math.min(100, 100 - ((q.age_s || 0) / 300) * 100));
+        slots.push(html`<div class="m-slot active">
+          <div class="m-slot-top"><span class="m-slot-id">${tag}</span>${chip(q.strategy)}</div>
+          <div class="m-slot-title" title="${q.title}">${q.title}</div>
+          <div class="m-slot-quote" title="${q.lead}">BUY ${q.lead} @ ${Number(q.price).toFixed(3)} × ${q.shares}</div>
+          <div class="m-slot-foot">
+            <span>預期 <b>+${usd(q.profit)}</b> (+${q.edge_pct}%)</span>
+            <span>${Math.round(q.age_s || 0)}s</span>
+          </div>
+          <div class="m-ttl-bar"><i style="width:${ttlPct.toFixed(0)}%"></i></div>
+        </div>`);
+      } else {
+        slots.push(html`<div class="m-slot idle">
+          <span class="m-slot-id">${tag} · STANDBY</span>
+          <small class="muted">${mk.enabled ? '毫秒級掃描最優掛單價差中…' : '零費掛單已關閉'}</small>
+        </div>`);
+      }
+    }
+    setHTML(box, slots);
+  }
+
+  function renderOracles(t) {
+    const box = $('#oracle-cards');
+    if (!box) return;
+    const mt = (t.engine && t.engine.metar) || {};
+    const bn = (t.engine && t.engine.binance) || {};
+    const sig = JSON.stringify([mt, bn]);
+    if (S.sigs.oracles === sig) return;
+    S.sigs.oracles = sig;
+
+    const samples = mt.sample || [];
+    if (globe) {
+      globe.hotIcaos = new Set(samples.map(s => s.icao));
+    }
+    const latest = bn.latest || {};
+    const coinEntries = Object.entries(latest).slice(0, 6);
+
+    setHTML($('#oracle-pill'), html`${num(mt.stations || 0)} 機場 · ${num(bn.symbols || 0)} 幣種實時`);
+    setHTML(box, html`
+      <div class="ora-box">
+        <div class="ora-head">🌤️ NOAA AWC METAR 航空氣象源 <span>${num(mt.polls || 0)} 輪 · ${num(mt.days_tracked || 0)} 站日</span></div>
+        ${samples.length
+          ? html`<div class="ora-grid">${samples.slice(0, 6).map(s => html`<div><b>${s.icao}</b> 高 ${s.hi_c}°C / 低 ${s.lo_c}°C${s.fin ? ' ✓' : ''}</div>`)}</div>`
+          : html`<div class="muted" style="font-size:11.5px">正在同步全球 48 個國際機場例行 METAR 實測報文…</div>`}
+      </div>
+      <div class="ora-box">
+        <div class="ora-head">⚡ Binance Spot 已收盤 K 線源 <span>${num(bn.hourly_closes || 0)} 根不可變 K 線</span></div>
+        ${coinEntries.length
+          ? html`<div class="coin-tags">${coinEntries.map(([sym, px]) => html`<span class="coin-tag">${sym.replace('USDT', '')} <b>$${Number(px).toLocaleString('en-US', { maximumFractionDigits: px >= 100 ? 1 : 4 })}</b></span>`)}</div>`
+          : html`<div class="muted" style="font-size:11.5px">嚴格只採信已收盤 1h / 1m 現貨 K 線（整點 0.5s 衝刺輪詢）</div>`}
+      </div>
+    `);
   }
 
   function renderKpis(t) {
@@ -1236,6 +1595,10 @@
     S.series = s.series || null;
     S.ranking = s.ranking || null;
     S.settings = s.settings || S.settings || null;
+    if (S.settings && S.settings.preferred_skin && SKINS[S.settings.preferred_skin] && S.settings.preferred_skin !== S.chosenSkin) {
+      applySkin(S.settings.preferred_skin, false);
+    }
+    if (S.meta.version) setText($('#ver-pill'), 'v' + S.meta.version);
     S.opps = s.opportunities || [];
     S.execs = s.executions || [];
     renderFeed($('#opp-feed'), S.opps, oppItem, EMPTY_OPPS);
@@ -1254,6 +1617,8 @@
     renderBadges(t);
     renderHero(t);
     renderKpis(t);
+    renderMakerMatrix(t);
+    renderOracles(t);
     renderEngine(t);
     renderRisk(t);
     renderHolds(t);
@@ -1343,6 +1708,13 @@
       if (d.label) toast(`設定已同步（${d.source === 'telegram' ? 'Telegram' : '網頁'}）：${d.label} = ${d.formatted}`, 'good');
     });
     on('mode_switch', d => toast(`模式已熱切換至：${d.mode === 'live' ? '實盤 LIVE' : '紙盤 PAPER'}`, 'good'));
+    on('skin', d => {
+      if (d && d.skin && SKINS[d.skin]) {
+        applySkin(d.skin, false);
+        if (d.source === 'telegram') toast(`外觀已由 Telegram 同步為：${d.label || d.skin}`, 'good');
+      }
+    });
+    on('early_harvest', d => toast(`中間帶雙重派彩收割：${d.title}・淨利 ${usd(d.pnl, true)}`, 'good'));
     on('universe', u => toast(`市場已刷新：${num(u.events)} 個事件・${num(u.tokens)} 個訂單簿`));
   }
 
@@ -1420,6 +1792,78 @@
 
   $('#btn-pause').addEventListener('click', togglePause);
   $('#btn-pause-2').addEventListener('click', togglePause);
+
+  // 5-Skin Studio Drawer + Keyboard 1..5 + Auto-Daylight + Mobile Dock
+  const skinDrawer = $('#skin-drawer');
+  if ($('#btn-skin') && skinDrawer) {
+    $('#btn-skin').addEventListener('click', () => {
+      renderSkinCards();
+      skinDrawer.classList.toggle('hidden');
+    });
+    $('#skin-close').addEventListener('click', () => skinDrawer.classList.add('hidden'));
+    skinDrawer.addEventListener('click', e => {
+      if (e.target === skinDrawer) skinDrawer.classList.add('hidden');
+      const card = e.target.closest('[data-pick-skin]');
+      if (card) {
+        const picked = card.dataset.pickSkin;
+        applySkin(picked, true);
+        toast(`已套用主題：${SKINS[picked].name}`, 'good');
+      }
+    });
+  }
+  const autoDayEl = $('#auto-daylight');
+  if (autoDayEl) {
+    autoDayEl.addEventListener('change', () => {
+      S.autoDaylight = autoDayEl.checked;
+      try { localStorage.setItem('polyarb_auto_day', S.autoDaylight ? '1' : '0'); } catch (_) {}
+      applySkin(S.chosenSkin, false);
+      toast(S.autoDaylight ? '已開啟日間自動極晝模式' : '已關閉日間自動極晝模式');
+    });
+  }
+  document.addEventListener('keydown', e => {
+    if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+    if (!$('#modal').classList.contains('hidden')) return;
+    if (e.key >= '1' && e.key <= '5' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const id = SKIN_ORDER[Number(e.key) - 1];
+      if (id) {
+        applySkin(id, true);
+        toast(`快捷鍵 [${e.key}] 已切換：${SKINS[id].name}`, 'good');
+      }
+    } else if (e.key === 'Escape' && skinDrawer && !skinDrawer.classList.contains('hidden')) {
+      skinDrawer.classList.add('hidden');
+    }
+  });
+
+  const mobileDock = $('#mobile-dock');
+  if (mobileDock) {
+    mobileDock.addEventListener('click', e => {
+      const b = e.target.closest('button[data-mv]');
+      if (!b) return;
+      const mv = b.dataset.mv;
+      S.mobileView = mv;
+      document.documentElement.setAttribute('data-view', mv);
+      $$('#mobile-dock button').forEach(x => x.classList.toggle('on', x === b));
+      window.scrollTo({ top: 0, behavior: REDUCED ? 'auto' : 'smooth' });
+      setTimeout(() => { drawCharts(); radar.resize(); if (globe) globe.resize(); }, 40);
+    });
+  }
+
+  if ($('#btn-cancel-quotes')) {
+    $('#btn-cancel-quotes').addEventListener('click', async () => {
+      try {
+        const res = await control('cancel_quotes');
+        toast(`已撤銷 ${res.canceled || 0} 張零費掛單`, 'good');
+      } catch (err) { toast('撤單失敗：' + err.message, 'bad'); }
+    });
+  }
+  if ($('#btn-sync-holds')) {
+    $('#btn-sync-holds').addEventListener('click', async () => {
+      try {
+        await control('trigger_lifecycle');
+        toast('已完成鏈上贖回、對帳與中間帶收割檢查', 'good');
+      } catch (err) { toast('檢查失敗：' + err.message, 'bad'); }
+    });
+  }
 
   $('#btn-reset').addEventListener('click', async () => {
     const reason = (S.tick && S.tick.risk && S.tick.risk.kill_reason) || '';

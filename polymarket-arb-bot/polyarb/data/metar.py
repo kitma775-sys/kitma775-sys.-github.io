@@ -368,10 +368,20 @@ class MetarFeed:
             await self._http.aclose()
 
     def stats(self) -> dict:
+        recent = sorted(self._summaries.values(), key=lambda s: -s.last_obs_ts)[:6]
         return {
             "stations": len(self.stations),
             "days_tracked": len(self._summaries),
             "polls": self.polls,
             "updates": self.updates,
             "last_poll_at": round(self.last_poll_at, 1),
+            "sample": [
+                {
+                    "icao": s.icao,
+                    "hi_c": s.max_c_whole,
+                    "lo_c": s.min_c_whole,
+                    "fin": s.day_finished,
+                }
+                for s in recent
+            ],
         }

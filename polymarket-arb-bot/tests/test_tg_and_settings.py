@@ -231,3 +231,19 @@ async def test_telegram_and_web_share_pause_settings_and_mode_switch(tmp_path):
         assert r_rst.status == 200
         assert settings.overrides == {}
         assert cfg.convert.enabled is True
+
+        # 6. 5-Skin Studio bidirectional sync between Web Dashboard and Telegram (/skin)!
+        for skin_id in ("spatial", "obsidian", "cyber", "titanium", "orbital"):
+            r_sk = await client.post("/api/control", json={"action": "set_skin", "skin": skin_id})
+            assert r_sk.status == 200 and (await r_sk.json())["skin"] == skin_id
+            assert settings.preferred_skin == skin_id
+
+        assert (await client.post("/api/control", json={"action": "set_skin", "skin": "unknown"})).status == 400
+
+        await tg.handle_update({
+            "update_id": 15,
+            "callback_query": {"id": "cq5", "from": {"id": 777888}, "message": {"message_id": 5, "chat": {"id": 777888}}, "data": "sk:obsidian"},
+        })
+        assert settings.preferred_skin == "obsidian"
+        reloaded2 = SettingsManager(Config(), tmp_path / "runtime_settings.json")
+        assert reloaded2.preferred_skin == "obsidian"

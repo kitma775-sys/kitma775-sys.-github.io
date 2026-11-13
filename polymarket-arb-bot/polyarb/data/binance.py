@@ -292,6 +292,11 @@ class BinanceFeed:
             await self._http.aclose()
 
     def stats(self) -> dict:
+        latest: dict[str, float] = {}
+        for sym in self.symbols:
+            keys = [k for s, k in self._hourly_closes if s == sym]
+            if keys:
+                latest[sym] = self._hourly_closes[(sym, max(keys))]
         return {
             "symbols": len(self.symbols),
             "hourly_closes": len(self._hourly_closes),
@@ -299,4 +304,5 @@ class BinanceFeed:
             "polls": self.polls,
             "updates": self.updates,
             "last_poll_at": round(self.last_poll_at, 1),
+            "latest": latest,
         }
