@@ -184,6 +184,18 @@ class NegRiskConvert:
         entries.sort(key=lambda e: -e[0])
         top_entries = entries[: cfg.max_legs]
 
+        # Fast mathematical upper-bound pruning: deeper ask levels are never cheaper than top-of-book,
+        # and surplus YES credit per market is strictly less than top-of-book NO gain.
+        top_ids = {m.id for _, m, _ in top_entries}
+        rem_surplus = (
+            _unit_surplus_ceiling([m for m in all_markets if m.id not in top_ids], books, cfg.surplus_haircut)
+            if cfg.surplus_haircut > 0.0
+            else 0.0
+        )
+        max_possible_unit_edge = sum(g for g, _, _ in top_entries) + rem_surplus - 1.0
+        if max_possible_unit_edge < cfg.min_unit_edge - EPS:
+            return []
+
         # best = (chosen_markets, BasketFill, verified_payout_floor)
         best: tuple[list[Market], BasketFill, float] | None = None
 

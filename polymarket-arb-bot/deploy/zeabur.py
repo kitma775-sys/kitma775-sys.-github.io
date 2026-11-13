@@ -229,7 +229,7 @@ def main() -> int:
     where.add_argument("--server", help="Zeabur dedicated server id")
     ap.add_argument("--project", default="polyarb")
     ap.add_argument("--service", default="polyarb")
-    ap.add_argument("--cpu", type=int, default=800, help="CPU limit in millicores (default 800)")
+    ap.add_argument("--cpu", type=int, default=2000, help="CPU limit in millicores (default 2000)")
     ap.add_argument("--memory", type=int, default=1536, help="memory limit in MiB (default 1536)")
     ap.add_argument("--env", action="append", default=[], metavar="KEY=VALUE", help="set/overwrite a variable (repeatable)")
     ap.add_argument("--no-upload", action="store_true", help="only (re)configure; skip the code upload")

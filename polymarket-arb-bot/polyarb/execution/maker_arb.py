@@ -169,6 +169,7 @@ class MakerArbManager:
         self.active: dict[str, ActiveQuote] = {}
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
+        self._last_scan_at: float = 0.0
         self.quotes_placed = 0
         self.quotes_canceled = 0
         self.quotes_filled = 0
@@ -354,13 +355,15 @@ class MakerArbManager:
             return max(1, mcfg.max_quotes_per_event)
         return 1
 
-    def find_candidates(self, now: float | None = None) -> list[MakerQuotePlan]:
-        now = now or time.time()
+    def _scan_target_subset(
+        self, targets: Sequence[Target], now: float
+    ) -> tuple[list[MakerQuotePlan], list[Target]]:
         mcfg = self.cfg.maker
         plans_by_event: dict[str, list[MakerQuotePlan]] = {}
+        matched_targets: list[Target] = []
         now_dt = utc(now)
 
-        for target in self.targets:
+        for target in targets:
             ev = target.event
             if ev.id in self.risk.inflight_events:
                 continue
@@ -394,6 +397,7 @@ class MakerArbManager:
                     new_plans = [p]
 
             if new_plans:
+                matched_targets.append(target)
                 plans_by_event.setdefault(ev.id, []).extend(new_plans)
 
         rc = mcfg.rebate_credit_ratio
@@ -417,7 +421,50 @@ class MakerArbManager:
             ),
             reverse=True,
         )
-        return candidates
+        return candidates, matched_targets
+
+    def find_candidates(self, now: float | None = None) -> list[MakerQuotePlan]:
+        cands, _ = self._scan_target_subset(self.targets, now or time.time())
+        return cands
+
+    async def _find_candidates_async(self, now: float, chunk: int = 80) -> tuple[list[MakerQuotePlan], list[Target]]:
+        """Cooperative full-universe scan that yields every ``chunk`` targets so HTTP /healthz stays <10ms."""
+        all_plans: list[MakerQuotePlan] = []
+        shortlist_targets: list[Target] = []
+        targets = self.targets
+        for start in range(0, len(targets), chunk):
+            if start > 0:
+                await asyncio.sleep(0)
+            part_plans, part_targets = self._scan_target_subset(targets[start : start + chunk], now)
+            if part_plans:
+                all_plans.extend(part_plans)
+                shortlist_targets.extend(part_targets)
+
+        rc = self.cfg.maker.rebate_credit_ratio
+        # Deduplicate across multi-target events (e.g. convert + metar on same event)
+        by_ev: dict[str, list[MakerQuotePlan]] = {}
+        for p in all_plans:
+            by_ev.setdefault(p.event_id, []).append(p)
+        merged: list[MakerQuotePlan] = []
+        for ev_id, ev_plans in by_ev.items():
+            by_lead: dict[tuple[str, Outcome], MakerQuotePlan] = {}
+            for p in ev_plans:
+                lk = (p.lead_market.id, p.lead_outcome)
+                if lk not in by_lead or p.effective_profit(rc) > by_lead[lk].effective_profit(rc):
+                    by_lead[lk] = p
+            ranked = sorted(by_lead.values(), key=lambda p: p.effective_profit(rc), reverse=True)
+            multi_ok = any(p.settlement is Settlement.CONVERT or p.strategy in ZERO_LEG_STRATS for p in ranked)
+            existing_n = len(self._active_for_event(ev_id))
+            cap_n = max(0, (max(1, self.cfg.maker.max_quotes_per_event) if multi_ok else 1) - existing_n)
+            merged.extend(ranked[:cap_n])
+        merged.sort(
+            key=lambda p: (
+                p.settlement is Settlement.CONVERT or p.strategy in ZERO_LEG_STRATS,
+                min(p.effective_profit(rc), 1.80) * math.log1p(max(p.volume_24h, 1.0)),
+            ),
+            reverse=True,
+        )
+        return merged, shortlist_targets
 
     def _plan_zero_leg_locks(
         self,
@@ -887,8 +934,15 @@ class MakerArbManager:
             extra_event_ids=[sl.secondary_event.id],
         )
 
-    async def step(self) -> None:
+    def _has_pool_headroom(self) -> bool:
+        """Fast O(1) check: skip scanning 4,800+ targets when pooled reservation is already within $1 of cap."""
+        gross = self._unreserved_gross_cash()
+        cur_res = self._pooled_reserved_for(list(self.active.values()))
+        return (gross - cur_res) >= MIN_ORDER_NOTIONAL - EPS
+
+    async def step(self, scan_candidates: bool = True) -> None:
         now = time.time()
+        before_count = len(self.active)
         for qkey in list(self.active):
             quote = self.active.get(qkey)
             if quote is not None:
@@ -906,9 +960,26 @@ class MakerArbManager:
             self._recompute_reserved()
             self.quotes_canceled += 1
 
-        while len(self.active) < self.cfg.maker.max_open_quotes:
+        # If a quote just filled or repegged, allow immediate replacement if >=0.5s since last scan.
+        freed_slot = len(self.active) < before_count
+        if not scan_candidates and not (freed_slot and now - self._last_scan_at >= 0.5):
+            return
+        if len(self.active) >= self.cfg.maker.max_open_quotes or not self._has_pool_headroom():
+            return
+
+        self._last_scan_at = now
+        candidates, shortlist_targets = await self._find_candidates_async(now)
+        if not candidates or not shortlist_targets:
+            return
+
+        first_iter = True
+        while len(self.active) < self.cfg.maker.max_open_quotes and self._has_pool_headroom():
+            if not first_iter:
+                # Re-size only the tiny shortlist (<=20 targets) against updated pooled headroom!
+                candidates, _ = self._scan_target_subset(shortlist_targets, now)
+            first_iter = False
             placed_one = False
-            for plan in self.find_candidates(now):
+            for plan in candidates:
                 max_per_ev = self._max_quotes_for_strategy(plan.strategy)
                 existing_ev = self._active_for_event(plan.event_id)
                 if len(existing_ev) >= max_per_ev:
@@ -1345,15 +1416,20 @@ class MakerArbManager:
 
     async def _loop(self) -> None:
         while True:
+            timed_out = False
             try:
                 await asyncio.wait_for(self._wake.wait(), timeout=self.cfg.maker.poll_s)
             except asyncio.TimeoutError:
-                pass
+                timed_out = True
             self._wake.clear()
+            do_scan = timed_out or (time.time() - self._last_scan_at >= self.cfg.maker.poll_s)
             try:
-                await self.step()
+                await self.step(scan_candidates=do_scan)
             except Exception as exc:
                 log.warning("maker arb step error: %s", exc)
+            if not timed_out:
+                # Coalesce high-frequency WS bursts on quoted tokens into clean 35ms micro-ticks
+                await asyncio.sleep(0.035)
 
     async def stop(self) -> None:
         if self._task is not None:

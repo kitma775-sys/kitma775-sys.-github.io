@@ -311,7 +311,9 @@ class Engine:
 
         books = await self.clob.get_books(self.universe.tokens, skip=skip)
         changed = 0
-        for token, book in books.items():
+        for idx, (token, book) in enumerate(books.items()):
+            if idx and idx % 350 == 0:
+                await asyncio.sleep(0)
             current = self.store.raw(token)
             if token in ws_tokens and current is not None and current.age() < max_age:
                 continue
@@ -348,6 +350,7 @@ class Engine:
                 yt = str(leg.get("yes_token") or "")
                 if yt:
                     tokens[yt] = None
+        max_ws_tokens = max(1200, self.cfg.engine.ws_max_targets * 3)
         ranked = []
         for t in self.universe.targets:
             edge = self.by_name[t.strategy].top_edge(t, self.store)
@@ -355,6 +358,8 @@ class Engine:
                 ranked.append((edge, t))
         ranked.sort(key=lambda pair: -pair[0])
         for _, t in ranked[: self.cfg.engine.ws_max_targets]:
+            if len(tokens) >= max_ws_tokens:
+                break
             for token in t.tokens:
                 tokens[token] = None
         return list(tokens)
@@ -422,7 +427,10 @@ class Engine:
             self._wake.clear()
             keys, self.dirty = self.dirty, set()
             now = time.time()
-            for key in keys:
+            for idx, key in enumerate(keys):
+                if idx and idx % 60 == 0:
+                    await asyncio.sleep(0)
+                    now = time.time()
                 target = self.targets.get(key)
                 if target is None:
                     continue

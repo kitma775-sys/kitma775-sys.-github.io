@@ -100,8 +100,11 @@ class ClobClient:
         books: dict[str, OrderBook] = {}
 
         async def fetch(chunk: list[str]) -> None:
-            # Parse each batch as it lands: a full sweep decoded at once is several hundred MB of dicts.
-            for raw in await self._post_books(chunk):
+            # Parse each batch as it lands, yielding periodically so HTTP /healthz & WS stay sub-10ms responsive.
+            raw_list = await self._post_books(chunk)
+            await asyncio.sleep(0)
+            parsed_in_slice = 0
+            for raw in raw_list:
                 if not isinstance(raw, dict):
                     continue
                 token = raw.get("asset_id")
@@ -109,6 +112,10 @@ class ClobClient:
                     continue
                 book = OrderBook.from_api(raw)
                 books[book.token_id] = book
+                parsed_in_slice += 1
+                if parsed_in_slice >= 100:
+                    parsed_in_slice = 0
+                    await asyncio.sleep(0)
 
         await asyncio.gather(*(fetch(ids[i:i + BOOKS_BATCH]) for i in range(0, len(ids), BOOKS_BATCH)))
         return books
