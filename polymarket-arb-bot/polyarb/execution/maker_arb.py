@@ -107,6 +107,7 @@ class MakerQuotePlan:
     extra_event_ids: list[str] = field(default_factory=list)
     est_rebate_usd: float = 0.0
     fast_turnover: bool = False
+    ask_gap: float = 0.01
 
     @property
     def lead_cost(self) -> float:
@@ -129,6 +130,20 @@ class MakerQuotePlan:
 
     def effective_edge(self, rebate_credit_ratio: float = 0.0) -> float:
         return self.effective_profit(rebate_credit_ratio) / self.total_cost if self.total_cost > 0 else 0.0
+
+    def velocity_score(self, rebate_credit_ratio: float = 0.0, now_s: float | None = None) -> float:
+        """Expected fill-rate & capital-velocity score: E[PnL/hr] ~ P(fill | ask_gap) * profit * log(vol) / sqrt(hours)."""
+        fill_w = math.exp(-22.0 * max(0.0, self.ask_gap - 0.01))
+        if self.settlement is Settlement.CONVERT:
+            lock_h = 0.10
+        elif self.fast_turnover:
+            lock_h = 0.35
+        elif self.resolves_at is not None and hasattr(self.resolves_at, "timestamp"):
+            cur = time.time() if now_s is None else now_s
+            lock_h = max(0.25, (self.resolves_at.timestamp() - cur) / 3600.0)
+        else:
+            lock_h = 6.0
+        return fill_w * min(self.effective_profit(rebate_credit_ratio), 1.60) * math.log1p(max(self.volume_24h, 1.0)) / math.sqrt(lock_h)
 
 
 @dataclass
@@ -176,6 +191,7 @@ class MakerArbManager:
         self.quotes_canceled = 0
         self.quotes_filled = 0
         self.quotes_repegged = 0
+        self.quotes_preempted = 0
         self.rebates_est_usd = 0.0
 
     def set_strategies(self, strategies: Mapping[str, Any]) -> None:
@@ -243,13 +259,19 @@ class MakerArbManager:
     def _unreserved_gross_cash(self) -> float:
         return self.risk.available() + self.risk.reserved_usd
 
+    def _maker_pool_ceiling(self, settlement: Settlement, fast_turnover: bool = False) -> float:
+        raw_gross = self._unreserved_gross_cash()
+        frac = min(1.0, max(0.1, float(self.cfg.maker.max_reserve_fraction)))
+        ceil_cash = raw_gross * frac
+        if settlement is Settlement.RESOLUTION and self.cfg.risk.liquid_reserve_usd > 0 and not fast_turnover:
+            ceil_cash = min(ceil_cash, max(0.0, raw_gross - self.cfg.risk.liquid_reserve_usd))
+        return max(0.0, ceil_cash)
+
     def _max_shares_by_pool(
         self, lead_price: float, unit_hedge: float, settlement: Settlement, fast_turnover: bool = False
     ) -> float:
-        """Exact closed-form share cap so pooled reservation never exceeds spendable cash."""
-        gross = self._unreserved_gross_cash()
-        if settlement is Settlement.RESOLUTION and self.cfg.risk.liquid_reserve_usd > 0 and not fast_turnover:
-            gross = max(0.0, gross - self.cfg.risk.liquid_reserve_usd)
+        """Exact closed-form share cap so pooled reservation never exceeds maker pool ceiling."""
+        gross = self._maker_pool_ceiling(settlement, fast_turnover=fast_turnover)
         cur_res = self._pooled_reserved_for(list(self.active.values()))
         delta = max(0.0, gross - cur_res)
         if delta <= EPS or lead_price <= 0:
@@ -287,7 +309,8 @@ class MakerArbManager:
         hypothetical = [*self.active.values(), ActiveQuote("_", "_", plan, plan.total_cost, 0.0)]
         new_reserved = self._pooled_reserved_for(hypothetical)
         gross = self._unreserved_gross_cash()
-        if new_reserved > gross + EPS:
+        pool_ceil = self._maker_pool_ceiling(plan.settlement, fast_turnover=plan.fast_turnover)
+        if new_reserved > pool_ceil + EPS:
             return False
         other_leads = sum(q.lead_cost for q in self.active.values())
         if other_leads + plan.total_cost > gross + EPS:
@@ -303,8 +326,6 @@ class MakerArbManager:
             if self.risk.hold_exposure + active_res_cost + plan.total_cost > rcfg.max_hold_exposure_usd + EPS:
                 return False
             if self.risk.event_exposure(plan.event_id) + active_ev_cost + plan.total_cost > rcfg.max_event_exposure_usd + EPS:
-                return False
-            if rcfg.liquid_reserve_usd > 0 and not plan.fast_turnover and new_reserved > gross - rcfg.liquid_reserve_usd + EPS:
                 return False
         return True
 
@@ -425,7 +446,7 @@ class MakerArbManager:
         candidates.sort(
             key=lambda p: (
                 p.settlement is Settlement.CONVERT or p.strategy in ZERO_LEG_STRATS,
-                min(p.effective_profit(rc), 1.80) * math.log1p(max(p.volume_24h, 1.0)),
+                p.velocity_score(rc, now),
             ),
             reverse=True,
         )
@@ -468,7 +489,7 @@ class MakerArbManager:
         merged.sort(
             key=lambda p: (
                 p.settlement is Settlement.CONVERT or p.strategy in ZERO_LEG_STRATS,
-                min(p.effective_profit(rc), 1.80) * math.log1p(max(p.volume_24h, 1.0)),
+                p.velocity_score(rc, now),
             ),
             reverse=True,
         )
@@ -519,7 +540,7 @@ class MakerArbManager:
             best_bid = bids[0].price
             # Decided markets often have NO remaining sellers (asks == []), so implicit ceiling is 1.0!
             best_ask = asks[0].price if asks else 1.0
-            if best_bid < 0.50:
+            if best_bid < mcfg.deterministic_min_bid - EPS:
                 continue
             vol_score = m.volume_24h + ev_vol * 0.1 + bids[0].size * best_bid
             min_vol_req = 10.0 if strategy_name == "maker_crypto_short" else max(50.0, mcfg.min_volume_24h * 0.2)
@@ -561,6 +582,7 @@ class MakerArbManager:
                 volume_24h=vol_score,
                 est_rebate_usd=est_reb,
                 fast_turnover=True,
+                ask_gap=max(0.0, best_ask - our_bid) if asks else 0.01,
             )
             if self._passes_maker_gates(plan, mcfg, min_edge_override=req_edge, min_profit_override=req_profit):
                 plans.append(plan)
@@ -705,7 +727,9 @@ class MakerArbManager:
                 continue
             best_no_ask = no_asks[0].price
             best_no_bid = no_bids[0].price if no_bids else lead_m.tick_size
-            if lead_m.volume_24h < min_lead_vol and (best_no_ask - best_no_bid) > 0.12:
+            if (best_no_ask - best_no_bid) > mcfg.max_lead_spread + EPS:
+                continue
+            if lead_m.volume_24h < min_lead_vol and (best_no_ask - best_no_bid) > 0.04:
                 continue
 
             others = [(g, m, b) for j, (g, m, b) in enumerate(pool) if j != idx]
@@ -787,6 +811,7 @@ class MakerArbManager:
                         surplus_yes=surplus_yes_specs(markets, chosen_ids),
                         est_rebate_usd=est_reb,
                         fast_turnover=True,
+                        ask_gap=max(0.0, best_no_ask - our_no_bid),
                     )
                     if self._passes_maker_gates(plan, mcfg):
                         rc = mcfg.rebate_credit_ratio
@@ -830,7 +855,9 @@ class MakerArbManager:
         for idx, (lead_m, lead_out, asks, bids) in enumerate(books_levels):
             best_ask = asks[0].price
             best_bid = bids[0].price if bids else lead_m.tick_size
-            if lead_m.volume_24h < min_lead_vol and (best_ask - best_bid) > 0.12:
+            if (best_ask - best_bid) > mcfg.max_lead_spread + EPS:
+                continue
+            if lead_m.volume_24h < min_lead_vol and (best_ask - best_bid) > 0.04:
                 continue
             hedge_entries = [entry for j, entry in enumerate(books_levels) if j != idx]
             if not hedge_entries:
@@ -884,6 +911,7 @@ class MakerArbManager:
                 extra_event_ids=list(extra_event_ids or []),
                 est_rebate_usd=est_reb,
                 fast_turnover=fast_turnover,
+                ask_gap=max(0.0, best_ask - our_bid),
             )
             if self._passes_maker_gates(plan, mcfg):
                 rc = mcfg.rebate_credit_ratio
@@ -991,9 +1019,37 @@ class MakerArbManager:
 
     def _has_pool_headroom(self) -> bool:
         """Fast O(1) check: skip scanning 4,800+ targets when pooled reservation is already within $1 of cap."""
-        gross = self._unreserved_gross_cash()
+        gross = self._maker_pool_ceiling(Settlement.CONVERT, fast_turnover=True)
         cur_res = self._pooled_reserved_for(list(self.active.values()))
         return (gross - cur_res) >= MIN_ORDER_NOTIONAL - EPS
+
+    async def preempt_for_taker(self, required_available_usd: float) -> float:
+        """Evict lowest-velocity unfilled resting maker quotes so a guaranteed Taker snipe never starves."""
+        if not self.active or self.risk.available() >= required_available_usd - EPS:
+            return self.risk.available()
+        rc = self.cfg.maker.rebate_credit_ratio
+        now = time.time()
+        ordered = sorted(
+            list(self.active.items()),
+            key=lambda kv: kv[1].plan.velocity_score(rc, now),
+        )
+        for qkey, quote in ordered:
+            if self.risk.available() >= required_available_usd - EPS:
+                break
+            await self.gateway.cancel(quote.order_id)
+            final = await self.gateway.get_order_state(quote.order_id)
+            self.active.pop(qkey, None)
+            is_zero_leg = not quote.plan.hedge_legs
+            if final is not None and final.size_matched >= 0.5:
+                co_fills = await self._collect_sibling_fills(quote.plan.event_id, qkey, cancel_siblings=not is_zero_leg)
+                self._recompute_reserved()
+                await self._hedge_fill(quote, final.size_matched, final.price or quote.plan.lead_price, co_fills=co_fills)
+            else:
+                self._recompute_reserved()
+                self.quotes_canceled += 1
+                self.quotes_preempted += 1
+                log.info("PREEMPTED maker quote on %s to fund instant Taker snipe", quote.plan.title[:40])
+        return self.risk.available()
 
     async def step(self, scan_candidates: bool = True) -> None:
         now = time.time()
@@ -1509,6 +1565,7 @@ class MakerArbManager:
             "filled": self.quotes_filled,
             "canceled": self.quotes_canceled,
             "repegged": self.quotes_repegged,
+            "preempted": self.quotes_preempted,
             "rebates_est_usd": round(self.rebates_est_usd, 3),
             "quotes": [
                 {

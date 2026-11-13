@@ -106,6 +106,9 @@ class MakerArbConfig:
     min_profit_usd: float = 0.25
     min_edge: float = 0.006
     deterministic_min_edge: float = 0.004
+    deterministic_min_bid: float = 0.88
+    max_lead_spread: float = 0.08
+    max_reserve_fraction: float = 1.0
     rebate_credit_ratio: float = 0.75
     min_keep_edge: float = 0.002
     min_volume_24h: float = 500.0
@@ -114,9 +117,9 @@ class MakerArbConfig:
     max_quotes_per_event: int = 2
     pool_hedge_slots: int = 2
     allow_join_bid: bool = True
-    repeg_after_s: float = 3.0
+    repeg_after_s: float = 6.0
     max_legs: int = 8
-    max_ladder_days: float = 21.0
+    max_ladder_days: float = 14.0
     poll_s: float = 1.5
     quote_ttl_s: float = 300.0
 
@@ -195,7 +198,7 @@ class EngineConfig:
     eval_interval_ms: float = 50.0
     use_websocket: bool = True
     ws_max_targets: int = 300
-    ws_assets_per_conn: int = 400
+    ws_assets_per_conn: int = 150
     report_every_s: float = 60.0
 
 

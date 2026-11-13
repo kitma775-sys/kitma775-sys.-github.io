@@ -125,23 +125,33 @@ class OrderBook:
         self.hash = None
         self.received_at = time.time()
 
-    def set_level(self, side: str, price: float | str, size: float | str) -> bool:
+    def set_level(self, side: str, price: float | str, size: float | str, max_depth: int = 0) -> bool:
         """Apply an absolute level update (websocket ``price_change``); size 0 deletes.
 
         Returns whether the update landed within the top ``TOP_LEVELS`` of its side.
         """
         is_bid = side.upper() in ("BUY", "BID", "BIDS")
-        levels = list(self._bids if is_bid else self._asks)
+        orig = self._bids if is_bid else self._asks
         key = _p(price)
         qty = float(size)
-        i = bisect_left(levels, -key, key=_neg_price) if is_bid else bisect_left(levels, key, key=_price_of)
-        found = i < len(levels) and levels[i][0] == key
+        i = bisect_left(orig, -key, key=_neg_price) if is_bid else bisect_left(orig, key, key=_price_of)
+        found = i < len(orig) and orig[i][0] == key
+        if qty <= 0 and not found:
+            self.received_at = time.time()
+            return False
+        if found and orig[i][1] == qty:
+            self.received_at = time.time()
+            return False
+        if max_depth > 0 and i >= max_depth and not found:
+            self.received_at = time.time()
+            return False
+        levels = list(orig[:max_depth] if (max_depth > 0 and len(orig) > max_depth) else orig)
         if qty > 0:
-            if found:
+            if found and i < len(levels):
                 levels[i] = Level(key, qty)
-            else:
+            elif i <= len(levels):
                 levels.insert(i, Level(key, qty))
-        elif found:
+        elif found and i < len(levels):
             del levels[i]
         if is_bid:
             self._bids = levels

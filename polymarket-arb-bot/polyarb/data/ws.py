@@ -53,8 +53,14 @@ class MarketStream:
     async def start(self, token_ids: Sequence[str]) -> None:
         await self.stop()
         self.tokens = tuple(dict.fromkeys(token_ids))
-        chunks = [self.tokens[i:i + self.assets_per_conn] for i in range(0, len(self.tokens), self.assets_per_conn)]
-        self._tasks = [asyncio.create_task(self._run(list(c), n)) for n, c in enumerate(chunks)]
+        # Isolate the first <=60 priority tokens (short-crypto + active maker quotes) into a dedicated fast socket!
+        if len(self.tokens) > 80:
+            fast_lane = list(self.tokens[:60])
+            rest = self.tokens[60:]
+            chunks = [fast_lane, *(list(rest[i : i + self.assets_per_conn]) for i in range(0, len(rest), self.assets_per_conn))]
+        else:
+            chunks = [list(self.tokens[i : i + self.assets_per_conn]) for i in range(0, len(self.tokens), self.assets_per_conn)]
+        self._tasks = [asyncio.create_task(self._run(c, n)) for n, c in enumerate(chunks) if c]
 
     async def stop(self) -> None:
         for t in self._tasks:
@@ -126,7 +132,7 @@ class MarketStream:
                     if book is None:
                         continue
                     # Deeper levels only change sizing headroom, the same rule REST sweeps apply.
-                    if book.set_level(str(ch.get("side", "")), ch.get("price", 0), ch.get("size", 0)):
+                    if book.set_level(str(ch.get("side", "")), ch.get("price", 0), ch.get("size", 0), max_depth=24):
                         changed.add(aid)
             elif kind == "last_trade_price":
                 aid = str(ev.get("asset_id") or "")

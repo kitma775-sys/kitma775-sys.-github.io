@@ -320,3 +320,91 @@ def test_build_short_crypto_slugs_covers_5m_15m_and_1h():
     assert "btc-updown-15m-1794561300" in slugs
     assert any(s.startswith("bitcoin-up-or-down-") and s.endswith("-et") for s in slugs)
     assert any(s.startswith("bitcoin-above-on-") and s.endswith("-et") for s in slugs)
+
+
+async def test_taker_snipe_preempts_resting_maker_quotes_and_anti_mirage_filters(store, tmp_path, now_ts):
+    """Exact reproduction of the live Zeabur $70-bankroll starvation bottleneck:
+    1. A ghost 0.532 bid on decided METAR (Beijing NO 0°C) and a 30c wide spread (Shanghai) are filtered out.
+    2. Valid resting Maker quotes reserve $42 of $50 remaining cash (leaving only $8 unreserved).
+    3. When a $24.75 instant Taker negrisk_convert snipe (+$0.75) arrives on WS, Engine automatically
+       evicts the lowest-velocity resting Maker quote, frees the cash, skips REST recheck (fast_turnover=True),
+       and executes the Taker snipe in full!
+    """
+    from polyarb.config import ExecutionConfig
+    from polyarb.data.metar import MetarFeed
+    from polyarb.engine import Engine
+    from polyarb.execution.executor import Executor
+
+    cfg = Config()
+    cfg.engine.use_websocket = False
+    cfg.risk.kill_file = ""
+    cfg.risk.bankroll_usd = 50.0
+    cfg.risk.max_trade_usd = 25.0
+    cfg.maker.max_reserve_fraction = 0.90
+
+    # 1. Mirage METAR event (Beijing: locked NO, but best NO bid is 0.532 < 0.88) -> must NOT hog a quote slot!
+    end = datetime.now(timezone.utc) + timedelta(hours=8)
+    m_bj1 = make_market("Low 0°C?", group="0°C", neg_risk=True, index=0, tick=0.001, end=end)
+    m_bj2 = make_market("Low -1°C or below?", group="-1°C or below", neg_risk=True, index=1, tick=0.001, end=end)
+    ev_bj = make_event([m_bj1, m_bj2], neg_risk=True, title="Lowest temperature in Beijing on November 13?")
+    ev_bj.metar_icao, ev_bj.metar_obs_date, ev_bj.metar_mode = "ZBAA", "2026-11-13", "low"
+    m_feed = MetarFeed()
+    m_feed.ingest_rows([{"icaoId": "ZBAA", "obsTime": int(end.timestamp()) - 36000, "rawOb": "METAR ZBAA 130100Z 02005MPS M02/M10 Q1025"}])
+    store.put(book(m_bj1.yes_token, bids=[], asks=[(0.468, 500.0)]))  # NO bid = 0.532 -> mirage!
+    store.put(book(m_bj2.yes_token, bids=[(0.999, 500.0)], asks=[]))
+
+    # 2. Valid tight-spread Maker convert events M1 & M2 (reserve ~$43 out of $50)
+    maker_evs = []
+    for k in range(2):
+        ms = [
+            make_market(f"M{k} A?", group="A", neg_risk=True, index=0),
+            make_market(f"M{k} B?", group="B", neg_risk=True, index=1),
+        ]
+        for m in ms:
+            m.volume_24h = 2000.0
+        ev_m = make_event(ms, neg_risk=True, title=f"Maker Convert {k}")
+        maker_evs.append(ev_m)
+        store.put(book(ms[0].yes_token, bids=[(0.49, 200)], asks=[(0.52, 200)]))  # NO [0.48 .. 0.51] (3c spread <= 8c!)
+        store.put(book(ms[1].yes_token, bids=[(0.51, 200)], asks=[(0.53, 200)]))
+
+    # 3. Instant Taker convert event T_SNIPE (initially underround, then jumps to +3c/sh Taker arb!)
+    t_ms = [
+        make_market("SF A?", group="A", neg_risk=True, index=0),
+        make_market("SF B?", group="B", neg_risk=True, index=1),
+    ]
+    ev_snipe = make_event(t_ms, neg_risk=True, title="Highest temperature in San Francisco on November 14?")
+    store.put(book(t_ms[0].yes_token, bids=[(0.48, 200)], asks=[(0.50, 200)]))
+    store.put(book(t_ms[1].yes_token, bids=[(0.48, 200)], asks=[(0.50, 200)]))
+
+    all_strats = build_all_strategies(cfg, metar_feed=m_feed)
+    strat_map = {s.name: s for s in all_strats}
+    gw = PaperGateway(store)
+    risk = RiskManager(cfg.risk, tmp_path / "state.json")
+    journal = Journal(tmp_path / "journal.jsonl")
+    maker = MakerArbManager(cfg, store, gw, risk, journal, strategies=strat_map)
+    ex = Executor(gw, store, strat_map, ExecutionConfig(recheck_books=True))
+    engine = Engine(cfg, all_strats, None, None, store, ex, risk, journal, all_strategies=all_strats, metar_feed=m_feed, maker_arb=maker)
+    all_evs = [ev_bj, *maker_evs, ev_snipe]
+    engine._raw_events = all_evs
+    engine._apply_universe(all_evs)
+
+    await maker.step()
+    # Beijing mirage quote was filtered out; M0 & M1 placed and reserved >$35, leaving <$15 available!
+    assert ev_bj.id not in maker.active
+    assert len(maker.active) == 2
+    assert risk.available() < 15.0
+
+    # Now SF jumps to a real Taker arb: YES bids 0.52 + 0.51 = 1.03 (+3c/sh, needs ~$24.25 > $15 available)!
+    store.put(book(t_ms[0].yes_token, bids=[(0.52, 200)], asks=[(0.54, 200)]))
+    store.put(book(t_ms[1].yes_token, bids=[(0.51, 200)], asks=[(0.53, 200)]))
+    snipe_target = engine.targets[f"convert:{ev_snipe.id}"]
+    budget = engine._dynamic_budget(snipe_target.strategy, ev_snipe.id, include_preemptible=True)
+    (opp,) = strat_map["negrisk_convert"].evaluate(snipe_target, store, time_now := datetime.now(timezone.utc).timestamp(), max_cost=budget)
+    assert opp.cost > 20.0
+
+    await engine._handle(opp, snipe_target)
+    # Maker quote was automatically preempted, freeing cash, and Taker convert executed in full!
+    assert maker.quotes_preempted >= 1
+    assert risk.state.trades == 1
+    assert risk.state.realized_total > 0.70
+

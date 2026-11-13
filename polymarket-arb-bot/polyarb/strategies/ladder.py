@@ -140,6 +140,7 @@ class LadderArb:
                         "weak": weak.market.question,
                         "early_release_at": min(ends).isoformat(),
                         "bonus_state": "pays 2 if strong=NO and weak=YES",
+                        "fast_turnover": (resolves_at - now_dt).total_seconds() <= 3 * 86400,
                         "independent_legs": True,
                         "condition_ids": [m.condition_id for m in (weak.market, strong.market) if m.condition_id],
                     },

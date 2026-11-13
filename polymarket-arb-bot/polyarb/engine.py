@@ -382,7 +382,19 @@ class Engine:
     def hot_tokens(self) -> list[str]:
         assert self.universe is not None
         tokens: dict[str, None] = {}
-        # Always keep today/yesterday METAR temperature markets, active maker quotes, and held positions on WebSocket!
+        # Put active maker quotes and 5m/15m/1h short-crypto FIRST so they occupy the dedicated ws[0] fast lane!
+        if self.maker_arb is not None:
+            for token in self.maker_arb.quoted_tokens():
+                tokens[token] = None
+        for t in self.universe.targets:
+            if t.strategy == "crypto_short":
+                for token in t.tokens:
+                    tokens[token] = None
+        for h in self.risk.state.holds:
+            for leg in h.legs:
+                yt = str(leg.get("yes_token") or "")
+                if yt:
+                    tokens[yt] = None
         now_utc = datetime.now(timezone.utc)
         lo_date = (now_utc - timedelta(days=2)).strftime("%Y-%m-%d")
         hi_date = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -394,17 +406,6 @@ class Engine:
                 if (t.event.end_date - now_utc).total_seconds() <= 36 * 3600:
                     for token in t.tokens:
                         tokens[token] = None
-            elif t.strategy == "crypto_short":
-                for token in t.tokens:
-                    tokens[token] = None
-        if self.maker_arb is not None:
-            for token in self.maker_arb.quoted_tokens():
-                tokens[token] = None
-        for h in self.risk.state.holds:
-            for leg in h.legs:
-                yt = str(leg.get("yes_token") or "")
-                if yt:
-                    tokens[yt] = None
         max_ws_tokens = max(1200, self.cfg.engine.ws_max_targets * 3)
         ranked = []
         for t in self.universe.targets:
@@ -419,13 +420,19 @@ class Engine:
                 tokens[token] = None
         return list(tokens)
 
-    def _dynamic_budget(self, strategy_name: str, event_id: str) -> float | None:
-        if strategy_name == "negrisk_convert":
-            b = self.risk.budget_for(Settlement.CONVERT, event_id, fast_turnover=True)
-        elif strategy_name in ("metar_lock", "binance_lock", "crypto_short"):
-            b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=True)
-        else:
-            b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=False)
+    def _dynamic_budget(self, strategy_name: str, event_id: str, include_preemptible: bool = False) -> float | None:
+        saved_res = self.risk.reserved_usd
+        if include_preemptible and self.maker_arb is not None and self.maker_arb.active:
+            self.risk.reserved_usd = 0.0
+        try:
+            if strategy_name == "negrisk_convert":
+                b = self.risk.budget_for(Settlement.CONVERT, event_id, fast_turnover=True)
+            elif strategy_name in ("metar_lock", "binance_lock", "crypto_short"):
+                b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=True)
+            else:
+                b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=False)
+        finally:
+            self.risk.reserved_usd = saved_res
         # When budget is >= $1.50 and below max_trade_usd, size down to fit instead of skipping!
         if 1.5 <= b < self.cfg.risk.max_trade_usd:
             return b
@@ -442,6 +449,20 @@ class Engine:
             self.stats["skip:shutting down"] += 1
             return
         reason = self.risk.check(opp)
+        if (
+            reason in ("insufficient capital", "liquid reserve protected")
+            and self.maker_arb is not None
+            and self.maker_arb.active
+        ):
+            reserve_pad = (
+                self.cfg.risk.liquid_reserve_usd
+                if (opp.settlement is Settlement.RESOLUTION and not opp.meta.get("fast_turnover"))
+                else 0.0
+            )
+            needed = opp.cost + reserve_pad
+            if self.risk.available() + self.risk.reserved_usd >= needed - 1e-6:
+                await self.maker_arb.preempt_for_taker(needed)
+                reason = self.risk.check(opp)
         if reason:
             self.stats[f"skip:{reason}"] += 1
             return
@@ -491,7 +512,7 @@ class Engine:
                     continue
                 self.stats["evaluations"] += 1
                 try:
-                    budget = self._dynamic_budget(target.strategy, target.event.id)
+                    budget = self._dynamic_budget(target.strategy, target.event.id, include_preemptible=True)
                     for opp in self.by_name[target.strategy].evaluate(target, self.store, now, max_cost=budget):
                         await self._handle(opp, target)
                 except Exception:

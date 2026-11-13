@@ -90,7 +90,10 @@ maker:                   # postOnly zero-fee lead leg + instant FOK hedge & conv
   enabled: true
   min_profit_usd: 0.25
   min_edge: 0.006
-  deterministic_min_edge: 0.004 # 0-hedge-leg locked markets (maker_metar / maker_binance) carry zero leg risk
+  deterministic_min_edge: 0.004 # 0-hedge-leg locked markets (maker_metar / maker_binance / maker_crypto_short)
+  deterministic_min_bid: 0.88   # ignore dead <0.88 ghost bids on $1 locked outcomes that zero sellers ever hit
+  max_lead_spread: 0.08         # focus quotes on liquid <=8c spreads where real takers cross
+  max_reserve_fraction: 1.0     # 100% idle utilization while auto-preempting resting quotes on Taker demand
   rebate_credit_ratio: 0.75     # fraction of expected Polymarket Maker Rebate credited while keeping day-0 cash > 0
   min_keep_edge: 0.002   # cancel resting quote immediately if hedge-leg drift drops edge below this
   min_volume_24h: 500.0
@@ -99,9 +102,9 @@ maker:                   # postOnly zero-fee lead leg + instant FOK hedge & conv
   max_quotes_per_event: 2
   pool_hedge_slots: 2    # reserve 100% of resting lead costs + full hedge cash for top N simultaneous fills
   allow_join_bid: true   # allow postOnly join-bid on liquid 1-tick spread books when edge clears min_edge
-  repeg_after_s: 3.0     # immediately cancel & re-peg outbid maker quotes after 3s
+  repeg_after_s: 6.0     # cancel & re-peg outbid maker quotes on tight spreads after 6s
   max_legs: 8
-  max_ladder_days: 21.0
+  max_ladder_days: 14.0
   poll_s: 1.5
   quote_ttl_s: 300.0
 
@@ -144,7 +147,7 @@ engine:
   eval_interval_ms: 50.0 # coalesce websocket bursts before re-evaluating a target (0 = immediate)
   use_websocket: true
   ws_max_targets: 300
-  ws_assets_per_conn: 400
+  ws_assets_per_conn: 150
   report_every_s: 60.0
 
 tg:

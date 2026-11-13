@@ -492,6 +492,7 @@ class TwinPartitionArb:
                 "kind": sl.kind,
                 "strike": sl.strike,
                 "legs": len(legs),
+                "fast_turnover": (resolves_at - now_dt).total_seconds() <= 3 * 86400,
                 "independent_legs": True,
                 "event_ids": [sl.primary_event.id, sl.secondary_event.id],
                 "condition_ids": [m.condition_id for m in all_mkts if m.condition_id],
