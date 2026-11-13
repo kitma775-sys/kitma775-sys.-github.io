@@ -66,12 +66,13 @@ crypto_short:            # Safe BTC/ETH/SOL/XRP 5m · 15m · 1h arbitrage (risk:
   min_profit_usd: 0.08
   min_edge: 0.004
   min_unit_edge: 0.002
-  postclose_window_s: 75.0    # post-expiry 100% zero-risk oracle lock & 0.99 maker bonding window
+  postclose_window_s: 120.0  # CLOB keeps the decided 5m/15m book alive well past +75s
   preclose_lock_enabled: true # exact 60s-TWAP realized-integral lock in final 2..20s
   shock_bps: 100.0            # instantaneous sustained flash-crash safety cushion (>2.2x 7-day p99.9 1m move)
   max_left_s: 20.0
   min_left_s: 2.0
   preclose_max_ask: 0.980
+  taker_top_fraction: 0.85    # size a live FOK off the top ask only; deeper levels vanish before the order lands
   sync_pair_enabled: true     # 5m<->15m same-Chainlink lock + 1h Up/Down<->Above same-Binance-candle lock
   poll_slugs_s: 20.0
   flip_enabled: true

@@ -131,9 +131,15 @@ class Executor:
     def _should_recheck(self, opp: Opportunity, target: Target | None) -> bool:
         if not (self.cfg.recheck_books and target is not None and self.clob is not None):
             return False
+        now = time.time()
+        books = [self.store.raw(t) for t in target.tokens]
+        # 5m/15m books reprice inside a second. A two-second-old "fresh" WS book is what made
+        # paper fill and the live FOK come back unmatched.
+        if opp.strategy == "crypto_short":
+            if books and all(b is not None and b.age(now) <= 0.35 for b in books):
+                return False
+            return True
         if opp.meta.get("fast_turnover") and self.cfg.fast_ws_skip_recheck_s > 0:
-            now = time.time()
-            books = [self.store.raw(t) for t in target.tokens]
             if books and all(b is not None and b.age(now) <= self.cfg.fast_ws_skip_recheck_s for b in books):
                 return False
         return True
@@ -162,7 +168,7 @@ class Executor:
 
     async def _recheck(self, opp: Opportunity, target: Target, max_cost: float | None = None) -> Opportunity | None:
         assert self.clob is not None
-        self.store.update_many(await self.clob.get_books(target.tokens))
+        self.store.update_many(await self.clob.get_books(target.tokens, priority=opp.strategy == "crypto_short"))
         strategy = self.strategies[opp.strategy]
         for candidate in strategy.evaluate(target, self.store, time.time(), max_cost=max_cost):
             if candidate.key == opp.key:

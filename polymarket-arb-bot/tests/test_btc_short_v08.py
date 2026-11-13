@@ -408,3 +408,65 @@ async def test_taker_snipe_preempts_resting_maker_quotes_and_anti_mirage_filters
     assert risk.state.trades == 1
     assert risk.state.realized_total > 0.70
 
+
+def test_taker_stays_inside_the_best_ask(store):
+    """A live FOK sized through the second ask level is unmatched once that level is gone.
+    Paper still fills it, which is the gap this cap closes."""
+    t0 = 1794561900
+    t_end = t0 + 300
+    now_s = float(t_end - 8)
+    ev = _make_5m_or_15m_event("btc", "5m", t0, ptb=68700.0, tick=0.01)
+    mkt = ev.markets[0]
+    rtds = ChainlinkRtdsFeed()
+    for sec in range(t_end - 60, int(now_s) + 1):
+        rtds._cl_spot_sec["btc"][sec] = 68850.0
+    rtds._latest_cl_spot["btc"] = (int(now_s), 68850.0)
+    rtds._latest_twap["btc"] = (int(now_s), 68850.0)
+    rtds._latest_bin_spot["btc"] = (int(now_s), 68852.0)
+    store.put(book(mkt.yes_token, bids=[(0.88, 500)], asks=[(0.90, 10.0), (0.91, 400.0)]))
+    strat = CryptoShortArb(
+        CryptoShortConfig(shock_bps=90.0, taker_top_fraction=0.85), rtds_feed=rtds, max_trade_usd=200.0
+    )
+    (target,) = strat.targets([ev])
+    (opp,) = strat.evaluate(target, store, now_s)
+    assert opp.shares <= 8.5 + 1e-9
+    assert opp.legs[0].limit_price == pytest.approx(0.90)
+
+
+def test_live_millitick_quotes_ahead_of_the_099_wall(store, tmp_path):
+    """Gamma still says tick 0.01 after the CLOB book has tightened to 0.001.
+    Joining 0.99 sits at the back of the bonding wall; 0.994 is in front and still 0 maker fee."""
+    t0 = 1794561900
+    t_end = t0 + 300
+    ev = _make_5m_or_15m_event("btc", "5m", t0, ptb=68801.6388, fp=68780.10, tick=0.01)
+    mkt = ev.markets[0]
+    bk = book(mkt.yes_token, bids=[], asks=[(0.01, 800.0)])
+    bk.tick_size = 0.001
+    store.put(bk)
+
+    cfg = Config()
+    cfg.risk.kill_file = ""
+    cfg.risk.bankroll_usd = 70.0
+    cfg.risk.max_trade_usd = 25.0
+    rtds = ChainlinkRtdsFeed()
+    rtds.seed_benchmark("btc", t0, 68801.6388)
+    rtds.ingest_message({
+        "topic": "crypto_prices_twap_sixty",
+        "payload": {"symbol": "btc/usd", "timestamp": t_end * 1000, "value": 68780.10},
+    })
+    all_strats = build_all_strategies(cfg, rtds_feed=rtds)
+    maker = MakerArbManager(
+        cfg,
+        store,
+        PaperGateway(store),
+        RiskManager(cfg.risk, tmp_path / "state.json"),
+        Journal(tmp_path / "journal.jsonl"),
+        strategies={s.name: s for s in all_strats},
+    )
+    maker.set_targets(build_universe([ev], all_strats, cfg.universe).targets)
+    (plan,) = maker.find_candidates(now=t_end + 2.0)
+    assert plan.strategy == "maker_crypto_short"
+    assert plan.lead_outcome is Outcome.NO
+    assert plan.lead_price == pytest.approx(0.994)
+    assert mkt.tick_size == pytest.approx(0.001)
+

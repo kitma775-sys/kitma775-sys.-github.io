@@ -537,6 +537,13 @@ class MakerArbManager:
             bids = b.bids if out is Outcome.YES else b.no_bids()
             if not bids:
                 continue
+            # Gamma keeps reporting 0.01 after the CLOB has tightened the live book to 0.001.
+            # Quoting on the coarse grid joins the back of the 0.99 wall; the fine grid steps in front of it.
+            tick = m.tick_size
+            book_tick = b.tick_size
+            if book_tick and 0 < book_tick < tick - 1e-12:
+                tick = float(book_tick)
+                m.tick_size = tick
             best_bid = bids[0].price
             # Decided markets often have NO remaining sellers (asks == []), so implicit ceiling is 1.0!
             best_ask = asks[0].price if asks else 1.0
@@ -548,11 +555,13 @@ class MakerArbManager:
                 continue
 
             # Account for potential maker rebate when choosing max_lead, capped strictly <= 0.993 for flip headroom
-            rebate_u = mcfg.rebate_credit_ratio * maker_rebate_per_share(m.fee, min(best_bid + m.tick_size, 0.993))
+            fine = strategy_name == "maker_crypto_short" and tick <= 0.0015
+            px_cap = 0.996 if fine else 0.993
+            rebate_u = mcfg.rebate_credit_ratio * maker_rebate_per_share(m.fee, min(best_bid + tick, px_cap))
             raw_max = (1.0 + rebate_u) / (1.0 + req_edge)
-            max_lead = _round_tick_down(min(0.993, raw_max), m.tick_size)
+            max_lead = _round_tick_down(min(px_cap, raw_max), tick)
             our_bid = _best_maker_bid(
-                best_bid, best_ask, m.tick_size, max_lead, mcfg.allow_join_bid, max_step_ticks=2.0
+                best_bid, best_ask, tick, max_lead, mcfg.allow_join_bid, max_step_ticks=4.0 if fine else 2.0
             )
             if our_bid is None or our_bid >= 0.995 - EPS:
                 continue

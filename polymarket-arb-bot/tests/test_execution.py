@@ -39,7 +39,7 @@ class FakeClob:
     def __init__(self, books):
         self.books = books
 
-    async def get_books(self, tokens):
+    async def get_books(self, tokens, **_kwargs):
         return {
             t: OrderBook(t, [(l.price, l.size) for l in b.bids], [(l.price, l.size) for l in b.asks])
             for t, b in self.books.items()

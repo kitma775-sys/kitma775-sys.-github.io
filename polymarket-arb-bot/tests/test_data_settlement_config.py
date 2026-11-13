@@ -209,7 +209,7 @@ async def test_scan_once_finds_convert_opportunity():
     books = {"Y0": book("Y0", bids=[(0.40, 100)]), "Y1": book("Y1", bids=[(0.35, 100)]), "Y2": book("Y2", bids=[(0.30, 100)])}
 
     class Clob:
-        async def get_books(self, tokens):
+        async def get_books(self, tokens, **_kwargs):
             return {t: books[t] for t in tokens if t in books}
 
     cfg = Config()

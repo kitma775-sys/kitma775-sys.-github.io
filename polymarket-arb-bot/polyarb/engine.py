@@ -534,7 +534,10 @@ class Engine:
             now_s = time.time()
             # Sleep shorter right around 5-minute (:00 / :05) boundaries so new slots & finalPrice benchmarks load immediately
             rem_5m = 300.0 - (now_s % 300.0)
-            wait_s = 3.0 if (rem_5m <= 4.0 or (now_s % 300.0) <= 15.0) else max(8.0, self.cfg.crypto_short.poll_slugs_s)
+            # Gamma publishes priceToBeat / finalPrice late, and the live book tightens to a 0.001 tick
+            # in the same window. Poll through the last 45s and the first 90s after each 5m boundary.
+            near_boundary = rem_5m <= 45.0 or (now_s % 300.0) <= 90.0
+            wait_s = 2.0 if near_boundary else max(8.0, self.cfg.crypto_short.poll_slugs_s)
             await asyncio.sleep(wait_s)
             if not self.cfg.crypto_short.enabled or self.gamma is None or self._raw_events is None:
                 continue
@@ -561,6 +564,28 @@ class Engine:
                     self._wake.set()
                     if self.maker_arb is not None:
                         self.maker_arb._wake.set()
+                # WS 1013 drops leave the local 5m book looking fresh while the real ask is gone.
+                # Pull the handful of tokens inside the decision window directly, ahead of the 8s sweep.
+                if self.clob is not None and self.universe is not None:
+                    now_hot = time.time()
+                    horizon = self.cfg.crypto_short.postclose_window_s
+                    hot: list[str] = []
+                    for t in self.universe.targets:
+                        if t.strategy != "crypto_short":
+                            continue
+                        end = getattr(t.payload, "end_ts", None)
+                        if end is not None and end - 45.0 <= now_hot <= end + horizon:
+                            hot.extend(t.tokens)
+                    if hot:
+                        fresh = await self.clob.get_books(list(dict.fromkeys(hot))[:48], priority=True)
+                        if fresh:
+                            self.store.update_many(fresh)
+                            for tok in fresh:
+                                for tgt in self.universe.by_token.get(tok, ()):
+                                    self.dirty.add(tgt.key)
+                            self._wake.set()
+                            if self.maker_arb is not None:
+                                self.maker_arb._wake.set()
             except Exception as exc:
                 log.debug("short crypto refresh skipped: %s", exc)
 

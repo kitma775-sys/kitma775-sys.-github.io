@@ -87,12 +87,13 @@ class CryptoShortConfig:
     min_profit_usd: float = 0.08
     min_edge: float = 0.004
     min_unit_edge: float = 0.002
-    postclose_window_s: float = 75.0
+    postclose_window_s: float = 120.0
     preclose_lock_enabled: bool = True
     shock_bps: float = 100.0
     max_left_s: float = 20.0
     min_left_s: float = 2.0
     preclose_max_ask: float = 0.980
+    taker_top_fraction: float = 0.85  # lift only this share of the best ask so a live FOK still fits
     sync_pair_enabled: bool = True
     poll_slugs_s: float = 20.0
     flip_enabled: bool = True

@@ -66,10 +66,11 @@ class ClobClient:
         if self._own:
             await self._http.aclose()
 
-    async def _post_books(self, token_ids: Sequence[str]) -> list[dict]:
+    async def _post_books(self, token_ids: Sequence[str], *, limited: bool = True) -> list[dict]:
         delay = 0.5
         for attempt in range(self._max_retries):
-            await self._limiter.acquire()
+            if limited:
+                await self._limiter.acquire()
             try:
                 async with self._sem:
                     resp = await self._http.post(
@@ -93,15 +94,23 @@ class ClobClient:
         return []
 
     async def get_books(
-        self, token_ids: Iterable[str], skip: Callable[[str, str | None], bool] | None = None
+        self,
+        token_ids: Iterable[str],
+        skip: Callable[[str, str | None], bool] | None = None,
+        *,
+        priority: bool = False,
     ) -> dict[str, OrderBook]:
-        """Fetch books in batches of 500; ``skip(token, server_hash)`` returning True leaves an entry unparsed."""
+        """Fetch books in batches of 500; ``skip(token, server_hash)`` returning True leaves an entry unparsed.
+
+        ``priority`` skips the sweep rate limiter. Execution rechecks and the 5m/15m hot set use it so a
+        full-universe scan cannot delay a FOK that has to land inside the same second.
+        """
         ids = list(dict.fromkeys(token_ids))
         books: dict[str, OrderBook] = {}
 
         async def fetch(chunk: list[str]) -> None:
             # Parse each batch as it lands, yielding periodically so HTTP /healthz & WS stay sub-10ms responsive.
-            raw_list = await self._post_books(chunk)
+            raw_list = await self._post_books(chunk, limited=not priority)
             await asyncio.sleep(0)
             parsed_in_slice = 0
             for raw in raw_list:

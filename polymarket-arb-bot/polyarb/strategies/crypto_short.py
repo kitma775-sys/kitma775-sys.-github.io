@@ -46,7 +46,7 @@ from polyarb.config import CryptoShortConfig
 from polyarb.data.binance import ET_ZONE, BinanceFeed
 from polyarb.data.rtds import SHORT_ASSETS, ChainlinkRtdsFeed
 from polyarb.models import Event, Market, Opportunity, Outcome, Settlement
-from polyarb.sizing import LegBook, size_basket, unit_cost
+from polyarb.sizing import LegBook, floor_shares, size_basket, unit_cost
 from polyarb.strategies.base import Books, Target, buy_leg, utc
 
 _SLUG_5M_15M_RE = re.compile(r"^([a-z0-9]+)-updown-(5m|15m)-(\d{9,12})$", re.I)
@@ -446,7 +446,18 @@ class CryptoShortArb:
             first_cost = unit_cost(levels, mkt.fee)
             if first_cost is None or 1.0 - first_cost < cfg.min_unit_edge:
                 return []
-            fill = size_basket([LegBook(levels, mkt.fee, mkt.min_size)], 1.0, min_unit_edge=cfg.min_unit_edge, max_cost=cap)
+            # Live FOK dies when it asks for size that was on the 2nd–3rd level a second ago.
+            # Keep the order inside the best ask, leaving a fraction behind so a partial pull still fills.
+            top_shares = levels[0].size * cfg.taker_top_fraction
+            if top_shares + 1e-9 < mkt.min_size:
+                top_shares = levels[0].size
+            fill = size_basket(
+                [LegBook(levels, mkt.fee, mkt.min_size)],
+                1.0,
+                min_unit_edge=cfg.min_unit_edge,
+                max_shares=floor_shares(top_shares),
+                max_cost=cap,
+            )
             if fill is None:
                 return []
             resolves_at = utc(payload.end_ts + (90 if payload.duration in ("5m", "15m") else 300))
@@ -498,7 +509,19 @@ class CryptoShortArb:
 
         if sum(unit_cost(lb.levels, lb.fee) or 1.0 for lb in leg_books) > 1.0 - cfg.min_unit_edge:
             return []
-        fill = size_basket(leg_books, 1.0, min_unit_edge=cfg.min_unit_edge, max_cost=cap)
+        top_caps = []
+        for lb in leg_books:
+            top = lb.levels[0].size * cfg.taker_top_fraction
+            if top + 1e-9 < lb.min_size:
+                top = lb.levels[0].size
+            top_caps.append(top)
+        fill = size_basket(
+            leg_books,
+            1.0,
+            min_unit_edge=cfg.min_unit_edge,
+            max_shares=floor_shares(min(top_caps)),
+            max_cost=cap,
+        )
         if fill is None:
             return []
 
