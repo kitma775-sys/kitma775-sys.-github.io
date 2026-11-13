@@ -106,12 +106,12 @@ class MakerArbConfig:
     min_profit_usd: float = 0.12
     min_edge: float = 0.006
     deterministic_min_edge: float = 0.004
-    deterministic_min_bid: float = 0.90
-    max_lead_spread: float = 0.06
+    deterministic_min_bid: float = 0.85
+    max_lead_spread: float = 0.10
     max_reserve_fraction: float = 1.0
     rebate_credit_ratio: float = 0.75
     min_keep_edge: float = 0.002
-    min_volume_24h: float = 1000.0
+    min_volume_24h: float = 500.0
     min_hedge_depth_ratio: float = 2.0
     max_open_quotes: int = 5
     max_quotes_per_event: int = 2
@@ -132,7 +132,7 @@ class TwinConfig:
     min_profit_usd: float = 0.15
     min_edge: float = 0.004
     min_apr: float = 0.50
-    max_days: float = 2.0
+    max_days: float = 7.0
     min_unit_edge: float = 0.001
     max_legs: int = 5
     resolution_lag_days: float = 0.5
@@ -197,7 +197,7 @@ class EngineConfig:
     rest_sweep_s: float = 8.0
     eval_interval_ms: float = 50.0
     use_websocket: bool = True
-    ws_max_targets: int = 450
+    ws_max_targets: int = 350
     ws_assets_per_conn: int = 150
     report_every_s: float = 60.0
 

@@ -53,11 +53,13 @@ class MarketStream:
     async def start(self, token_ids: Sequence[str]) -> None:
         await self.stop()
         self.tokens = tuple(dict.fromkeys(token_ids))
-        # Isolate the first <=60 priority tokens (short-crypto + active maker quotes) into a dedicated fast socket!
+        # Shard the first <=60 ultra-hot tokens (5m/15m crypto + active maker quotes) into 20-token micro-lanes
+        # so high-frequency market-maker bursts never trip Polymarket's 1013 slow-consumer per-socket buffer limit.
         if len(self.tokens) > 80:
-            fast_lane = list(self.tokens[:60])
+            fast_raw = self.tokens[:60]
+            fast_lanes = [list(fast_raw[i : i + 20]) for i in range(0, len(fast_raw), 20)]
             rest = self.tokens[60:]
-            chunks = [fast_lane, *(list(rest[i : i + self.assets_per_conn]) for i in range(0, len(rest), self.assets_per_conn))]
+            chunks = [*fast_lanes, *(list(rest[i : i + self.assets_per_conn]) for i in range(0, len(rest), self.assets_per_conn))]
         else:
             chunks = [list(self.tokens[i : i + self.assets_per_conn]) for i in range(0, len(self.tokens), self.assets_per_conn)]
         self._tasks = [asyncio.create_task(self._run(c, n)) for n, c in enumerate(chunks) if c]
@@ -91,6 +93,7 @@ class MarketStream:
                             await ws.send("PING")
 
                     ping_task = asyncio.create_task(pinger())
+                    msg_n = 0
                     try:
                         async for msg in ws:
                             if msg == "PONG":
@@ -99,6 +102,9 @@ class MarketStream:
                                     self.store.touch(t)
                                 continue
                             self.handle(msg)
+                            msg_n += 1
+                            if (msg_n & 63) == 0:
+                                await asyncio.sleep(0)
                     finally:
                         ping_task.cancel()
             except asyncio.CancelledError:

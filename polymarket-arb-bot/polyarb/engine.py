@@ -406,7 +406,7 @@ class Engine:
                 if (t.event.end_date - now_utc).total_seconds() <= 36 * 3600:
                     for token in t.tokens:
                         tokens[token] = None
-        max_ws_tokens = max(1200, self.cfg.engine.ws_max_targets * 3)
+        max_ws_tokens = max(900, self.cfg.engine.ws_max_targets * 2)
         ranked = []
         for t in self.universe.targets:
             edge = self.by_name[t.strategy].top_edge(t, self.store)

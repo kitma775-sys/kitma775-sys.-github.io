@@ -81,7 +81,7 @@ twin:                    # Cross-event same-oracle Range <-> Above + Close/Hit i
   min_profit_usd: 0.15
   min_edge: 0.004
   min_apr: 0.50
-  max_days: 2.0
+  max_days: 7.0
   min_unit_edge: 0.001
   max_legs: 5
   resolution_lag_days: 0.5
@@ -91,12 +91,12 @@ maker:                   # postOnly zero-fee lead leg + instant FOK hedge & conv
   min_profit_usd: 0.12
   min_edge: 0.006
   deterministic_min_edge: 0.004 # 0-hedge-leg locked markets (maker_metar / maker_binance / maker_crypto_short)
-  deterministic_min_bid: 0.90   # only join active >=0.90 bonding walls where real sellers hit
-  max_lead_spread: 0.06         # focus quotes on liquid <=6c spreads where real takers cross
+  deterministic_min_bid: 0.85   # skip deep illiquid mirages while catching newly-clinched >=0.85 brackets
+  max_lead_spread: 0.10         # skip hollow >10c spreads while allowing active <=10c convert/ladder books
   max_reserve_fraction: 1.0     # 100% idle utilization while auto-preempting resting quotes on Taker demand
   rebate_credit_ratio: 0.75     # fraction of expected Polymarket Maker Rebate credited while keeping day-0 cash > 0
   min_keep_edge: 0.002   # cancel resting quote immediately if hedge-leg drift drops edge below this
-  min_volume_24h: 1000.0
+  min_volume_24h: 500.0
   min_hedge_depth_ratio: 2.0
   max_open_quotes: 5
   max_quotes_per_event: 2
@@ -146,7 +146,7 @@ engine:
   rest_sweep_s: 8.0
   eval_interval_ms: 50.0
   use_websocket: true
-  ws_max_targets: 450
+  ws_max_targets: 350
   ws_assets_per_conn: 150
   report_every_s: 60.0
 
