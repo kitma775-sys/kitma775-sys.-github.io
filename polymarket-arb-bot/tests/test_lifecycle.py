@@ -136,7 +136,7 @@ async def test_instant_flip_and_resting_flip_lifecycle(store, tmp_path, now_ts):
     await lc.step()
     assert len(risk.state.holds) == 0
     assert lc.flips_completed == 1
-    assert risk.state.realized_total == pytest.approx(30 * 0.995 - 30 * 0.92)
+    assert risk.state.realized_total == pytest.approx(30 * cfg.metar.flip_ask_price - 30 * 0.92)
 
 
 async def test_auto_redeem_and_external_hold_reconciliation(store, tmp_path):

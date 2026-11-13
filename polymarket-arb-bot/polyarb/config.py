@@ -18,10 +18,10 @@ class ConvertConfig:
     """NegRisk NO-basket bought on the CLOB and converted to pUSD on-chain (no resolution risk)."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.25
-    min_edge: float = 0.003
+    min_profit_usd: float = 0.12
+    min_edge: float = 0.0025
     min_unit_edge: float = 0.0005
-    max_legs: int = 25
+    max_legs: int = 15
     gas_usd: float = 0.0
     surplus_haircut: float = 0.85
     surplus_min_depth_ratio: float = 2.0
@@ -32,8 +32,8 @@ class YesBasketConfig:
     """Buy YES on every outcome of an exhaustive NegRisk event and hold to resolution."""
 
     enabled: bool = True
-    min_profit_usd: float = 1.0
-    min_edge: float = 0.01
+    min_profit_usd: float = 0.20
+    min_edge: float = 0.008
     min_apr: float = 0.25
     max_days: float = 45.0
     min_unit_edge: float = 0.002
@@ -48,20 +48,20 @@ class MetarConfig:
     """Deterministic NOAA/AWC METAR temperature lock + surviving weather basket + fast 0.99+ flip."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.15
+    min_profit_usd: float = 0.10
     min_edge: float = 0.004
     min_unit_edge: float = 0.002
-    basket_min_profit_usd: float = 0.25
+    basket_min_profit_usd: float = 0.18
     basket_min_edge: float = 0.005
-    max_days: float = 3.0
+    max_days: float = 2.0
     resolution_lag_days: float = 0.5
     fast_poll_s: float = 3.0
     idle_poll_s: float = 15.0
     glitch_delta_c: float = 12.0
     flip_enabled: bool = True
-    flip_ask_price: float = 0.995
+    flip_ask_price: float = 0.994
     flip_min_instant_bid: float = 0.990
-    flip_min_profit_usd: float = 0.08
+    flip_min_profit_usd: float = 0.06
 
 
 @dataclass
@@ -69,10 +69,10 @@ class BinanceClockConfig:
     """Deterministic Binance Spot closed-candle sniping & 0-leg-risk bonding (hourly, noon, and hit barriers)."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.12
+    min_profit_usd: float = 0.08
     min_edge: float = 0.004
     min_unit_edge: float = 0.002
-    max_days: float = 3.0
+    max_days: float = 2.0
     resolution_lag_days: float = 0.15
     burst_poll_s: float = 0.5
     idle_poll_s: float = 6.0
@@ -89,10 +89,10 @@ class CryptoShortConfig:
     min_unit_edge: float = 0.002
     postclose_window_s: float = 75.0
     preclose_lock_enabled: bool = True
-    shock_bps: float = 90.0
+    shock_bps: float = 100.0
     max_left_s: float = 20.0
     min_left_s: float = 2.0
-    preclose_max_ask: float = 0.985
+    preclose_max_ask: float = 0.980
     sync_pair_enabled: bool = True
     poll_slugs_s: float = 20.0
     flip_enabled: bool = True
@@ -103,25 +103,25 @@ class MakerArbConfig:
     """Lead-leg postOnly maker quote (0 maker fee) + instant FOK hedge & convert on fill."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.25
+    min_profit_usd: float = 0.12
     min_edge: float = 0.006
     deterministic_min_edge: float = 0.004
-    deterministic_min_bid: float = 0.88
-    max_lead_spread: float = 0.08
+    deterministic_min_bid: float = 0.90
+    max_lead_spread: float = 0.06
     max_reserve_fraction: float = 1.0
     rebate_credit_ratio: float = 0.75
     min_keep_edge: float = 0.002
-    min_volume_24h: float = 500.0
+    min_volume_24h: float = 1000.0
     min_hedge_depth_ratio: float = 2.0
-    max_open_quotes: int = 6
+    max_open_quotes: int = 5
     max_quotes_per_event: int = 2
     pool_hedge_slots: int = 2
     allow_join_bid: bool = True
-    repeg_after_s: float = 6.0
+    repeg_after_s: float = 5.0
     max_legs: int = 8
-    max_ladder_days: float = 14.0
+    max_ladder_days: float = 10.0
     poll_s: float = 1.5
-    quote_ttl_s: float = 300.0
+    quote_ttl_s: float = 180.0
 
 
 @dataclass
@@ -129,10 +129,10 @@ class TwinConfig:
     """Cross-event same-oracle Range Bracket <-> Cumulative Above partition arbitrage."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.20
+    min_profit_usd: float = 0.15
     min_edge: float = 0.004
-    min_apr: float = 0.20
-    max_days: float = 14.0
+    min_apr: float = 0.50
+    max_days: float = 2.0
     min_unit_edge: float = 0.001
     max_legs: int = 5
     resolution_lag_days: float = 0.5
@@ -143,8 +143,8 @@ class LadderConfig:
     """Buy YES on the weaker rung and NO on the stronger rung of a monotone ladder."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.5
-    min_edge: float = 0.008
+    min_profit_usd: float = 0.20
+    min_edge: float = 0.006
     min_apr: float = 0.20
     max_days: float = 90.0
     min_unit_edge: float = 0.002
@@ -181,11 +181,11 @@ class ExecutionConfig:
     mode: str = "paper"
     slippage_ticks: int = 0
     recheck_books: bool = True
-    fast_ws_skip_recheck_s: float = 1.5
-    max_unwind_loss_usd: float = 5.0
+    fast_ws_skip_recheck_s: float = 2.0
+    max_unwind_loss_usd: float = 2.5
     auto_redeem: bool = True
     early_exit_enabled: bool = True
-    early_exit_min_bid: float = 0.992
+    early_exit_min_bid: float = 0.990
     early_exit_min_profit_usd: float = 0.05
     lifecycle_every_s: float = 20.0
     journal_path: str = "data/journal.jsonl"
@@ -194,10 +194,10 @@ class ExecutionConfig:
 
 @dataclass
 class EngineConfig:
-    rest_sweep_s: float = 6.0
+    rest_sweep_s: float = 8.0
     eval_interval_ms: float = 50.0
     use_websocket: bool = True
-    ws_max_targets: int = 300
+    ws_max_targets: int = 450
     ws_assets_per_conn: int = 150
     report_every_s: float = 60.0
 
@@ -208,7 +208,7 @@ class TelegramConfig:
     notify_flips_redeems: bool = True
     notify_risk: bool = True
     notify_opportunities: bool = False
-    opportunity_min_profit_usd: float = 1.0
+    opportunity_min_profit_usd: float = 0.5
     summary_hours: float = 4.0
 
 

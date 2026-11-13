@@ -3,59 +3,59 @@
 
 convert:                 # NegRisk NO-basket -> convertPositions -> pUSD + surplus YES liquidation (risk: low)
   enabled: true
-  min_profit_usd: 0.25   # absolute profit after taker fees
-  min_edge: 0.003        # profit / capital
+  min_profit_usd: 0.12   # 0-second on-chain conversion; compound fast
+  min_edge: 0.0025       # profit / capital after all taker fees
   min_unit_edge: 0.0005  # every marginal basket unit must still earn this
-  max_legs: 25           # batched 15 per POST /orders call
-  gas_usd: 0.0           # relayer (deposit / proxy / Safe wallet) is gasless; ~0.02 for EOA wallets
-  surplus_haircut: 0.85  # conservative valuation haircut for deep minted surplus YES bids (0 = post-convert bonus only)
+  max_legs: 15           # single atomic POST /orders batch (15 legs max per batch)
+  gas_usd: 0.0           # relayer (deposit / proxy / Safe wallet) is gasless
+  surplus_haircut: 0.85  # conservative valuation haircut for deep minted surplus YES bids
   surplus_min_depth_ratio: 2.0
 
 yes_basket:              # buy YES on every outcome of an exhaustive NegRisk event (risk: medium)
   enabled: true
-  min_profit_usd: 1.0
-  min_edge: 0.01
+  min_profit_usd: 0.20
+  min_edge: 0.008
   min_apr: 0.25          # capital is locked until resolution
   max_days: 45.0
   min_unit_edge: 0.002
   max_legs: 20
-  require_catch_all: true  # need an Other/None bucket or open-ended numeric partition
-  min_ask_sum: 0.85        # sanity floor: lower sums usually mean a decided/stale event
+  require_catch_all: true
+  min_ask_sum: 0.85
   resolution_lag_days: 1.0
 
 ladder:                  # YES weak rung + NO strong rung of an implication ladder (risk: medium)
   enabled: true
-  min_profit_usd: 0.5
-  min_edge: 0.008
+  min_profit_usd: 0.20
+  min_edge: 0.006
   min_apr: 0.20
   max_days: 90.0
   min_unit_edge: 0.002
   directions: [up, down, by_date]
   resolution_lag_days: 1.0
 
-metar:                   # NOAA/AWC METAR deterministic temperature lock + 0.995 fast flip (risk: low)
+metar:                   # NOAA/AWC METAR deterministic temperature lock + 0.994 fast flip (risk: low)
   enabled: true
-  min_profit_usd: 0.15
+  min_profit_usd: 0.10
   min_edge: 0.004
   min_unit_edge: 0.002
-  basket_min_profit_usd: 0.25
+  basket_min_profit_usd: 0.18
   basket_min_edge: 0.005
-  max_days: 3.0
+  max_days: 2.0
   resolution_lag_days: 0.5
   fast_poll_s: 3.0       # poll interval during :49..:07 and :19..:36 METAR release windows
   idle_poll_s: 15.0
   glitch_delta_c: 12.0   # ignore isolated single-report sensor spikes larger than this
-  flip_enabled: true     # immediately flip into 0.99+ bids or post resting 0.995 maker sell
-  flip_ask_price: 0.995
+  flip_enabled: true     # immediately flip into 0.99+ bids or post resting 0.994 maker sell
+  flip_ask_price: 0.994
   flip_min_instant_bid: 0.990
-  flip_min_profit_usd: 0.08
+  flip_min_profit_usd: 0.06
 
 binance:                 # Deterministic Binance Spot closed-candle lock + 0-hedge-leg bonding (risk: low)
   enabled: true
-  min_profit_usd: 0.12
+  min_profit_usd: 0.08
   min_edge: 0.004
   min_unit_edge: 0.002
-  max_days: 3.0
+  max_days: 2.0
   resolution_lag_days: 0.15
   burst_poll_s: 0.5      # sub-second polling around :00:00 hourly/noon/minute candle closes
   idle_poll_s: 6.0
@@ -68,45 +68,45 @@ crypto_short:            # Safe BTC/ETH/SOL/XRP 5m · 15m · 1h arbitrage (risk:
   min_unit_edge: 0.002
   postclose_window_s: 75.0    # post-expiry 100% zero-risk oracle lock & 0.99 maker bonding window
   preclose_lock_enabled: true # exact 60s-TWAP realized-integral lock in final 2..20s
-  shock_bps: 90.0             # instantaneous sustained flash-crash safety cushion (>2x 7-day p99.9 1m move)
+  shock_bps: 100.0            # instantaneous sustained flash-crash safety cushion (>2.2x 7-day p99.9 1m move)
   max_left_s: 20.0
   min_left_s: 2.0
-  preclose_max_ask: 0.985
+  preclose_max_ask: 0.980
   sync_pair_enabled: true     # 5m<->15m same-Chainlink lock + 1h Up/Down<->Above same-Binance-candle lock
   poll_slugs_s: 20.0
   flip_enabled: true
 
 twin:                    # Cross-event same-oracle Range <-> Above + Close/Hit implication locks (risk: low-medium)
   enabled: true
-  min_profit_usd: 0.20
+  min_profit_usd: 0.15
   min_edge: 0.004
-  min_apr: 0.20
-  max_days: 14.0
+  min_apr: 0.50
+  max_days: 2.0
   min_unit_edge: 0.001
   max_legs: 5
   resolution_lag_days: 0.5
 
 maker:                   # postOnly zero-fee lead leg + instant FOK hedge & convert on fill (risk: low-medium)
   enabled: true
-  min_profit_usd: 0.25
+  min_profit_usd: 0.12
   min_edge: 0.006
   deterministic_min_edge: 0.004 # 0-hedge-leg locked markets (maker_metar / maker_binance / maker_crypto_short)
-  deterministic_min_bid: 0.88   # ignore dead <0.88 ghost bids on $1 locked outcomes that zero sellers ever hit
-  max_lead_spread: 0.08         # focus quotes on liquid <=8c spreads where real takers cross
+  deterministic_min_bid: 0.90   # only join active >=0.90 bonding walls where real sellers hit
+  max_lead_spread: 0.06         # focus quotes on liquid <=6c spreads where real takers cross
   max_reserve_fraction: 1.0     # 100% idle utilization while auto-preempting resting quotes on Taker demand
   rebate_credit_ratio: 0.75     # fraction of expected Polymarket Maker Rebate credited while keeping day-0 cash > 0
   min_keep_edge: 0.002   # cancel resting quote immediately if hedge-leg drift drops edge below this
-  min_volume_24h: 500.0
+  min_volume_24h: 1000.0
   min_hedge_depth_ratio: 2.0
-  max_open_quotes: 6
+  max_open_quotes: 5
   max_quotes_per_event: 2
   pool_hedge_slots: 2    # reserve 100% of resting lead costs + full hedge cash for top N simultaneous fills
   allow_join_bid: true   # allow postOnly join-bid on liquid 1-tick spread books when edge clears min_edge
-  repeg_after_s: 6.0     # cancel & re-peg outbid maker quotes on tight spreads after 6s
+  repeg_after_s: 5.0     # cancel & re-peg outbid maker quotes on tight spreads after 5s
   max_legs: 8
-  max_ladder_days: 14.0
+  max_ladder_days: 10.0
   poll_s: 1.5
-  quote_ttl_s: 300.0
+  quote_ttl_s: 180.0
 
 universe:
   min_markets: 2
@@ -114,7 +114,7 @@ universe:
   exclude_tags: []
   refresh_minutes: 20.0
   max_book_age_s: 20.0
-  gamma_filters: {}      # passed to /events/keyset, e.g. {liquidity_min: 100}
+  gamma_filters: {}
 
 risk:
   bankroll_usd: 1000.0
@@ -124,29 +124,29 @@ risk:
   max_daily_loss_usd: 25.0
   max_consecutive_failures: 3
   cooldown_s: 30.0
-  kill_file: KILL        # `touch KILL` stops all new trades immediately
+  kill_file: KILL
   require_geo_ok: true
-  liquid_reserve_usd: 0.0  # reserve kept liquid for instant CONVERT and fast METAR flips
+  liquid_reserve_usd: 0.0
 
 execution:
-  mode: paper            # paper | live (live also needs POLYARB_LIVE_CONFIRM=yes)
-  slippage_ticks: 0      # extra ticks of max_price headroom on first send (repairs always add +1)
+  mode: paper
+  slippage_ticks: 0      # strictly 0 extra ticks on first send to protect 100% win rate
   recheck_books: true    # re-fetch REST books and re-size right before sending
-  fast_ws_skip_recheck_s: 1.5  # skip REST recheck on fast_turnover snipes when WS books are sub-1.5s fresh
-  max_unwind_loss_usd: 5.0 # partial fill whose unwind would lose more: keep legs, trip kill switch
-  auto_redeem: true      # automatically redeem resolved winning CTF/NegRisk positions into pUSD
-  early_exit_enabled: true # sell 0.992+ locked dominant leg early & harvest middle-zone sibling windfalls
-  early_exit_min_bid: 0.992
+  fast_ws_skip_recheck_s: 2.0  # skip REST recheck on fast_turnover snipes when WS books are sub-2s fresh
+  max_unwind_loss_usd: 2.5
+  auto_redeem: true
+  early_exit_enabled: true
+  early_exit_min_bid: 0.990
   early_exit_min_profit_usd: 0.05
   lifecycle_every_s: 20.0
   journal_path: data/journal.jsonl
   state_path: data/state.json
 
 engine:
-  rest_sweep_s: 6.0      # full-universe REST pass; unchanged books are skipped by server hash
-  eval_interval_ms: 50.0 # coalesce websocket bursts before re-evaluating a target (0 = immediate)
+  rest_sweep_s: 8.0
+  eval_interval_ms: 50.0
   use_websocket: true
-  ws_max_targets: 300
+  ws_max_targets: 450
   ws_assets_per_conn: 150
   report_every_s: 60.0
 
@@ -155,5 +155,5 @@ tg:
   notify_flips_redeems: true
   notify_risk: true
   notify_opportunities: false
-  opportunity_min_profit_usd: 1.0
+  opportunity_min_profit_usd: 0.5
   summary_hours: 4.0
