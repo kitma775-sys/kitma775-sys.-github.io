@@ -5,10 +5,11 @@ import pytest
 
 from polyarb.book import OrderBook
 from polyarb.config import ConvertConfig, ExecutionConfig, RiskConfig, YesBasketConfig
+from polyarb.execution.base import LegResult, SellResult
 from polyarb.execution.executor import Executor
 from polyarb.execution.live import PolymarketGateway, _cents, _price
 from polyarb.execution.paper import PaperGateway
-from polyarb.models import FeeSchedule, Leg, Outcome, Side
+from polyarb.models import FeeSchedule, Leg, Opportunity, Outcome, Settlement, Side
 from polyarb.risk import REGION_REJECTED, RiskManager
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
 
@@ -103,6 +104,49 @@ async def test_partial_fill_completed_by_retry(store):
     assert [r.ok for r in rep.legs] == [True, True, False] and rep.retries[0].ok
     assert gw.converted[0][1:] == (0b111, 20.0)
     assert rep.realized_pnl == pytest.approx(40 - (12 + 13 + 14.2))
+
+
+async def test_retry_refuses_to_lock_a_btc_1h_pair_bought_through_one_dollar(store):
+    """YES of the pair filled at 21¢. The missing DOWN ask is now 82¢, so completing pays more than $1.
+    The repair must sell the filled leg back instead of buying DOWN."""
+    yes = make_market("Bitcoin above 68200", group="68,200")
+    down_book = make_market("Bitcoin Up or Down", group="Up")
+    store.put(book(yes.yes_token, bids=[(0.20, 100)], asks=[(0.21, 100)]))
+    store.put(book(down_book.yes_token, bids=[(0.18, 100)], asks=[(0.19, 100)]))
+    q = 10.0
+    yes_leg = Leg(yes.yes_token, yes.id, Outcome.YES, Side.BUY, q, 2.10, 0.0, 0.21, 0.01, 5, False, "YES 68,200", yes_token=yes.yes_token)
+    down_leg = Leg(down_book.no_token, down_book.id, Outcome.NO, Side.BUY, q, 1.90, 0.0, 0.19, 0.01, 5, False, "DOWN", yes_token=down_book.yes_token)
+    opp = Opportunity(
+        strategy="crypto_short", key="canchor:test", event_id="e1", title="BTC 1h(DN<68254) ⇄ Above(>68200)",
+        legs=[yes_leg, down_leg], shares=q, cost=4.0, payout_floor=q, settlement=Settlement.RESOLUTION,
+        risk="low", resolves_at=None, detected_at=0.0,
+    )
+
+    class OneLeg:
+        mode = "paper"
+
+        def __init__(self):
+            self.buys = 0
+            self.sold = 0.0
+
+        async def buy(self, legs, slippage_ticks=0):
+            self.buys += 1
+            assert self.buys == 1, "must not buy the 82¢ DOWN leg"
+            return [
+                LegResult(legs[0], True, shares=q, spent=2.10, status="matched"),
+                LegResult(legs[1], False, status="unmatched"),
+            ]
+
+        async def sell(self, token_id, outcome, yes_token, shares, min_price, fee, tick):
+            self.sold += shares
+            return SellResult(token_id, outcome, True, shares=shares, proceeds=shares * 0.20)
+
+    gw = OneLeg()
+    ex = Executor(gw, store, {}, ExecutionConfig())
+    rep = await ex.execute(opp, None)
+    assert rep.action.startswith("unwind")
+    assert gw.buys == 1 and gw.sold == pytest.approx(q)
+    assert rep.locked_cost == 0
 
 
 async def test_partial_fill_unwinds_when_cheapest(store):

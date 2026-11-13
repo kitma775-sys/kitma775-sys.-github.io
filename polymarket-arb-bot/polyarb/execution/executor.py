@@ -218,9 +218,17 @@ class Executor:
             if fill.shares < q - 1e-6 or fill.notional < 1.0:
                 retry_legs = None
                 break
-            retry_cost += fill.notional + fill.fee
+            # The retry order is allowed one extra tick. Price that in before deciding to complete,
+            # or a basket that looks flat on the touch locks in a loss once the order is sent.
+            slip_pad = q * (self.cfg.slippage_ticks + 1) * leg.tick_size
+            retry_cost += fill.notional + fill.fee + slip_pad
             retry_legs.append(replace(leg, shares=q, notional=fill.notional, fee=fill.fee, limit_price=fill.worst_price))
         complete_value = per_unit * q - filled_cost - retry_cost if retry_legs is not None else -math.inf
+        # Never buy the missing leg once the pair costs more than its guaranteed payout.
+        # The BTC 1h retry did this: YES filled at 21¢, DOWN was then lifted at 82¢, and the hold pays $1 against $1.03.
+        if complete_value < 0.0:
+            retry_legs = None
+            complete_value = -math.inf
 
         unwind_value = sum(self._sell_value(h.leg, h.shares) for h in held.values()) - filled_cost
 
