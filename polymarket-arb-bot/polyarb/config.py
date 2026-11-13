@@ -18,7 +18,7 @@ class ConvertConfig:
     """NegRisk NO-basket bought on the CLOB and converted to pUSD on-chain (no resolution risk)."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.12
+    min_profit_usd: float = 0.08
     min_edge: float = 0.0025
     min_unit_edge: float = 0.0005
     max_legs: int = 15
@@ -32,7 +32,7 @@ class YesBasketConfig:
     """Buy YES on every outcome of an exhaustive NegRisk event and hold to resolution."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.20
+    min_profit_usd: float = 0.15
     min_edge: float = 0.008
     min_apr: float = 0.25
     max_days: float = 45.0
@@ -48,10 +48,10 @@ class MetarConfig:
     """Deterministic NOAA/AWC METAR temperature lock + surviving weather basket + fast 0.99+ flip."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.10
+    min_profit_usd: float = 0.08
     min_edge: float = 0.004
     min_unit_edge: float = 0.002
-    basket_min_profit_usd: float = 0.18
+    basket_min_profit_usd: float = 0.15
     basket_min_edge: float = 0.005
     max_days: float = 2.0
     resolution_lag_days: float = 0.5
@@ -103,7 +103,7 @@ class MakerArbConfig:
     """Lead-leg postOnly maker quote (0 maker fee) + instant FOK hedge & convert on fill."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.12
+    min_profit_usd: float = 0.08
     min_edge: float = 0.006
     deterministic_min_edge: float = 0.004
     deterministic_min_bid: float = 0.85
@@ -129,7 +129,7 @@ class TwinConfig:
     """Cross-event same-oracle Range Bracket <-> Cumulative Above partition arbitrage."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.15
+    min_profit_usd: float = 0.12
     min_edge: float = 0.004
     min_apr: float = 0.50
     max_days: float = 7.0
@@ -143,7 +143,7 @@ class LadderConfig:
     """Buy YES on the weaker rung and NO on the stronger rung of a monotone ladder."""
 
     enabled: bool = True
-    min_profit_usd: float = 0.20
+    min_profit_usd: float = 0.15
     min_edge: float = 0.006
     min_apr: float = 0.20
     max_days: float = 90.0
