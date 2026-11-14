@@ -14,7 +14,7 @@ from polyarb.execution.paper import PaperGateway
 from polyarb.journal import Journal
 from polyarb.models import Outcome
 from polyarb.risk import RiskManager
-from polyarb.strategies.micro_arb import MicroArb
+from polyarb.strategies.micro_arb import MicroArb, round_slot_open
 
 from conftest import book
 
@@ -62,8 +62,14 @@ def _strat(**kwargs) -> MicroArb:
 
 
 def test_default_stake_is_ten_dollars_for_the_whole_round():
-    assert Config().micro_arb.max_cost_usd == 10.0
-    assert Config().micro_arb.enabled is True
+    cfg = Config().micro_arb
+    assert cfg.max_cost_usd == 10.0
+    assert cfg.enabled is True
+    assert cfg.max_open_rounds == 3
+    assert cfg.merge_start_s == 5.0
+    assert cfg.merge_window_s == 210.0
+    assert cfg.min_strike_gap == 50.0
+    assert cfg.tail_last_s == 25.0
 
 
 def test_merge_buys_both_real_books_and_stops_at_ten_dollars(store):
@@ -166,7 +172,7 @@ def test_maker_merge_quotes_only_when_the_real_down_ask_still_fits(store, tmp_pa
     plans = maker.find_candidates(now=float(start + 40))
     assert plans and plans[0].strategy == "maker_micro_merge"
     assert plans[0].total_cost <= 10.0 + 1e-6
-    assert plans[0].lead_price * plans[0].shares + plans[0].hedge_cost <= plans[0].payout_floor * 0.980 + 1e-6
+    assert plans[0].lead_price * plans[0].shares + plans[0].hedge_cost <= plans[0].payout_floor * cfg.micro_arb.merge_max_combined + 1e-6
 
 
 class _FillAll:
@@ -199,3 +205,52 @@ async def test_filled_merge_returns_pusd_instead_of_a_hold(store):
     assert gw.merged and gw.merged[0][0] == mkt.condition_id
     assert report.realized_pnl == pytest.approx(report.proceeds - report.spent)
     assert report.locked_cost == 0
+
+
+def test_three_open_rounds_leave_the_fourth_waiting():
+    busy = {"a", "b", "c"}
+    assert round_slot_open(busy, "a", 3) is True
+    assert round_slot_open(busy, "d", 3) is False
+    assert round_slot_open(busy, "d", 4) is True
+
+
+def test_tail_covers_the_last_twenty_five_seconds_and_skips_a_close_strike(store):
+    start = 1_794_561_900
+    end = start + 300
+    now_s = float(end - 20)
+    ev = _event("5m", start, 70_000.0)
+    mkt = ev.markets[0]
+    rtds = ChainlinkRtdsFeed()
+    for sec in range(end - 60, int(now_s) + 1):
+        rtds._cl_spot_sec["btc"][sec] = 70_400.0
+    rtds._latest_cl_spot["btc"] = (int(now_s), 70_400.0)
+    rtds._latest_twap["btc"] = (int(now_s), 70_400.0)
+    rtds._latest_bin_spot["btc"] = (int(now_s), 70_402.0)
+    store.put(book(mkt.yes_token, bids=[(0.97, 80)], asks=[(0.990, 80)]))
+    strat = MicroArb(MicroArbConfig(), rtds_feed=rtds, max_trade_usd=40.0)
+    (target,) = [t for t in strat.targets([ev]) if t.key.startswith("micro:")]
+    (opp,) = strat.evaluate(target, store, now_s)
+    assert opp.meta["mode"] == "micro_tail"
+
+    near = float(end - 12)
+    for sec in range(end - 60, int(near) + 1):
+        rtds._cl_spot_sec["btc"][sec] = 70_040.0
+    rtds._latest_cl_spot["btc"] = (int(near), 70_040.0)
+    rtds._latest_twap["btc"] = (int(near), 70_040.0)
+    rtds._latest_bin_spot["btc"] = (int(near), 70_040.0)
+    assert strat.evaluate(target, store, near) == []
+    assert end in strat.safe_skips
+
+
+def test_corridor_accepts_a_fifty_dollar_gap(store):
+    t15 = 1_794_561_300
+    t5 = t15 + 600
+    ev15 = _event("15m", t15, 75_000.0)
+    ev5 = _event("5m", t5, 75_055.0)
+    store.put(book(ev5.markets[0].yes_token, bids=[(0.56, 200)], asks=[(0.58, 200)]))
+    store.put(book(ev15.markets[0].yes_token, bids=[(0.48, 200)], asks=[(0.50, 200)]))
+    strat = MicroArb(MicroArbConfig(), max_trade_usd=40.0)
+    sync = next(t for t in strat.targets([ev15, ev5]) if t.key.startswith("micro-sync:"))
+    (opp,) = strat.evaluate(sync, store, float(t5 + 30))
+    assert opp.meta["mode"] == "micro_corridor"
+    assert opp.cost <= 10.0 + 1e-6

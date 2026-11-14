@@ -441,6 +441,16 @@ class Engine:
             return b
         return None
 
+    def _micro_round_slot(self, event_id: str) -> bool:
+        from polyarb.strategies.micro_arb import _MICRO_STRATEGIES, round_slot_open
+
+        busy = self.risk.occupied_rounds(_MICRO_STRATEGIES)
+        if self.maker_arb is not None:
+            for quote in self.maker_arb.active.values():
+                if quote.plan.strategy in _MICRO_STRATEGIES:
+                    busy.add(quote.plan.event_id)
+        return round_slot_open(busy, event_id, self.cfg.micro_arb.max_open_rounds)
+
     async def _handle(self, opp: Opportunity, target: Target) -> None:
         self.stats["opportunities"] += 1
         sig = (round(opp.profit, 2), round(opp.shares))
@@ -450,6 +460,9 @@ class Engine:
             log.info("OPP %s %s profit=$%.2f edge=%.2f%%", opp.strategy, opp.title[:60], opp.profit, 100 * opp.edge)
         if self.stopping:
             self.stats["skip:shutting down"] += 1
+            return
+        if opp.strategy == "micro_arb" and not self._micro_round_slot(opp.event_id):
+            self.stats["skip:micro rounds full"] += 1
             return
         reason = self.risk.check(opp)
         if (

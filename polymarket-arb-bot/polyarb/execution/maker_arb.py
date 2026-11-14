@@ -955,14 +955,19 @@ class MakerArbManager:
         strat = self.strategies.get("micro_arb")
         if strat is None or not getattr(strat, "enabled", False):
             return []
-        plans: list[MakerQuotePlan] = []
+        from polyarb.strategies.micro_arb import _MICRO_STRATEGIES, round_slot_open
+
+        busy = self.risk.occupied_rounds(_MICRO_STRATEGIES)
+        for quote in self.active.values():
+            if quote.plan.strategy in _MICRO_STRATEGIES:
+                busy.add(quote.plan.event_id)
+        if not round_slot_open(busy, target.event.id, int(strat.cfg.max_open_rounds)):
+            return []
         merged = self._plan_micro_merge(target, strat, mcfg, now_s, exclude_leads)
         if merged is not None:
-            plans.append(merged)
+            return [merged]
         corridor = self._plan_micro_corridor(target, strat, mcfg, now_s, exclude_leads)
-        if corridor is not None:
-            plans.append(corridor)
-        return plans
+        return [corridor] if corridor is not None else []
 
     def _plan_micro_merge(self, target, strat, mcfg, now_s: float, exclude_leads) -> MakerQuotePlan | None:
         from polyarb.strategies.crypto_short import ShortSingleSpec
@@ -974,7 +979,7 @@ class MakerArbManager:
         if spec.asset != "btc" or spec.duration != "5m":
             return None
         elapsed = now_s - spec.start_ts
-        if not (10.0 <= elapsed <= cfg.merge_window_s):
+        if not (cfg.merge_start_s <= elapsed <= cfg.merge_window_s):
             return None
         if self.risk.event_exposure(target.event.id) > 0.5:
             return None

@@ -145,6 +145,7 @@ class RiskManager:
             "sync_5m_15m",
             "micro_corridor",
             "micro_merge",
+            "micro_tail",
         ):
             ids = [opp.event_id, *(str(eid) for eid in (opp.meta.get("event_ids") or []))]
             if any(self.event_exposure(eid) > 0.5 for eid in ids):
@@ -161,6 +162,17 @@ class RiskManager:
         if opp.event_id in self.inflight_events:
             return "event in flight"
         return self.check_size(opp)
+
+    def occupied_rounds(self, strategies: tuple[str, ...]) -> set[str]:
+        """Event ids that already hold inventory for one of ``strategies``."""
+        names = set(strategies)
+        ids: set[str] = set()
+        for hold in self.state.holds:
+            if hold.strategy not in names:
+                continue
+            ids.add(hold.event_id)
+            ids.update(str(eid) for eid in hold.extra_event_ids)
+        return ids
 
     def check_size(self, opp: Opportunity) -> str | None:
         """Capital and exposure limits; re-run on the exact (re-sized) order right before sending."""

@@ -109,18 +109,20 @@ class MicroArbConfig:
 
     enabled: bool = True
     max_cost_usd: float = 10.0
+    max_open_rounds: int = 3
     min_profit_usd: float = 0.04
     min_edge: float = 0.004
     merge_enabled: bool = True
-    merge_max_combined: float = 0.980
-    merge_window_s: float = 180.0
+    merge_max_combined: float = 0.985
+    merge_start_s: float = 5.0
+    merge_window_s: float = 210.0
     corridor_enabled: bool = True
     corridor_max_combined: float = 0.985
-    min_strike_gap: float = 60.0
+    min_strike_gap: float = 50.0
     tail_enabled: bool = True
     tail_min_reversal_usd: float = 280.0
     tail_max_ask: float = 0.991
-    tail_last_s: float = 12.0
+    tail_last_s: float = 25.0
     tail_min_left_s: float = 1.0
     taker_top_fraction: float = 0.85
 

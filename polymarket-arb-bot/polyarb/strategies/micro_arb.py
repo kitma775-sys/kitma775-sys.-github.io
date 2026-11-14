@@ -17,9 +17,26 @@ Three engines, each round capped by ``max_cost_usd`` (default $10, both legs):
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 from typing import Iterable
+
+log = logging.getLogger(__name__)
+
+_MICRO_STRATEGIES = ("micro_arb", "maker_micro_merge", "maker_micro_corridor")
+
+
+def round_slot_open(busy: set[str], event_id: str, cap: int) -> bool:
+    """True when this 5m round may still take its $10 slot.
+
+    A round already in ``busy`` can finish its own entry. A new round waits
+    until fewer than ``cap`` rounds are still holding or quoting, so redeem
+    of the previous round does not block the next one until three are open.
+    """
+    if cap <= 0 or event_id in busy:
+        return True
+    return len(busy) < cap
 
 from polyarb.config import MicroArbConfig
 from polyarb.data.rtds import ChainlinkRtdsFeed
@@ -56,6 +73,7 @@ class MicroArb:
         self.flip_ask_price = flip_ask_price
         self.flip_min_instant_bid = flip_min_instant_bid
         self.flip_min_profit_usd = flip_min_profit_usd
+        self.safe_skips: set[int] = set()
 
     def targets(self, events: Iterable[Event]) -> list[Target]:
         if not self.enabled:
@@ -180,7 +198,7 @@ class MicroArb:
         if isinstance(payload, ShortSingleSpec):
             edges: list[float] = []
             elapsed = now_s - payload.start_ts
-            if self.cfg.merge_enabled and 10.0 <= elapsed <= self.cfg.merge_window_s:
+            if self.cfg.merge_enabled and self.cfg.merge_start_s <= elapsed <= self.cfg.merge_window_s:
                 up = self._asks(payload.market, Outcome.YES, books)
                 down = self._asks(payload.market, Outcome.NO, books)
                 cu, cd = unit_cost(up, payload.market.fee), unit_cost(down, payload.market.fee)
@@ -253,7 +271,7 @@ class MicroArb:
     ) -> Opportunity | None:
         cfg = self.cfg
         elapsed = now - spec.start_ts
-        if not cfg.merge_enabled or not (10.0 <= elapsed <= cfg.merge_window_s):
+        if not cfg.merge_enabled or not (cfg.merge_start_s <= elapsed <= cfg.merge_window_s):
             return None
         market = spec.market
         # Both token books. The YES mirror of NO is 1 - bid, so it can never sum under $1.
@@ -306,6 +324,7 @@ class MicroArb:
             return None
         state = self._tail_state(target.event, spec, now)
         if state is None:
+            self._note_safe_skip(target.event, spec, now)
             return None
         locked, req, proof = state
         market = spec.market
@@ -351,6 +370,11 @@ class MicroArb:
         cfg = self.cfg
         if not cfg.corridor_enabled:
             return None
+        elapsed = now - spec.start_5m
+        if cfg.merge_enabled and cfg.merge_start_s <= elapsed <= cfg.merge_window_s:
+            merge_cost = self._merge_cost(spec.mkt_5m, books)
+            if merge_cost is not None and merge_cost <= cfg.merge_max_combined + 1e-9:
+                return None
         pair = self.corridor_legs(spec, now)
         if pair is None:
             return None
@@ -392,3 +416,39 @@ class MicroArb:
             },
         )
         return self._accept(opp)
+
+    def _merge_cost(self, market: Market, books: Books) -> float | None:
+        yes = books.get(market.yes_token)
+        no = books.get(market.no_token)
+        if yes is None or no is None or not yes.asks or not no.asks:
+            return None
+        up = unit_cost(yes.asks, market.fee)
+        down = unit_cost(no.asks, market.fee)
+        if up is None or down is None:
+            return None
+        return up + down
+
+    def _note_safe_skip(self, ev: Event, spec: ShortSingleSpec, now_s: float) -> None:
+        """One log per round when the tail is close enough to the strike to flip."""
+        cfg = self.cfg
+        rem = spec.end_ts - now_s
+        if self.rtds_feed is None or not (cfg.tail_min_left_s <= rem <= cfg.tail_last_s):
+            return
+        if spec.end_ts in self.safe_skips:
+            return
+        open_px = self._strike(ev, spec)
+        if open_px is None:
+            return
+        measured = self.rtds_feed.window_reversal_usd(spec.asset, open_px, spec.end_ts, now_s)
+        if measured is None:
+            return
+        _lead, req, _spot, _twap = measured
+        if req + 1e-9 >= cfg.tail_min_reversal_usd:
+            return
+        self.safe_skips.add(spec.end_ts)
+        log.info(
+            "micro safe skip %s reversal $%.0f under $%.0f",
+            ev.title[:48],
+            req,
+            cfg.tail_min_reversal_usd,
+        )
