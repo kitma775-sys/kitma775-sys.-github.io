@@ -69,7 +69,10 @@ def test_default_stake_is_ten_dollars_for_the_whole_round():
     assert cfg.merge_start_s == 5.0
     assert cfg.merge_window_s == 210.0
     assert cfg.min_strike_gap == 50.0
+    assert cfg.corridor_end_s == 240.0
     assert cfg.tail_last_s == 25.0
+    assert cfg.tail_min_reversal_usd == 220.0
+    assert cfg.tail_max_ask == 0.992
 
 
 def test_merge_buys_both_real_books_and_stops_at_ten_dollars(store):
@@ -254,3 +257,4 @@ def test_corridor_accepts_a_fifty_dollar_gap(store):
     (opp,) = strat.evaluate(sync, store, float(t5 + 30))
     assert opp.meta["mode"] == "micro_corridor"
     assert opp.cost <= 10.0 + 1e-6
+    assert strat.evaluate(sync, store, float(t5 + 250)) == []

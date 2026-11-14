@@ -88,9 +88,10 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("u_ce", "micro_arb.corridor_enabled", "micro", "5分鐘×15分鐘走廊", "兩個行使價相差夠闊時，買低價的升和高價的跌。最低收回 $1", "bool"),
     SettingSpec("u_cx", "micro_arb.corridor_max_combined", "micro", "走廊兩腿成本上限", "兩腿合計（含費）不得高過此價", "float", "price", 0.90, 0.999, (0.970, 0.980, 0.985, 0.990)),
     SettingSpec("u_sg", "micro_arb.min_strike_gap", "micro", "走廊最小價差", "5 分鐘同 15 分鐘行使價至少相差這麼多美元才做走廊", "float", "usd", 10.0, 2000.0, (30.0, 50.0, 60.0, 100.0)),
+    SettingSpec("u_cd", "micro_arb.corridor_end_s", "micro", "走廊最遲到第幾秒", "走廊只喺開局 10 秒到此秒數做。預設 240，之後留給尾盤", "float", "s", 60.0, 290.0, (180.0, 210.0, 240.0, 270.0)),
     SettingSpec("u_te", "micro_arb.tail_enabled", "micro", "尾盤鎖", "最後 25 秒，剩餘時間要逆向超過門檻先買勝方。貼近行使價就跳過這一局", "bool"),
-    SettingSpec("u_rv", "micro_arb.tail_min_reversal_usd", "micro", "尾盤翻盤門檻", "餘下秒數的平均價要逆向至少這麼多美元，先當結果已鎖", "float", "usd", 50.0, 5000.0, (180.0, 280.0, 400.0, 600.0)),
-    SettingSpec("u_ta", "micro_arb.tail_max_ask", "micro", "尾盤最高買入價", "勝方賣一高過此價就不買", "float", "price", 0.90, 0.999, (0.980, 0.988, 0.991, 0.995)),
+    SettingSpec("u_rv", "micro_arb.tail_min_reversal_usd", "micro", "尾盤翻盤門檻", "餘下秒數的平均價要逆向至少這麼多美元，先當結果已鎖", "float", "usd", 50.0, 5000.0, (180.0, 220.0, 280.0, 400.0)),
+    SettingSpec("u_ta", "micro_arb.tail_max_ask", "micro", "尾盤最高買入價", "勝方賣一高過此價就不買", "float", "price", 0.90, 0.999, (0.988, 0.991, 0.992, 0.995)),
     # --- maker ---
     SettingSpec("k_on", "maker.enabled", "maker", "零費掛單對沖開關", "於主導腿掛 postOnly 零費買單，成交即 FOK 對沖（關閉會即撤現有掛單）", "bool"),
     SettingSpec("k_mq", "maker.max_open_quotes", "maker", "同時最多掛單數", "同時在市場上維持的零費限價單上限", "int", "int", 1, 20, (2, 4, 5, 6, 8)),

@@ -145,7 +145,8 @@ class MicroArb:
         self, spec: Sync5m15mSpec, now_s: float
     ) -> tuple[list[tuple[Market, Outcome]], datetime, str, list[str]] | None:
         cfg = self.cfg
-        if not (spec.start_5m <= now_s < spec.end_ts - cfg.tail_min_left_s):
+        elapsed = now_s - spec.start_5m
+        if not (cfg.corridor_start_s <= elapsed <= cfg.corridor_end_s):
             return None
         sp15 = ShortSingleSpec("twap_single", spec.asset, "15m", spec.start_15m, spec.end_ts, spec.mkt_15m)
         sp5 = ShortSingleSpec("twap_single", spec.asset, "5m", spec.start_5m, spec.end_ts, spec.mkt_5m)

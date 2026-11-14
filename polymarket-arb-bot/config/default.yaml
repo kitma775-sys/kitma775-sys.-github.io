@@ -90,10 +90,12 @@ micro_arb:               # 24/7 BTC 5m cascade. Stake is the whole round; three 
   corridor_enabled: true
   corridor_max_combined: 0.985
   min_strike_gap: 50.0
+  corridor_start_s: 10.0
+  corridor_end_s: 240.0  # engine B only until 240s; the last 25s belong to the tail
   tail_enabled: true
-  tail_min_reversal_usd: 280.0
-  tail_max_ask: 0.991
-  tail_last_s: 25.0      # engine C: last 25s (275s–299s); closer than this is a safe skip
+  tail_min_reversal_usd: 220.0
+  tail_max_ask: 0.992
+  tail_last_s: 25.0      # engine C: 275s–299s; closer to the strike is a safe skip
   tail_min_left_s: 1.0
   taker_top_fraction: 0.85
 

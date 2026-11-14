@@ -120,8 +120,10 @@ class MicroArbConfig:
     corridor_max_combined: float = 0.985
     min_strike_gap: float = 50.0
     tail_enabled: bool = True
-    tail_min_reversal_usd: float = 280.0
-    tail_max_ask: float = 0.991
+    corridor_start_s: float = 10.0
+    corridor_end_s: float = 240.0
+    tail_min_reversal_usd: float = 220.0
+    tail_max_ask: float = 0.992
     tail_last_s: float = 25.0
     tail_min_left_s: float = 1.0
     taker_top_fraction: float = 0.85
