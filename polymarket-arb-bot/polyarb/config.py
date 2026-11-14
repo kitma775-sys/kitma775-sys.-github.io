@@ -114,8 +114,14 @@ class MicroArbConfig:
     min_edge: float = 0.004
     merge_enabled: bool = True
     merge_max_combined: float = 0.985
+    merge_min_price: float = 0.38
+    merge_max_price: float = 0.62
     merge_start_s: float = 5.0
     merge_window_s: float = 210.0
+    hedge_depth_ratio: float = 2.5
+    hedge_price_buffer: float = 0.012
+    chase_max_combined: float = 1.005
+    sell_safe_factor: float = 0.98
     corridor_enabled: bool = True
     corridor_max_combined: float = 0.985
     min_strike_gap: float = 50.0

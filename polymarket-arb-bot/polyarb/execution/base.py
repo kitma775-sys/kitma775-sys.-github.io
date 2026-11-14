@@ -148,6 +148,10 @@ def retain_unsold_shares(report: ExecutionReport) -> None:
         taken = min(filled, remaining.get(token, 0.0))
         if taken > 0:
             remaining[token] = remaining.get(token, 0.0) - taken
+        # A 98% sell is a full close. The leftover is the balance-cache haircut, not a position.
+        if taken >= filled * 0.97 - 1e-9:
+            result.shares = 0.0
+            continue
         kept = filled - taken
         if kept < 0.05:
             if taken > 0:

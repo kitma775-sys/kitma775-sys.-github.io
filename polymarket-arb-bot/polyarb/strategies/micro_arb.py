@@ -246,17 +246,13 @@ class MicroArb:
             return []
         payload = target.payload
         if isinstance(payload, ShortSingleSpec):
-            found: list[Opportunity] = []
-            merged = self._eval_merge(target, payload, books, now, cap)
-            if merged is not None:
-                found.append(merged)
+            # Merge is a sequential maker quote plus one hedge. A two-leg taker
+            # FOK is what left the naked Down leg on 14:41 and 14:42.
             tail = self._eval_tail(target, payload, books, now, cap)
-            if tail is not None:
-                found.append(tail)
-            return found
+            return [tail] if tail is not None else []
         if isinstance(payload, Sync5m15mSpec):
-            opp = self._eval_corridor(target, payload, books, now, cap)
-            return [opp] if opp is not None else []
+            # Corridor uses the same sequential maker path.
+            return []
         return []
 
     def _accept(self, opp: Opportunity) -> Opportunity | None:

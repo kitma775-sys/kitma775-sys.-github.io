@@ -283,11 +283,20 @@ class Executor:
             floor = max(fill.worst_price - h.leg.tick_size, h.leg.tick_size)
             report.sells.append(
                 await self.gateway.sell(
-                    h.leg.token_id, h.leg.outcome, h.leg.yes_token, h.shares, floor, h.leg.fee_schedule, h.leg.tick_size
+                    h.leg.token_id, h.leg.outcome, h.leg.yes_token, h.shares * self._sell_factor(report), floor, h.leg.fee_schedule, h.leg.tick_size
                 )
             )
         report.action = report.action if report.action.startswith("unwind") else f"unwind ({report.action})"
         retain_unsold_shares(report)
+
+    def _sell_factor(self, report: ExecutionReport) -> float:
+        mode = report.opp.meta.get("mode")
+        if report.opp.strategy in ("micro_arb", "maker_micro_merge", "maker_micro_corridor") or mode in ("micro_merge", "micro_corridor"):
+            return self._micro_sell_factor()
+        return 1.0
+
+    def _micro_sell_factor(self) -> float:
+        return 0.98
 
     async def _convert(self, report: ExecutionReport) -> None:
         opp = report.opp

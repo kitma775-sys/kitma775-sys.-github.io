@@ -1010,7 +1010,11 @@ class MakerArbManager:
             best_bid = lead_book.bids[0].price
             if best_ask - best_bid > mcfg.max_lead_spread + EPS:
                 continue
-            unit_hedge = hedge_asks[0].price + fee_per_share(market.fee, hedge_asks[0].price)
+            hedge_ask = hedge_asks[0].price
+            band_lo, band_hi = cfg.merge_min_price, cfg.merge_max_price
+            if not (band_lo <= best_bid <= band_hi and band_lo <= hedge_ask <= band_hi):
+                continue
+            unit_hedge = hedge_ask + fee_per_share(market.fee, hedge_ask)
             rebate_u = mcfg.rebate_credit_ratio * maker_rebate_per_share(market.fee, best_bid)
             cash_ceil = cfg.merge_max_combined - unit_hedge - max(market.tick_size * 0.5, 0.0005)
             edge_ceil = (1.0 + rebate_u) / (1.0 + cfg.min_edge) - unit_hedge
@@ -1022,7 +1026,7 @@ class MakerArbManager:
             shares = min(
                 floor_shares(budget / (our_bid + unit_hedge)),
                 self._max_shares_by_pool(our_bid, unit_hedge, Settlement.RESOLUTION, fast_turnover=True),
-                floor_shares(hedge_asks[0].size / 1.2),
+                floor_shares(hedge_asks[0].size / max(cfg.hedge_depth_ratio, 1.0)),
             )
             if shares < min_sh - EPS:
                 continue
@@ -1626,6 +1630,9 @@ class MakerArbManager:
         hedge_results = await self.gateway.buy(hedge_order_legs, slippage_ticks=1) if (hedge_possible and hedge_order_legs) else []
         report.legs = [*maker_results, *hedge_results]
         report.complete = hedge_possible and len(hedge_results) == len(hedge_order_legs) and all(r.ok for r in hedge_results)
+        if not report.complete and plan.strategy in ("maker_micro_merge", "maker_micro_corridor"):
+            if await self._try_chase_hedge(report, plan, q, fill_price):
+                report.complete = True
 
         if report.complete:
             if plan.settlement is Settlement.CONVERT and plan.neg_risk_market_id:
@@ -1751,13 +1758,62 @@ class MakerArbManager:
                 continue
             f = take(levels, r.shares, r.leg.fee_schedule)
             floor = max(f.worst_price - r.leg.tick_size, r.leg.tick_size)
+            factor = self.cfg.micro_arb.sell_safe_factor if report.opp.strategy in ("maker_micro_merge", "maker_micro_corridor") else 1.0
             report.sells.append(
                 await self.gateway.sell(
-                    r.leg.token_id, r.leg.outcome, r.leg.yes_token, r.shares, floor, r.leg.fee_schedule, r.leg.tick_size
+                    r.leg.token_id, r.leg.outcome, r.leg.yes_token, r.shares * factor, floor, r.leg.fee_schedule, r.leg.tick_size
                 )
             )
         report.action = "maker hedge missed -> unwind"
         retain_unsold_shares(report)
+
+    async def _try_chase_hedge(
+        self, report: ExecutionReport, plan: MakerQuotePlan, shares: float, lead_price: float
+    ) -> bool:
+        """Buy the missing leg up to 100.5¢ total before trying to sell a just-filled leg."""
+        cfg = self.cfg.micro_arb
+        real = plan.strategy == "maker_micro_merge"
+        held = {r.leg.token_id for r in report.legs if r.ok and r.shares > 0}
+        orders: list[Leg] = []
+        for market, outcome in plan.hedge_legs:
+            if market.token(outcome) in held:
+                continue
+            levels = self._hedge_ask_levels(market, outcome, real)
+            if not levels:
+                return False
+            ask = levels[0].price
+            unit = ask + fee_per_share(market.fee, ask)
+            if lead_price + unit > cfg.chase_max_combined + 1e-9:
+                return False
+            limit = min(ask + cfg.hedge_price_buffer, cfg.chase_max_combined - lead_price, 0.99)
+            limit = max(limit, ask)
+            fill = take(levels, shares, market.fee)
+            if fill.shares + 1e-9 < shares:
+                return False
+            orders.append(
+                Leg(
+                    token_id=market.token(outcome),
+                    market_id=market.id,
+                    outcome=outcome,
+                    side=Side.BUY,
+                    shares=shares,
+                    notional=fill.notional,
+                    fee=fill.fee,
+                    limit_price=min(limit, 0.99),
+                    tick_size=market.tick_size,
+                    min_size=market.min_size,
+                    neg_risk=market.neg_risk,
+                    label=f"CHASE {outcome.value} {market.group_title or market.question[:40]}",
+                    yes_token=market.yes_token,
+                    fee_schedule=market.fee,
+                    neg_risk_index=market.neg_risk_index,
+                )
+            )
+        if not orders:
+            return False
+        results = await self.gateway.buy(orders, slippage_ticks=0)
+        report.legs.extend(results)
+        return all(r.ok and r.shares > 0 for r in results)
 
     async def cancel_all(self, reason: str = "shutdown") -> None:
         for qkey, quote in list(self.active.items()):

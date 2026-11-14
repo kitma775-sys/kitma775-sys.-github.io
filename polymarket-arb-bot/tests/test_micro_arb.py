@@ -73,22 +73,22 @@ def test_default_stake_is_ten_dollars_for_the_whole_round():
     assert cfg.tail_last_s == 25.0
     assert cfg.tail_min_reversal_usd == 220.0
     assert cfg.tail_max_ask == 0.992
+    assert cfg.merge_min_price == 0.38
+    assert cfg.merge_max_price == 0.62
+    assert cfg.chase_max_combined == 1.005
+    assert cfg.sell_safe_factor == 0.98
 
 
-def test_merge_buys_both_real_books_and_stops_at_ten_dollars(store):
+def test_merge_does_not_fire_both_legs_as_one_taker_order(store):
+    """14:42 bought Down with one FOK and left Up unmatched. Merge no longer does that."""
     start = 1_794_561_900
     ev = _event("5m", start, 70_000.0)
     mkt = ev.markets[0]
-    store.put(book(mkt.yes_token, bids=[(0.30, 400)], asks=[(0.40, 400)]))
-    store.put(book(mkt.no_token, bids=[(0.30, 400)], asks=[(0.40, 400)]))
+    store.put(book(mkt.yes_token, bids=[(0.48, 400)], asks=[(0.50, 400)]))
+    store.put(book(mkt.no_token, bids=[(0.48, 400)], asks=[(0.50, 400)]))
     strat = _strat()
     (target,) = [t for t in strat.targets([ev]) if t.key.startswith("micro:")]
-    (opp,) = strat.evaluate(target, store, float(start + 30))
-    assert opp.meta["mode"] == "micro_merge"
-    assert opp.cost <= 10.0 + 1e-6
-    assert opp.cost > 8.0
-    assert {leg.outcome for leg in opp.legs} == {Outcome.YES, Outcome.NO}
-    assert opp.profit > 0.04
+    assert strat.evaluate(target, store, float(start + 30)) == []
 
 
 def test_merge_ignores_the_yes_book_mirror(store):
@@ -111,10 +111,10 @@ def test_corridor_requires_sixty_dollar_gap_and_ten_dollar_cap(store):
     store.put(book(wide15.markets[0].yes_token, bids=[(0.48, 200)], asks=[(0.50, 200)]))
     strat = _strat()
     sync = next(t for t in strat.targets([wide15, wide5]) if t.key.startswith("micro-sync:"))
-    (opp,) = strat.evaluate(sync, store, float(t5 + 30))
-    assert opp.meta["mode"] == "micro_corridor"
-    assert opp.cost <= 10.0 + 1e-6
-    assert [(leg.outcome) for leg in opp.legs] == [Outcome.NO, Outcome.YES]
+    legs = strat.corridor_legs(sync.payload, float(t5 + 30))
+    assert legs is not None
+    assert [(outcome) for _, outcome in legs[0]] == [Outcome.NO, Outcome.YES]
+    assert strat.evaluate(sync, store, float(t5 + 30)) == []
 
     near15 = _event("15m", t15, 75_000.0)
     near5 = _event("5m", t5, 75_040.0)
@@ -193,14 +193,23 @@ class _FillAll:
 
 
 async def test_filled_merge_returns_pusd_instead_of_a_hold(store):
+    from polyarb.models import Leg, Opportunity, Settlement, Side
+
     start = 1_794_561_900
     ev = _event("5m", start, 70_000.0)
     mkt = ev.markets[0]
-    store.put(book(mkt.yes_token, bids=[(0.30, 400)], asks=[(0.40, 400)]))
-    store.put(book(mkt.no_token, bids=[(0.30, 400)], asks=[(0.40, 400)]))
+    q = 10.0
+    legs = [
+        Leg(mkt.yes_token, mkt.id, Outcome.YES, Side.BUY, q, 4.8, 0.0, 0.48, mkt.tick_size, mkt.min_size, False, "UP", yes_token=mkt.yes_token, fee_schedule=mkt.fee),
+        Leg(mkt.no_token, mkt.id, Outcome.NO, Side.BUY, q, 4.8, 0.0, 0.48, mkt.tick_size, mkt.min_size, False, "DOWN", yes_token=mkt.yes_token, fee_schedule=mkt.fee),
+    ]
+    opp = Opportunity(
+        strategy="micro_arb", key="micro:merge", event_id=ev.id, title="merge",
+        legs=legs, shares=q, cost=9.6, payout_floor=q, settlement=Settlement.RESOLUTION,
+        risk="low", resolves_at=None, detected_at=0.0,
+        meta={"mode": "micro_merge", "condition_ids": [mkt.condition_id]},
+    )
     strat = _strat()
-    (target,) = [t for t in strat.targets([ev]) if t.key.startswith("micro:")]
-    (opp,) = strat.evaluate(target, store, float(start + 30))
     gw = _FillAll()
     report = await Executor(gw, store, {"micro_arb": strat}, Config().execution).execute(opp)
     assert report.complete
@@ -254,7 +263,6 @@ def test_corridor_accepts_a_fifty_dollar_gap(store):
     store.put(book(ev15.markets[0].yes_token, bids=[(0.48, 200)], asks=[(0.50, 200)]))
     strat = MicroArb(MicroArbConfig(), max_trade_usd=40.0)
     sync = next(t for t in strat.targets([ev15, ev5]) if t.key.startswith("micro-sync:"))
-    (opp,) = strat.evaluate(sync, store, float(t5 + 30))
-    assert opp.meta["mode"] == "micro_corridor"
-    assert opp.cost <= 10.0 + 1e-6
-    assert strat.evaluate(sync, store, float(t5 + 250)) == []
+    assert strat.corridor_legs(sync.payload, float(t5 + 30)) is not None
+    assert strat.corridor_legs(sync.payload, float(t5 + 250)) is None
+    assert strat.evaluate(sync, store, float(t5 + 30)) == []
