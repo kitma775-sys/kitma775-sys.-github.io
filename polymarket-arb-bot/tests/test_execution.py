@@ -149,6 +149,40 @@ async def test_retry_refuses_to_lock_a_btc_1h_pair_bought_through_one_dollar(sto
     assert rep.locked_cost == 0
 
 
+async def test_naked_crypto_pair_unwinds_even_past_the_loss_cap(store):
+    yes = make_market("Bitcoin above 68200", group="68,200")
+    down_book = make_market("Bitcoin Up or Down", group="Up")
+    store.put(book(yes.yes_token, bids=[(0.05, 100)], asks=[(0.21, 100)]))
+    store.put(book(down_book.yes_token, bids=[(0.18, 100)], asks=[(0.82, 100)]))
+    q = 10.0
+    yes_leg = Leg(yes.yes_token, yes.id, Outcome.YES, Side.BUY, q, 2.10, 0.0, 0.21, 0.01, 5, False, "YES 68,200", yes_token=yes.yes_token)
+    down_leg = Leg(down_book.no_token, down_book.id, Outcome.NO, Side.BUY, q, 1.90, 0.0, 0.19, 0.01, 5, False, "DOWN", yes_token=down_book.yes_token)
+    opp = Opportunity(
+        strategy="crypto_short", key="canchor:cap", event_id="e1", title="BTC 1h pair",
+        legs=[yes_leg, down_leg], shares=q, cost=4.0, payout_floor=q, settlement=Settlement.RESOLUTION,
+        risk="low", resolves_at=None, detected_at=0.0, meta={"mode": "anchor_1h"},
+    )
+
+    class OneLeg:
+        mode = "paper"
+
+        def __init__(self):
+            self.sold = 0.0
+
+        async def buy(self, legs, slippage_ticks=0):
+            return [LegResult(legs[0], True, shares=q, spent=2.10, status="matched"), LegResult(legs[1], False, status="unmatched")]
+
+        async def sell(self, token_id, outcome, yes_token, shares, min_price, fee, tick):
+            self.sold += shares
+            return SellResult(token_id, outcome, True, shares=shares, proceeds=shares * 0.05)
+
+    gw = OneLeg()
+    ex = Executor(gw, store, {}, ExecutionConfig(max_unwind_loss_usd=0.10))
+    rep = await ex.execute(opp, None)
+    assert rep.action.startswith("unwind") and not rep.orphaned
+    assert gw.sold == pytest.approx(q)
+
+
 async def test_partial_fill_unwinds_when_cheapest(store):
     strat, target, opp, ms = convert_setup(store, (0.40, 0.35, 0.30), (0.42, 0.37, 0.32))
     store.put(book(ms[2].yes_token, asks=[(0.32, 100)]))  # leg 3 has no NO liquidity left

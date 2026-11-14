@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import timedelta
 
 import httpx
@@ -140,6 +141,20 @@ def test_zero_fill_is_not_a_trade_and_does_not_trip_the_kill_switch(risk):
     assert risk.state.consecutive_failures == 0
     assert risk.state.realized_total == 0
     assert not risk.state.killed
+
+
+def test_failed_crypto_pair_stays_blocked_until_resolution(risk):
+    o = opp(cost=10)
+    o.meta["mode"] = "anchor_1h"
+    o.meta["event_ids"] = [o.event_id, "above"]
+    o.resolves_at = NOW + timedelta(hours=1)
+    missed = report(o, complete=False, pnl=-1.6)
+    risk.finish(missed)
+    assert risk.check(o, T0 + 30) == "cooldown"
+    assert risk.check(o, T0 + 1800) == "cooldown"
+    fresh = opp(cost=10, key="fresh", event="fresh")
+    fresh.legs = [replace(fresh.legs[0], market_id="other-market")]
+    assert risk.check(fresh, T0 + 1800) is None
 
 
 def test_finish_tracks_pnl_failures_and_kills(risk):

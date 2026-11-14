@@ -257,7 +257,10 @@ class Executor:
         held = self._held(report)
         cost = sum(h.cost for h in held.values())
         value = sum(self._sell_value(h.leg, h.shares) for h in held.values())
-        if cost - value > self.cfg.max_unwind_loss_usd:
+        # A naked 1h/5m pair leg is a directional bet that can go to zero. Selling it back
+        # loses the spread; keeping it can lose the whole premium. Always sell it back.
+        naked_pair = opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m")
+        if not naked_pair and cost - value > self.cfg.max_unwind_loss_usd:
             # Dumping into a thin book would crystallise a large loss; keep the legs for manual review.
             report.orphaned = True
             report.locked_cost = cost

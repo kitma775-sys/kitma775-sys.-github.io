@@ -140,6 +140,10 @@ class RiskManager:
             return f"geoblocked ({self.geo.get('country') or self.geo.get('error')})"
         if self.state.realized_today <= -cfg.max_daily_loss_usd:
             return "daily loss limit"
+        if opp.strategy == "maker_crypto_pair" or opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m"):
+            ids = [opp.event_id, *(str(eid) for eid in (opp.meta.get("event_ids") or []))]
+            if any(self.event_exposure(eid) > 0.5 for eid in ids):
+                return "pair already open"
         if self.state.consecutive_failures >= cfg.max_consecutive_failures:
             return "consecutive failure limit"
         cooldown_keys = [opp.key, *(f"mkt:{leg.market_id}" for leg in opp.legs if leg.market_id)]
@@ -239,7 +243,26 @@ class RiskManager:
             self.kill(f"{self.state.consecutive_failures} consecutive incomplete executions")
         if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
             self.kill("daily loss limit reached")
+        self._freeze_open_pair(opp, report.finished_at or time.time())
         self.save()
+
+    def _freeze_open_pair(self, opp: Opportunity, now: float) -> None:
+        """One 1h/5m cross-pair per window. A partial fill must not be re-tried for the rest of the hour."""
+        if opp.strategy != "maker_crypto_pair" and opp.meta.get("mode") not in ("anchor_1h", "sync_5m_15m"):
+            return
+        if opp.resolves_at is not None:
+            horizon = opp.resolves_at.timestamp()
+        else:
+            horizon = now + 3600.0
+        stamp = horizon - max(self.cfg.cooldown_s, 1.0)
+        keys = [opp.key, f"event:{opp.event_id}"]
+        for eid in opp.meta.get("event_ids") or []:
+            keys.append(f"event:{eid}")
+        for leg in opp.legs:
+            if leg.market_id:
+                keys.append(f"mkt:{leg.market_id}")
+        for key in keys:
+            self.last_attempt[key] = max(self.last_attempt.get(key, 0.0), stamp)
 
     def close_hold(self, hold: HoldPosition, proceeds: float, now: float | None = None) -> float:
         """Close a held position (via fast flip sell or on-chain redemption) and book its exact PnL."""

@@ -672,6 +672,8 @@ class MakerArbManager:
             if pair is None:
                 return []
             leg_specs, resolves_at, pair_title, ev_ids = pair
+            if self.risk.event_exposure(target.event.id) > 0.5 or any(self.risk.event_exposure(eid) > 0.5 for eid in ev_ids):
+                return []
             budget = self._planning_budget(Settlement.RESOLUTION, target.event.id, fast_turnover=True)
             if budget < 4.0:
                 return []
@@ -1383,6 +1385,19 @@ class MakerArbManager:
                 )
             )
 
+        lead_spent = sum(r.cost for r in maker_results)
+        hedge_spent = sum(hl.notional + hl.fee for hl in hedge_order_legs)
+        slip = sum(hl.shares * hl.tick_size for hl in hedge_order_legs)
+        payout_now = (float(len({r.leg.market_id for r in maker_results} | {hm.id for hm, _ in plan.hedge_legs}) - 1) * q) if plan.settlement is Settlement.CONVERT else q
+        # The ETH 1h maker fill paid 73¢ then hedged at 31.5¢, locking $10.45 against a $10 payout.
+        if plan.settlement is not Settlement.CONVERT and hedge_order_legs and lead_spent + hedge_spent + slip >= payout_now - 0.01:
+            log.info(
+                "skip hedge on %s: $%.2f + $%.2f exceeds $%.2f payout",
+                plan.title[:42], lead_spent, hedge_spent, payout_now,
+            )
+            hedge_possible = False
+            hedge_order_legs = []
+
         distinct_markets = {r.leg.market_id for r in maker_results} | {hm.id for hm, _ in plan.hedge_legs}
         payout_mult = float(len(distinct_markets) - 1) if plan.settlement is Settlement.CONVERT else 1.0
         cond_ids = [
@@ -1517,7 +1532,8 @@ class MakerArbManager:
             levels = (book.bids if r.leg.outcome is Outcome.YES else book.no_bids()) if book else []
             f = take(levels, r.shares, r.leg.fee_schedule)
             est_val += f.notional - f.fee
-        if total_cost - est_val > self.cfg.execution.max_unwind_loss_usd:
+        naked_pair = report.opp.strategy == "maker_crypto_pair"
+        if not naked_pair and total_cost - est_val > self.cfg.execution.max_unwind_loss_usd:
             report.orphaned = True
             report.locked_cost = total_cost
             report.expected_payout = est_val
