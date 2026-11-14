@@ -183,6 +183,79 @@ async def test_naked_crypto_pair_unwinds_even_past_the_loss_cap(store):
     assert gw.sold == pytest.approx(q)
 
 
+async def test_failed_unwind_keeps_the_shares_and_books_no_loss(store):
+    """The 1:40 Down legs: the hedge missed and the sell came back unmatched.
+    The premium stays a hold. It becomes profit only if that side later pays $1."""
+    down = make_market("Bitcoin Up or Down", group="Up")
+    store.put(book(down.yes_token, bids=[(0.60, 100)], asks=[(0.66, 100)]))
+    q = 10.375
+    leg = Leg(down.no_token, down.id, Outcome.NO, Side.BUY, q, 3.478, 0.0, 0.34, 0.01, 5, False, "DOWN", yes_token=down.yes_token)
+    other = Leg(down.yes_token, down.id, Outcome.YES, Side.BUY, q, 6.0, 0.0, 0.66, 0.01, 5, False, "UP", yes_token=down.yes_token)
+    opp = Opportunity(
+        strategy="micro_arb", key="micro:keep", event_id="e1", title="BTC 5m merge",
+        legs=[leg, other], shares=q, cost=9.478, payout_floor=q, settlement=Settlement.RESOLUTION,
+        risk="low", resolves_at=None, detected_at=0.0,
+        meta={"mode": "micro_merge", "sequential": True, "chase_max_combined": 1.005},
+    )
+
+    class NoSell:
+        mode = "paper"
+
+        def __init__(self):
+            self.batches: list[int] = []
+
+        async def buy(self, legs, slippage_ticks=0):
+            self.batches.append(len(legs))
+            leg = legs[0]
+            if leg.outcome is Outcome.NO:
+                return [LegResult(leg, True, shares=q, spent=3.478, status="matched")]
+            return [LegResult(leg, False, status="fok_not_filled")]
+
+        async def sell(self, token_id, outcome, yes_token, shares, min_price, fee, tick):
+            return SellResult(token_id, outcome, False, shares=0.0, proceeds=0.0, error="no bids")
+
+    gw = NoSell()
+    ex = Executor(gw, store, {}, ExecutionConfig())
+    rep = await ex.execute(opp, None)
+    assert gw.batches == [1, 1]
+    assert "unsold shares kept" in rep.action
+    assert rep.realized_pnl == pytest.approx(0.0)
+    assert rep.locked_cost == pytest.approx(3.478)
+    assert rep.expected_payout == pytest.approx(0.0)
+    assert rep.legs[0].shares == pytest.approx(q)
+    assert not rep.orphaned
+
+
+async def test_sequential_merge_stops_when_the_first_leg_misses(store):
+    down = make_market("Bitcoin Up or Down", group="Up")
+    q = 10.0
+    first = Leg(down.no_token, down.id, Outcome.NO, Side.BUY, q, 4.6, 0.0, 0.46, 0.01, 5, False, "DOWN", yes_token=down.yes_token)
+    second = Leg(down.yes_token, down.id, Outcome.YES, Side.BUY, q, 4.7, 0.0, 0.47, 0.01, 5, False, "UP", yes_token=down.yes_token)
+    opp = Opportunity(
+        strategy="micro_arb", key="micro:seq", event_id="e1", title="BTC 5m merge",
+        legs=[first, second], shares=q, cost=9.3, payout_floor=q, settlement=Settlement.RESOLUTION,
+        risk="low", resolves_at=None, detected_at=0.0,
+        meta={"mode": "micro_merge", "sequential": True, "chase_max_combined": 1.005},
+    )
+
+    class Miss:
+        mode = "paper"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def buy(self, legs, slippage_ticks=0):
+            self.calls += 1
+            return [LegResult(legs[0], False, status="fok_not_filled")]
+
+    gw = Miss()
+    rep = await Executor(gw, store, {}, ExecutionConfig()).execute(opp, None)
+    assert gw.calls == 1
+    assert rep.action == "no fills"
+    assert rep.spent == 0
+    assert rep.realized_pnl == pytest.approx(0.0)
+
+
 async def test_partial_fill_unwinds_when_cheapest(store):
     strat, target, opp, ms = convert_setup(store, (0.40, 0.35, 0.30), (0.42, 0.37, 0.32))
     store.put(book(ms[2].yes_token, asks=[(0.32, 100)]))  # leg 3 has no NO liquidity left

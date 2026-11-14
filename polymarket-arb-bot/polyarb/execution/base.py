@@ -125,6 +125,51 @@ class ExecutionReport:
         }
 
 
+def retain_unsold_shares(report: ExecutionReport) -> None:
+    """Keep shares the unwind sell did not actually sell.
+
+    A failed or missing sell used to book the whole premium as a realized loss
+    and drop the tokens. They were still in the wallet, so a later $1 payout
+    never hit the ledger. Unsold cost stays a hold with no assumed payout.
+    Realized PnL covers only the shares that were sold.
+    """
+    sold: dict[str, float] = {}
+    for sale in report.sells:
+        if sale.ok and sale.shares > 0:
+            sold[sale.token_id] = sold.get(sale.token_id, 0.0) + sale.shares
+    remaining = dict(sold)
+    unsold_cost = 0.0
+    unsold_shares = 0.0
+    for result in report.legs + report.retries:
+        if not result.ok or result.shares <= 0:
+            continue
+        token = result.leg.token_id
+        filled = result.shares
+        taken = min(filled, remaining.get(token, 0.0))
+        if taken > 0:
+            remaining[token] = remaining.get(token, 0.0) - taken
+        # A 98% sell is a full close. The leftover is the balance-cache haircut, not a position.
+        if taken >= filled * 0.97 - 1e-9:
+            result.shares = 0.0
+            continue
+        kept = filled - taken
+        if kept < 0.05:
+            if taken > 0:
+                result.shares = 0.0
+            continue
+        unsold_cost += result.cost * (kept / filled)
+        unsold_shares += kept
+        result.shares = kept
+    if unsold_shares < 0.05:
+        return
+    report.locked_cost = unsold_cost
+    report.expected_payout = 0.0
+    report.settled_shares = unsold_shares
+    note = "unsold shares kept"
+    if note not in report.action:
+        report.action = f"{report.action} -> {note}" if report.action else note
+
+
 def record_materially_filled(record: dict) -> bool:
     """Journal/dashboard view of :meth:`ExecutionReport.materially_filled`."""
     if record.get("orphaned"):
@@ -185,6 +230,9 @@ class Gateway(Protocol):
 
     async def redeem(self, condition_id: str) -> tuple[bool, str | None]:
         """Redeem a resolved market's winning position on-chain into pUSD."""
+
+    async def merge(self, condition_id: str, shares: float) -> tuple[bool, str | None]:
+        """Merge equal UP and DOWN of one condition back into pUSD."""
 
     def warm_markets(self, markets: Iterable[Market]) -> int:
         """Pre-populate order metadata caches so signing needs zero cold HTTP round-trips."""

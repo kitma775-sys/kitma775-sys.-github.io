@@ -72,7 +72,7 @@ def settle_heap() -> None:
 
 async def load_events(cfg: Config, gamma: GammaClient, rtds_feed: ChainlinkRtdsFeed | None = None) -> list[Event]:
     base = await gamma.fetch_events(min_markets=cfg.universe.min_markets, **cfg.universe.gamma_filters)
-    if cfg.crypto_short.enabled:
+    if cfg.crypto_short.enabled or cfg.micro_arb.enabled:
         short_evs = await fetch_short_crypto_events(gamma._http, rtds_feed=rtds_feed, base_url=gamma._base)
         by_id = {e.id: e for e in base}
         for e in short_evs:
@@ -272,7 +272,7 @@ class Engine:
                 by_st[t.event.metar_icao.upper()].append(t.key)
             elif t.strategy == "binance_lock" and hasattr(t.payload, "symbol"):
                 by_sym[str(t.payload.symbol).upper()].append(t.key)
-            elif t.strategy == "crypto_short" and hasattr(t.payload, "asset"):
+            elif t.strategy in ("crypto_short", "micro_arb") and hasattr(t.payload, "asset"):
                 a_code = str(t.payload.asset).lower()
                 by_sa[a_code].append(t.key)
                 by_sym[f"{a_code.upper()}USDT"].append(t.key)
@@ -296,14 +296,16 @@ class Engine:
                 s.enabled = bool(s.cfg.enabled)
             if hasattr(s, "max_trade_usd"):
                 s.max_trade_usd = self.cfg.risk.max_trade_usd
-            if s.name in ("binance_lock", "crypto_short"):
+            if s.name in ("binance_lock", "crypto_short", "micro_arb"):
                 s.flip_ask_price = self.cfg.metar.flip_ask_price
                 s.flip_min_instant_bid = self.cfg.metar.flip_min_instant_bid
                 s.flip_min_profit_usd = (
-                    min(0.05, self.cfg.metar.flip_min_profit_usd)
-                    if s.name == "crypto_short"
+                    min(0.04 if s.name == "micro_arb" else 0.05, self.cfg.metar.flip_min_profit_usd)
+                    if s.name in ("crypto_short", "micro_arb")
                     else self.cfg.metar.flip_min_profit_usd
                 )
+            if s.name == "micro_arb" and hasattr(s, "max_cost_usd"):
+                s.max_cost_usd = self.cfg.micro_arb.max_cost_usd
         self.strategies = [s for s in self.all_strategies if s.enabled]
         self.by_name = {s.name: s for s in self.all_strategies}
         if self.executor is not None:
@@ -324,9 +326,10 @@ class Engine:
             elif not self.cfg.binance.enabled and self.binance_feed._task is not None:
                 await self.binance_feed.stop()
         if self.rtds_feed is not None:
-            if self.cfg.crypto_short.enabled and self.rtds_feed._task is None and self.phase == "running":
+            want_rtds = self.cfg.crypto_short.enabled or self.cfg.micro_arb.enabled
+            if want_rtds and self.rtds_feed._task is None and self.phase == "running":
                 await self.rtds_feed.start()
-            elif not self.cfg.crypto_short.enabled and self.rtds_feed._task is not None:
+            elif not want_rtds and self.rtds_feed._task is not None:
                 await self.rtds_feed.stop()
         now_enabled = {s.name for s in self.strategies}
         if now_enabled != prev_enabled and self._raw_events is not None:
@@ -387,7 +390,7 @@ class Engine:
             for token in self.maker_arb.quoted_tokens():
                 tokens[token] = None
         for t in self.universe.targets:
-            if t.strategy == "crypto_short":
+            if t.strategy in ("crypto_short", "micro_arb"):
                 for token in t.tokens:
                     tokens[token] = None
         for h in self.risk.state.holds:
@@ -427,7 +430,7 @@ class Engine:
         try:
             if strategy_name == "negrisk_convert":
                 b = self.risk.budget_for(Settlement.CONVERT, event_id, fast_turnover=True)
-            elif strategy_name in ("metar_lock", "binance_lock", "crypto_short"):
+            elif strategy_name in ("metar_lock", "binance_lock", "crypto_short", "micro_arb"):
                 b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=True)
             else:
                 b = self.risk.budget_for(Settlement.RESOLUTION, event_id, fast_turnover=False)
@@ -438,6 +441,16 @@ class Engine:
             return b
         return None
 
+    def _micro_round_slot(self, event_id: str) -> bool:
+        from polyarb.strategies.micro_arb import _MICRO_STRATEGIES, round_slot_open
+
+        busy = self.risk.occupied_rounds(_MICRO_STRATEGIES)
+        if self.maker_arb is not None:
+            for quote in self.maker_arb.active.values():
+                if quote.plan.strategy in _MICRO_STRATEGIES:
+                    busy.add(quote.plan.event_id)
+        return round_slot_open(busy, event_id, self.cfg.micro_arb.max_open_rounds)
+
     async def _handle(self, opp: Opportunity, target: Target) -> None:
         self.stats["opportunities"] += 1
         sig = (round(opp.profit, 2), round(opp.shares))
@@ -447,6 +460,9 @@ class Engine:
             log.info("OPP %s %s profit=$%.2f edge=%.2f%%", opp.strategy, opp.title[:60], opp.profit, 100 * opp.edge)
         if self.stopping:
             self.stats["skip:shutting down"] += 1
+            return
+        if opp.strategy == "micro_arb" and not self._micro_round_slot(opp.event_id):
+            self.stats["skip:micro rounds full"] += 1
             return
         reason = self.risk.check(opp)
         if (
@@ -539,7 +555,7 @@ class Engine:
             near_boundary = rem_5m <= 45.0 or (now_s % 300.0) <= 90.0
             wait_s = 2.0 if near_boundary else max(8.0, self.cfg.crypto_short.poll_slugs_s)
             await asyncio.sleep(wait_s)
-            if not self.cfg.crypto_short.enabled or self.gamma is None or self._raw_events is None:
+            if not (self.cfg.crypto_short.enabled or self.cfg.micro_arb.enabled) or self.gamma is None or self._raw_events is None:
                 continue
             try:
                 short_evs = await fetch_short_crypto_events(
@@ -571,7 +587,7 @@ class Engine:
                     horizon = self.cfg.crypto_short.postclose_window_s
                     hot: list[str] = []
                     for t in self.universe.targets:
-                        if t.strategy != "crypto_short":
+                        if t.strategy not in ("crypto_short", "micro_arb"):
                             continue
                         end = getattr(t.payload, "end_ts", None)
                         if end is not None and end - 45.0 <= now_hot <= end + horizon:
@@ -648,7 +664,7 @@ class Engine:
                 await self.metar_feed.start()
             if self.binance_feed is not None and self.cfg.binance.enabled:
                 await self.binance_feed.start()
-            if self.rtds_feed is not None and self.cfg.crypto_short.enabled:
+            if self.rtds_feed is not None and (self.cfg.crypto_short.enabled or self.cfg.micro_arb.enabled):
                 await self.rtds_feed.start()
             if self.lifecycle is not None:
                 await self.lifecycle.start()

@@ -140,7 +140,13 @@ class RiskManager:
             return f"geoblocked ({self.geo.get('country') or self.geo.get('error')})"
         if self.state.realized_today <= -cfg.max_daily_loss_usd:
             return "daily loss limit"
-        if opp.strategy == "maker_crypto_pair" or opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m"):
+        if opp.strategy in ("maker_crypto_pair", "maker_micro_merge", "maker_micro_corridor") or opp.meta.get("mode") in (
+            "anchor_1h",
+            "sync_5m_15m",
+            "micro_corridor",
+            "micro_merge",
+            "micro_tail",
+        ):
             ids = [opp.event_id, *(str(eid) for eid in (opp.meta.get("event_ids") or []))]
             if any(self.event_exposure(eid) > 0.5 for eid in ids):
                 return "pair already open"
@@ -156,6 +162,17 @@ class RiskManager:
         if opp.event_id in self.inflight_events:
             return "event in flight"
         return self.check_size(opp)
+
+    def occupied_rounds(self, strategies: tuple[str, ...]) -> set[str]:
+        """Event ids that already hold inventory for one of ``strategies``."""
+        names = set(strategies)
+        ids: set[str] = set()
+        for hold in self.state.holds:
+            if hold.strategy not in names:
+                continue
+            ids.add(hold.event_id)
+            ids.update(str(eid) for eid in hold.extra_event_ids)
+        return ids
 
     def check_size(self, opp: Opportunity) -> str | None:
         """Capital and exposure limits; re-run on the exact (re-sized) order right before sending."""
@@ -248,7 +265,11 @@ class RiskManager:
 
     def _freeze_open_pair(self, opp: Opportunity, now: float) -> None:
         """One 1h/5m cross-pair per window. A partial fill must not be re-tried for the rest of the hour."""
-        if opp.strategy != "maker_crypto_pair" and opp.meta.get("mode") not in ("anchor_1h", "sync_5m_15m"):
+        if opp.strategy not in ("maker_crypto_pair", "maker_micro_corridor") and opp.meta.get("mode") not in (
+            "anchor_1h",
+            "sync_5m_15m",
+            "micro_corridor",
+        ):
             return
         if opp.resolves_at is not None:
             horizon = opp.resolves_at.timestamp()
@@ -311,6 +332,16 @@ class RiskManager:
                 removed.append(h)
         if removed:
             self.state.holds = keep
+            # A naked remainder was kept with no assumed payout. Once the tokens
+            # are gone and nothing redeemed them, the premium is a real loss.
+            for h in removed:
+                if h.payout <= 0.01 and h.cost > 0.01:
+                    self._roll_day(now)
+                    pnl = -h.cost
+                    self.state.realized_today += pnl
+                    self.state.realized_total += pnl
+            if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
+                self.kill("daily loss limit reached")
             self.save()
         return removed
 
@@ -342,6 +373,14 @@ class RiskManager:
         self.state.killed = False
         self.state.kill_reason = ""
         self.state.consecutive_failures = 0
+        self.save()
+
+    def open_trading(self) -> None:
+        """Clear the kill switch and today's realized-loss counter so new orders can be sent."""
+        self.state.killed = False
+        self.state.kill_reason = ""
+        self.state.consecutive_failures = 0
+        self.state.realized_today = 0.0
         self.save()
 
     async def check_geo(self, http: httpx.AsyncClient | None = None) -> dict:

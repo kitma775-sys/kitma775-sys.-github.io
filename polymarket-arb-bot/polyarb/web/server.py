@@ -151,6 +151,15 @@ class Controls:
         self.reset_kill()
         self.monitor.engine.journal.write("control", {"action": "reset_kill", "source": source})
 
+    async def open_trading_async(self, source: str = "dashboard") -> None:
+        """Resume immediately: unpause, clear the kill switch, and zero today's loss counter."""
+        self.resume()
+        self.monitor.engine.risk.open_trading()
+        maker = self.monitor.engine.maker_arb
+        if maker is not None:
+            maker._wake.set()
+        self.monitor.engine.journal.write("control", {"action": "open_trading", "source": source})
+
     async def cancel_quotes(self, source: str = "dashboard") -> int:
         maker = self.monitor.engine.maker_arb
         if maker is None or not maker.active:
@@ -365,6 +374,10 @@ async def control(request: web.Request) -> web.Response:
         if body.get("confirm") != "RESET":
             return _json({"error": 'reset_kill needs {"confirm": "RESET"}'}, 400)
         await controls.reset_kill_async(source="dashboard")
+    elif action == "open_trading":
+        if body.get("confirm") != "OPEN":
+            return _json({"error": 'open_trading needs {"confirm": "OPEN"}'}, 400)
+        await controls.open_trading_async(source="dashboard")
     elif action == "cancel_quotes":
         n = await controls.cancel_quotes(source="dashboard")
         return _json({"ok": True, "canceled": n, "risk": request.app[MONITOR_KEY].tick()["risk"]})

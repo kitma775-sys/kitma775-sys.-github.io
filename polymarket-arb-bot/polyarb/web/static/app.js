@@ -16,19 +16,22 @@
     metar_lock: { name: 'METAR 氣象鎖定', short: 'METAR 鎖定', color: '#2ef2a0' },
     binance_lock: { name: '幣安收盤鎖定', short: '幣安鎖定', color: '#f59e0b' },
     crypto_short: { name: '5m/15m/1h 短週期套利', short: '短週期加密', color: '#06b6d4' },
+    micro_arb: { name: '5分鐘微利', short: '5分鐘微利', color: '#f97316' },
     twin_arb: { name: '雙生跨盤套利', short: '雙生跨盤', color: '#f472b6' },
     maker_convert: { name: '零費掛單轉換', short: '掛單轉換', color: '#38bdf8' },
     maker_metar: { name: '零費 METAR 保底', short: 'METAR 搶單', color: '#34d399' },
     maker_binance: { name: '零費幣安保底', short: '幣安搶單', color: '#fbbf24' },
     maker_crypto_short: { name: '零費 5m/15m/1h 保底', short: '短週期搶單', color: '#22d3ee' },
     maker_crypto_pair: { name: '零費 5m/15m/1h 跨盤', short: '短週期跨盤', color: '#67e8f9' },
+    maker_micro_merge: { name: '零費 5分鐘同盤合成', short: '同盤合成', color: '#fb923c' },
+    maker_micro_corridor: { name: '零費 5分鐘走廊', short: '走廊掛單', color: '#fdba74' },
     maker_ladder: { name: '零費掛單階梯', short: '掛單階梯', color: '#fb7185' },
     maker_yes_basket: { name: '零費掛單籃子', short: '掛單籃子', color: '#a78bfa' },
     maker_twin: { name: '零費掛單雙生', short: '掛單雙生', color: '#f9a8d4' },
     negrisk_yes_basket: { name: 'YES 籃子', short: 'YES 籃子', color: '#8b6cff' },
     ladder: { name: '階梯套利', short: '階梯', color: '#ffc857' },
   };
-  const ORDER = ['negrisk_convert', 'crypto_short', 'metar_lock', 'binance_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
+  const ORDER = ['negrisk_convert', 'micro_arb', 'crypto_short', 'metar_lock', 'binance_lock', 'twin_arb', 'negrisk_yes_basket', 'ladder'];
   const strat = k => STRATS[k] || { name: k || '?', short: k || '?', color: '#5aa9ff' };
 
   const SKINS = {

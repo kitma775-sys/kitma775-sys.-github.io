@@ -193,6 +193,83 @@ class ChainlinkRtdsFeed:
 
         return None
 
+    def tail_reversal_lock(
+        self,
+        asset: str,
+        open_twap: float,
+        end_ts: int,
+        now_s: float,
+        min_reversal_usd: float,
+        min_coverage: float = 0.70,
+    ) -> tuple[Outcome, float, str] | None:
+        """Last-seconds lock: how far the remaining prints must run to cross the strike.
+
+        ``req = elapsed / remaining * |realized_avg - open|``. Returns
+        ``(winning outcome, req_usd, proof)`` only when ``req`` clears
+        ``min_reversal_usd`` and spot, the rolling TWAP, and a fresh Binance
+        print all still sit on that side of the strike.
+        """
+        measured = self.window_reversal_usd(asset, open_twap, end_ts, now_s, min_coverage=min_coverage)
+        if measured is None or min_reversal_usd <= 0:
+            return None
+        lead, req, cl_now, tw_now = measured
+        if req + 1e-9 < min_reversal_usd:
+            return None
+        a = asset.lower()
+        rem_s = end_ts - now_s
+        bin_latest = self._latest_bin_spot.get(a)
+        bin_fresh = bin_latest is not None and (now_s - bin_latest[0] <= 5.0)
+        if lead > 0:
+            if not (cl_now > open_twap and tw_now > open_twap):
+                return None
+            if bin_fresh and (bin_latest[1] - cl_now) / cl_now < -0.0025:  # type: ignore[index]
+                return None
+            return Outcome.YES, req, f"tail lead=+{lead:.1f} req=${req:.0f} r={rem_s:.1f}s"
+        if not (cl_now < open_twap and tw_now < open_twap):
+            return None
+        if bin_fresh and (bin_latest[1] - cl_now) / cl_now > 0.0025:  # type: ignore[index]
+            return None
+        return Outcome.NO, req, f"tail lead={lead:.1f} req=${req:.0f} r={rem_s:.1f}s"
+
+    def window_reversal_usd(
+        self,
+        asset: str,
+        open_twap: float,
+        end_ts: int,
+        now_s: float,
+        min_coverage: float = 0.70,
+    ) -> tuple[float, float, float, float] | None:
+        """``(lead_usd, reversal_usd, chainlink_spot, rolling_twap)`` for the settlement window.
+
+        ``reversal_usd`` is how far the remaining seconds must run to pull the
+        60-second average back through the strike. Returns None when the
+        second-by-second prints are missing or stale.
+        """
+        a = asset.lower()
+        rem_s = end_ts - now_s
+        if open_twap <= 0 or not (0.0 < rem_s < 55.0):
+            return None
+        cl_latest = self._latest_cl_spot.get(a)
+        tw_latest = self._latest_twap.get(a)
+        if cl_latest is None or tw_latest is None:
+            return None
+        if now_s - cl_latest[0] > 4.5 or now_s - tw_latest[0] > 4.5:
+            return None
+        win_start = end_ts - 60
+        cur_sec = min(end_ts - 1, int(now_s))
+        elapsed_n = max(0, cur_sec - win_start + 1)
+        if elapsed_n < 10:
+            return None
+        spot_buf = self._cl_spot_sec.get(a) or {}
+        observed = [spot_buf[s] for s in range(win_start, cur_sec + 1) if s in spot_buf]
+        if len(observed) < max(8, int(elapsed_n * min_coverage)):
+            return None
+        lead = (sum(observed) / len(observed)) - open_twap
+        if abs(lead) < 1e-6:
+            return None
+        req = ((60.0 - rem_s) / max(rem_s, 0.5)) * abs(lead)
+        return lead, req, cl_latest[1], tw_latest[1]
+
     def ingest_message(self, message: Mapping) -> set[str]:
         topic = message.get("topic")
         if topic not in ("crypto_prices_twap_sixty", "crypto_prices_chainlink", "crypto_prices"):
