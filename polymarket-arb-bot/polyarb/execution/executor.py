@@ -10,7 +10,7 @@ from polyarb.book import take
 from polyarb.config import ExecutionConfig
 from polyarb.data.clob import ClobClient
 from polyarb.data.store import BookStore
-from polyarb.execution.base import ExecutionReport, Gateway, SellResult
+from polyarb.execution.base import ExecutionReport, Gateway, SellResult, retain_unsold_shares
 from polyarb.execution.settlement import index_set
 from polyarb.models import FeeSchedule, Leg, Opportunity, Outcome, Settlement
 from polyarb.sizing import floor_shares
@@ -287,6 +287,7 @@ class Executor:
                 )
             )
         report.action = report.action if report.action.startswith("unwind") else f"unwind ({report.action})"
+        retain_unsold_shares(report)
 
     async def _convert(self, report: ExecutionReport) -> None:
         opp = report.opp

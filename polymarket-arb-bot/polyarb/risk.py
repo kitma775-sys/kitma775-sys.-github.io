@@ -332,6 +332,16 @@ class RiskManager:
                 removed.append(h)
         if removed:
             self.state.holds = keep
+            # A naked remainder was kept with no assumed payout. Once the tokens
+            # are gone and nothing redeemed them, the premium is a real loss.
+            for h in removed:
+                if h.payout <= 0.01 and h.cost > 0.01:
+                    self._roll_day(now)
+                    pnl = -h.cost
+                    self.state.realized_today += pnl
+                    self.state.realized_total += pnl
+            if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
+                self.kill("daily loss limit reached")
             self.save()
         return removed
 

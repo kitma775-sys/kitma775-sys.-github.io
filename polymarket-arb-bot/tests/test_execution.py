@@ -183,6 +183,42 @@ async def test_naked_crypto_pair_unwinds_even_past_the_loss_cap(store):
     assert gw.sold == pytest.approx(q)
 
 
+async def test_failed_unwind_keeps_the_shares_and_books_no_loss(store):
+    """The 1:40 Down legs: the hedge missed and the sell came back unmatched.
+    The premium stays a hold. It becomes profit only if that side later pays $1."""
+    down = make_market("Bitcoin Up or Down", group="Up")
+    store.put(book(down.yes_token, bids=[(0.60, 100)], asks=[(0.66, 100)]))
+    q = 10.375
+    leg = Leg(down.no_token, down.id, Outcome.NO, Side.BUY, q, 3.478, 0.0, 0.34, 0.01, 5, False, "DOWN", yes_token=down.yes_token)
+    other = Leg(down.yes_token, down.id, Outcome.YES, Side.BUY, q, 6.0, 0.0, 0.66, 0.01, 5, False, "UP", yes_token=down.yes_token)
+    opp = Opportunity(
+        strategy="micro_arb", key="micro:keep", event_id="e1", title="BTC 5m merge",
+        legs=[other, leg], shares=q, cost=9.478, payout_floor=q, settlement=Settlement.RESOLUTION,
+        risk="low", resolves_at=None, detected_at=0.0, meta={"mode": "micro_merge"},
+    )
+
+    class NoSell:
+        mode = "paper"
+
+        async def buy(self, legs, slippage_ticks=0):
+            return [
+                LegResult(legs[0], False, status="fok_not_filled"),
+                LegResult(legs[1], True, shares=q, spent=3.478, status="matched"),
+            ]
+
+        async def sell(self, token_id, outcome, yes_token, shares, min_price, fee, tick):
+            return SellResult(token_id, outcome, False, shares=0.0, proceeds=0.0, error="no bids")
+
+    ex = Executor(NoSell(), store, {}, ExecutionConfig())
+    rep = await ex.execute(opp, None)
+    assert "unsold shares kept" in rep.action
+    assert rep.realized_pnl == pytest.approx(0.0)
+    assert rep.locked_cost == pytest.approx(3.478)
+    assert rep.expected_payout == pytest.approx(0.0)
+    assert rep.legs[1].shares == pytest.approx(q)
+    assert not rep.orphaned
+
+
 async def test_partial_fill_unwinds_when_cheapest(store):
     strat, target, opp, ms = convert_setup(store, (0.40, 0.35, 0.30), (0.42, 0.37, 0.32))
     store.put(book(ms[2].yes_token, asks=[(0.32, 100)]))  # leg 3 has no NO liquidity left

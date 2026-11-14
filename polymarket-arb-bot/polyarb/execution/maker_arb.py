@@ -35,7 +35,7 @@ from polyarb.book import EPS, OrderBook, take
 from polyarb.config import Config
 from polyarb.data.clob import ClobClient
 from polyarb.data.store import BookStore
-from polyarb.execution.base import ExecutionReport, Gateway, LegResult
+from polyarb.execution.base import ExecutionReport, Gateway, LegResult, retain_unsold_shares
 from polyarb.execution.executor import liquidate_surplus_yes
 from polyarb.execution.settlement import index_set
 from polyarb.fees import fee_per_share, maker_rebate_per_share
@@ -1757,6 +1757,7 @@ class MakerArbManager:
                 )
             )
         report.action = "maker hedge missed -> unwind"
+        retain_unsold_shares(report)
 
     async def cancel_all(self, reason: str = "shutdown") -> None:
         for qkey, quote in list(self.active.items()):
