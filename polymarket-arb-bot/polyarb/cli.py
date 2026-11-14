@@ -100,7 +100,7 @@ def scan_payload(result: ScanResult, near: int = 25) -> dict[str, Any]:
 async def cmd_scan(cfg: Config, args: argparse.Namespace) -> int:
     metar_feed = MetarFeed() if cfg.metar.enabled else None
     binance_feed = BinanceFeed() if cfg.binance.enabled else None
-    rtds_feed = ChainlinkRtdsFeed() if cfg.crypto_short.enabled else None
+    rtds_feed = ChainlinkRtdsFeed() if (cfg.crypto_short.enabled or cfg.micro_arb.enabled) else None
     strategies = build_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed, rtds_feed=rtds_feed)
     filters = dict(cfg.universe.gamma_filters)
     try:
@@ -141,7 +141,7 @@ async def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         burst_poll_s=cfg.binance.burst_poll_s,
         idle_poll_s=cfg.binance.idle_poll_s,
     ) if cfg.binance.enabled else None
-    rtds_feed = ChainlinkRtdsFeed() if cfg.crypto_short.enabled else None
+    rtds_feed = ChainlinkRtdsFeed() if (cfg.crypto_short.enabled or cfg.micro_arb.enabled) else None
     strategies = build_strategies(cfg, metar_feed=metar_feed, binance_feed=binance_feed, rtds_feed=rtds_feed)
     store = BookStore(max_age_s=cfg.universe.max_book_age_s)
     risk = RiskManager(cfg.risk, cfg.execution.state_path)

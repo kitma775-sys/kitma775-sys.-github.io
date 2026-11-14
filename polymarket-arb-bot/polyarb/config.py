@@ -100,6 +100,32 @@ class CryptoShortConfig:
 
 
 @dataclass
+class MicroArbConfig:
+    """BTC 5m micro engines: same-market merge, 5m×15m corridor, last-seconds TWAP lock.
+
+    ``max_cost_usd`` is the whole round, both legs included. The master switch
+    defaults on; each engine can be turned off from the dashboard or Telegram.
+    """
+
+    enabled: bool = True
+    max_cost_usd: float = 10.0
+    min_profit_usd: float = 0.04
+    min_edge: float = 0.004
+    merge_enabled: bool = True
+    merge_max_combined: float = 0.980
+    merge_window_s: float = 180.0
+    corridor_enabled: bool = True
+    corridor_max_combined: float = 0.985
+    min_strike_gap: float = 60.0
+    tail_enabled: bool = True
+    tail_min_reversal_usd: float = 280.0
+    tail_max_ask: float = 0.991
+    tail_last_s: float = 12.0
+    tail_min_left_s: float = 1.0
+    taker_top_fraction: float = 0.85
+
+
+@dataclass
 class MakerArbConfig:
     """Lead-leg postOnly maker quote (0 maker fee) + instant FOK hedge & convert on fill."""
 
@@ -222,6 +248,7 @@ class Config:
     metar: MetarConfig = field(default_factory=MetarConfig)
     binance: BinanceClockConfig = field(default_factory=BinanceClockConfig)
     crypto_short: CryptoShortConfig = field(default_factory=CryptoShortConfig)
+    micro_arb: MicroArbConfig = field(default_factory=MicroArbConfig)
     maker: MakerArbConfig = field(default_factory=MakerArbConfig)
     universe: UniverseConfig = field(default_factory=UniverseConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)

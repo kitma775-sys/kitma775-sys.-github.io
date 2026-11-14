@@ -55,6 +55,9 @@ STRAT_NAMES = {
     "metar_lock": "METAR 氣象鎖定",
     "binance_lock": "幣安收盤鎖定",
     "crypto_short": "5m/15m/1h 短週期套利",
+    "micro_arb": "5分鐘微利",
+    "maker_micro_merge": "零費 5分鐘同盤合成",
+    "maker_micro_corridor": "零費 5分鐘走廊",
     "twin_arb": "雙生跨盤套利",
     "maker_convert": "零費掛單轉換",
     "maker_metar": "零費 METAR 保底",
@@ -931,6 +934,7 @@ class TelegramBot:
                 ("binance_lock", "幣安"),
                 ("twin_arb", "雙生"),
                 ("ladder", "階梯"),
+                ("micro_arb", "微利"),
             )
         ]
         kb = {

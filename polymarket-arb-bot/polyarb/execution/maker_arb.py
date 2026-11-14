@@ -209,6 +209,7 @@ class MakerArbManager:
                 "ladder",
                 "negrisk_yes_basket",
                 "twin_arb",
+                "micro_arb",
             )
         ]
         self._target_map = {t.key: t for t in self.targets}
@@ -216,8 +217,10 @@ class MakerArbManager:
     def quoted_tokens(self) -> set[str]:
         tokens: set[str] = set()
         for q in self.active.values():
+            tokens.add(q.plan.lead_market.token(q.plan.lead_outcome))
             tokens.add(q.plan.lead_market.yes_token)
-            for hm, _ in q.plan.hedge_legs:
+            for hm, hout in q.plan.hedge_legs:
+                tokens.add(hm.token(hout))
                 tokens.add(hm.yes_token)
         return tokens
 
@@ -344,18 +347,24 @@ class MakerArbManager:
         rc = mcfg.rebate_credit_ratio
         return plan.effective_profit(rc) >= req_profit and plan.effective_edge(rc) >= req_edge
 
+    def _hedge_ask_levels(self, market: Market, outcome: Outcome, real_token: bool) -> list:
+        if real_token:
+            book = self.store.raw(market.token(outcome))
+            return list(book.asks) if book is not None else []
+        book = self.store.raw(market.yes_token)
+        if book is None:
+            return []
+        return list(book.asks if outcome is Outcome.YES else book.no_asks())
+
     def _hedge_cost_and_depth(
-        self, hedge_legs: list[tuple[Market, Outcome]], shares: float
+        self, hedge_legs: list[tuple[Market, Outcome]], shares: float, real_token: bool = False
     ) -> tuple[float, float] | None:
         if not hedge_legs:
             return 0.0, math.inf
         total_cost = 0.0
         min_ratio = math.inf
         for m, outcome in hedge_legs:
-            book = self.store.get(m.yes_token)
-            if book is None:
-                return None
-            levels = book.asks if outcome is Outcome.YES else book.no_asks()
+            levels = self._hedge_ask_levels(m, outcome, real_token)
             if not levels:
                 return None
             avail = sum(lvl.size for lvl in levels[:2])
@@ -424,6 +433,8 @@ class MakerArbManager:
                 p = self._plan_twin(target, mcfg, now_dt)
                 if p is not None and (p.lead_market.id, p.lead_outcome) not in quoted_leads:
                     new_plans = [p]
+            elif target.strategy == "micro_arb":
+                new_plans = self._plan_micro(target, mcfg, now, exclude_leads=quoted_leads)
 
             if new_plans:
                 matched_targets.append(target)
@@ -849,6 +860,10 @@ class MakerArbManager:
         mcfg: Any,
         extra_event_ids: list[str] | None = None,
         fast_turnover: bool = False,
+        max_unit_cost: float = 1.0,
+        min_edge: float | None = None,
+        min_profit: float | None = None,
+        depth_ratio: float | None = None,
     ) -> MakerQuotePlan | None:
         books_levels: list[tuple[Market, Outcome, list, list]] = []
         for m, out in leg_specs:
@@ -875,11 +890,13 @@ class MakerArbManager:
                 continue
             unit_hedge = sum(a[0].price + fee_per_share(hm.fee, a[0].price) for hm, _, a, _ in hedge_entries)
             rebate_u = mcfg.rebate_credit_ratio * maker_rebate_per_share(lead_m.fee, best_bid)
-            cash_ceil = 1.0 - unit_hedge - max(lead_m.tick_size * 0.5, 0.0005)
-            edge_ceil = (1.0 + rebate_u) / (1.0 + mcfg.min_edge) - unit_hedge
+            edge_req = mcfg.min_edge if min_edge is None else min_edge
+            depth_req = mcfg.min_hedge_depth_ratio if depth_ratio is None else depth_ratio
+            cash_ceil = max_unit_cost - unit_hedge - max(lead_m.tick_size * 0.5, 0.0005)
+            edge_ceil = (1.0 + rebate_u) / (1.0 + edge_req) - unit_hedge
             max_lead = _round_tick_down(min(cash_ceil, edge_ceil), lead_m.tick_size)
             our_bid = _best_maker_bid(best_bid, best_ask, lead_m.tick_size, max_lead, mcfg.allow_join_bid)
-            if our_bid is None:
+            if our_bid is None or our_bid + unit_hedge > max_unit_cost + EPS:
                 continue
             unit_total = our_bid + unit_hedge
             min_sh = max(
@@ -893,15 +910,17 @@ class MakerArbManager:
             shares = min(
                 floor_shares(budget / unit_total),
                 self._max_shares_by_pool(our_bid, unit_hedge, Settlement.RESOLUTION, fast_turnover=fast_turnover),
-                floor_shares(min_top_hedge / mcfg.min_hedge_depth_ratio),
+                floor_shares(min_top_hedge / depth_req),
             )
             if shares < min_sh - EPS:
                 continue
             hedge_legs = [(hm, hout) for hm, hout, _, _ in hedge_entries]
             hc = self._hedge_cost_and_depth(hedge_legs, shares)
-            if hc is None or hc[1] < mcfg.min_hedge_depth_ratio:
+            if hc is None or hc[1] < depth_req:
                 continue
             if our_bid * shares + hc[0] > budget + EPS:
+                continue
+            if our_bid * shares + hc[0] > max_unit_cost * shares + EPS:
                 continue
             est_reb = shares * maker_rebate_per_share(lead_m.fee, our_bid)
             plan = MakerQuotePlan(
@@ -924,11 +943,163 @@ class MakerArbManager:
                 fast_turnover=fast_turnover,
                 ask_gap=max(0.0, best_ask - our_bid),
             )
-            if self._passes_maker_gates(plan, mcfg):
+            if self._passes_maker_gates(plan, mcfg, min_edge_override=min_edge, min_profit_override=min_profit):
                 rc = mcfg.rebate_credit_ratio
                 if best is None or plan.effective_profit(rc) > best.effective_profit(rc):
                     best = plan
         return best
+
+    def _plan_micro(
+        self, target: Target, mcfg: Any, now_s: float, exclude_leads: set[tuple[str, Outcome]]
+    ) -> list[MakerQuotePlan]:
+        strat = self.strategies.get("micro_arb")
+        if strat is None or not getattr(strat, "enabled", False):
+            return []
+        plans: list[MakerQuotePlan] = []
+        merged = self._plan_micro_merge(target, strat, mcfg, now_s, exclude_leads)
+        if merged is not None:
+            plans.append(merged)
+        corridor = self._plan_micro_corridor(target, strat, mcfg, now_s, exclude_leads)
+        if corridor is not None:
+            plans.append(corridor)
+        return plans
+
+    def _plan_micro_merge(self, target, strat, mcfg, now_s: float, exclude_leads) -> MakerQuotePlan | None:
+        from polyarb.strategies.crypto_short import ShortSingleSpec
+
+        cfg = strat.cfg
+        spec = target.payload
+        if not cfg.merge_enabled or not isinstance(spec, ShortSingleSpec):
+            return None
+        if spec.asset != "btc" or spec.duration != "5m":
+            return None
+        elapsed = now_s - spec.start_ts
+        if not (10.0 <= elapsed <= cfg.merge_window_s):
+            return None
+        if self.risk.event_exposure(target.event.id) > 0.5:
+            return None
+        market = spec.market
+        yes_book = self.store.get(market.yes_token)
+        no_book = self.store.get(market.no_token)
+        if yes_book is None or no_book is None or not yes_book.asks or not no_book.asks:
+            return None
+        up_c = yes_book.asks[0].price + fee_per_share(market.fee, yes_book.asks[0].price)
+        dn_c = no_book.asks[0].price + fee_per_share(market.fee, no_book.asks[0].price)
+        if up_c + dn_c <= cfg.merge_max_combined + EPS:
+            return None  # taker path already lifts both asks
+        budget = min(
+            self._planning_budget(Settlement.RESOLUTION, target.event.id, fast_turnover=True),
+            float(strat.max_cost_usd),
+        )
+        if budget < 4.0:
+            return None
+        best: MakerQuotePlan | None = None
+        sides = (
+            (Outcome.YES, yes_book, no_book.asks),
+            (Outcome.NO, no_book, yes_book.asks),
+        )
+        for lead_out, lead_book, hedge_asks in sides:
+            if (market.id, lead_out) in exclude_leads or not lead_book.bids or not lead_book.asks or not hedge_asks:
+                continue
+            best_ask = lead_book.asks[0].price
+            best_bid = lead_book.bids[0].price
+            if best_ask - best_bid > mcfg.max_lead_spread + EPS:
+                continue
+            unit_hedge = hedge_asks[0].price + fee_per_share(market.fee, hedge_asks[0].price)
+            rebate_u = mcfg.rebate_credit_ratio * maker_rebate_per_share(market.fee, best_bid)
+            cash_ceil = cfg.merge_max_combined - unit_hedge - max(market.tick_size * 0.5, 0.0005)
+            edge_ceil = (1.0 + rebate_u) / (1.0 + cfg.min_edge) - unit_hedge
+            max_lead = _round_tick_down(min(cash_ceil, edge_ceil, 0.99), market.tick_size)
+            our_bid = _best_maker_bid(best_bid, best_ask, market.tick_size, max_lead, mcfg.allow_join_bid)
+            if our_bid is None or our_bid + unit_hedge > cfg.merge_max_combined + EPS:
+                continue
+            min_sh = max(market.min_size, math.ceil(MIN_ORDER_NOTIONAL / our_bid * 100) / 100)
+            shares = min(
+                floor_shares(budget / (our_bid + unit_hedge)),
+                self._max_shares_by_pool(our_bid, unit_hedge, Settlement.RESOLUTION, fast_turnover=True),
+                floor_shares(hedge_asks[0].size / 1.2),
+            )
+            if shares < min_sh - EPS:
+                continue
+            hedge_out = Outcome.NO if lead_out is Outcome.YES else Outcome.YES
+            hc = self._hedge_cost_and_depth([(market, hedge_out)], shares, real_token=True)
+            if hc is None or hc[1] < 1.2 or our_bid * shares + hc[0] > budget + EPS:
+                continue
+            plan = MakerQuotePlan(
+                strategy="maker_micro_merge",
+                target_key=target.key,
+                event_id=target.event.id,
+                title=f"BTC 5m 同盤合成 {target.event.title[:42]}",
+                settlement=Settlement.RESOLUTION,
+                lead_market=market,
+                lead_outcome=lead_out,
+                lead_price=our_bid,
+                shares=shares,
+                hedge_legs=[(market, hedge_out)],
+                hedge_cost=hc[0],
+                payout_floor=shares,
+                resolves_at=utc(spec.end_ts + 90),
+                volume_24h=market.volume_24h,
+                est_rebate_usd=shares * maker_rebate_per_share(market.fee, our_bid),
+                fast_turnover=True,
+                ask_gap=max(0.0, best_ask - our_bid),
+            )
+            if self._passes_maker_gates(plan, mcfg, min_edge_override=cfg.min_edge, min_profit_override=cfg.min_profit_usd):
+                rc = mcfg.rebate_credit_ratio
+                if best is None or plan.effective_profit(rc) > best.effective_profit(rc):
+                    best = plan
+        return best
+
+    def _plan_micro_corridor(self, target, strat, mcfg, now_s: float, exclude_leads) -> MakerQuotePlan | None:
+        from polyarb.strategies.crypto_short import Sync5m15mSpec
+
+        cfg = strat.cfg
+        spec = target.payload
+        if not cfg.corridor_enabled or not isinstance(spec, Sync5m15mSpec) or not hasattr(strat, "corridor_legs"):
+            return None
+        pair = strat.corridor_legs(spec, now_s)
+        if pair is None:
+            return None
+        leg_specs, resolves_at, title, ev_ids = pair
+        if self.risk.event_exposure(target.event.id) > 0.5 or any(self.risk.event_exposure(eid) > 0.5 for eid in ev_ids):
+            return None
+        ask_sum = 0.0
+        for market, outcome in leg_specs:
+            book = self.store.get(market.yes_token)
+            if book is None:
+                return None
+            levels = book.asks if outcome is Outcome.YES else book.no_asks()
+            if not levels:
+                return None
+            ask_sum += levels[0].price + fee_per_share(market.fee, levels[0].price)
+        if ask_sum <= cfg.corridor_max_combined + EPS:
+            return None
+        budget = min(
+            self._planning_budget(Settlement.RESOLUTION, target.event.id, fast_turnover=True),
+            float(strat.max_cost_usd),
+        )
+        if budget < 4.0:
+            return None
+        plan = self._plan_multi_leg_resolution(
+            strategy_name="maker_micro_corridor",
+            target_key=target.key,
+            event_id=target.event.id,
+            title=title,
+            leg_specs=leg_specs,
+            resolves_at=resolves_at,
+            budget=budget,
+            ev_vol=max(sum(m.volume_24h for m, _ in leg_specs), 1.0),
+            mcfg=mcfg,
+            extra_event_ids=[eid for eid in ev_ids if eid != target.event.id],
+            fast_turnover=True,
+            max_unit_cost=cfg.corridor_max_combined,
+            min_edge=cfg.min_edge,
+            min_profit=cfg.min_profit_usd,
+            depth_ratio=1.2,
+        )
+        if plan is None or (plan.lead_market.id, plan.lead_outcome) in exclude_leads:
+            return None
+        return plan
 
     def _plan_ladder(self, target: Target, mcfg: Any, now_dt: Any) -> MakerQuotePlan | None:
         ev = target.event
@@ -1194,6 +1365,10 @@ class MakerArbManager:
         should_cancel = False
         is_repeg = False
         reason = ""
+        if quote.plan.strategy in ("maker_micro_merge", "maker_micro_corridor"):
+            exposed = [quote.plan.event_id, *quote.plan.extra_event_ids]
+            if any(self.risk.event_exposure(eid) > 0.5 for eid in exposed):
+                should_cancel, reason = True, "micro round already open"
         if self._paused_or_blocked():
             should_cancel, reason = True, "paused/risk"
         elif now - quote.placed_at > self.cfg.maker.quote_ttl_s:
@@ -1212,7 +1387,11 @@ class MakerArbManager:
                     if bids and bids[0].price > quote.plan.lead_price + EPS:
                         should_cancel, is_repeg, reason = True, True, "outbid -> repeg"
         else:
-            hc = self._hedge_cost_and_depth(quote.plan.hedge_legs, quote.plan.shares)
+            hc = self._hedge_cost_and_depth(
+                quote.plan.hedge_legs,
+                quote.plan.shares,
+                real_token=quote.plan.strategy == "maker_micro_merge",
+            )
             if hc is None or hc[1] < 1.2:
                 should_cancel, reason = True, "hedge depth thinned"
             else:
@@ -1359,8 +1538,7 @@ class MakerArbManager:
             need_q = floor_shares(max(0.0, q - already))
             if need_q < 0.01:
                 continue
-            book = self.store.raw(hm.yes_token)
-            levels = (book.asks if h_out is Outcome.YES else book.no_asks()) if book else []
+            levels = self._hedge_ask_levels(hm, h_out, plan.strategy == "maker_micro_merge")
             fill = take(levels, need_q, hm.fee)
             if fill.shares < need_q - 1e-6 or fill.notional < MIN_ORDER_NOTIONAL - EPS:
                 hedge_possible = False
@@ -1429,6 +1607,13 @@ class MakerArbManager:
                 "est_rebate_usd": round(est_reb, 5),
                 "fast_turnover": plan.fast_turnover,
                 "independent_legs": is_zero_leg,
+                "mode": (
+                    "micro_merge"
+                    if plan.strategy == "maker_micro_merge"
+                    else "micro_corridor"
+                    if plan.strategy == "maker_micro_corridor"
+                    else ""
+                ),
                 **({"event_ids": [plan.event_id, *plan.extra_event_ids]} if plan.extra_event_ids else {}),
             },
         )
@@ -1468,6 +1653,21 @@ class MakerArbManager:
                     report.locked_cost = report.spent
                     report.expected_payout = payout_mult * q
                     report.action = "convert failed: NO legs kept"
+            elif plan.strategy == "maker_micro_merge":
+                cid = plan.lead_market.condition_id
+                ok, tx = (False, None)
+                if cid:
+                    ok, tx = await self.gateway.merge(cid, q)
+                if ok:
+                    report.convert_tx = tx
+                    report.proceeds = float(q)
+                    report.settled_shares = float(q)
+                    report.action = "maker filled -> merged to pUSD"
+                else:
+                    report.settled_shares = q
+                    report.locked_cost = report.spent
+                    report.expected_payout = q
+                    report.action = "merge failed -> holding both legs"
             else:
                 report.settled_shares = q
                 report.locked_cost = report.spent
@@ -1532,7 +1732,7 @@ class MakerArbManager:
             levels = (book.bids if r.leg.outcome is Outcome.YES else book.no_bids()) if book else []
             f = take(levels, r.shares, r.leg.fee_schedule)
             est_val += f.notional - f.fee
-        naked_pair = report.opp.strategy == "maker_crypto_pair"
+        naked_pair = report.opp.strategy in ("maker_crypto_pair", "maker_micro_merge", "maker_micro_corridor")
         if not naked_pair and total_cost - est_val > self.cfg.execution.max_unwind_loss_usd:
             report.orphaned = True
             report.locked_cost = total_cost

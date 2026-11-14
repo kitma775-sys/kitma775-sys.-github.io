@@ -77,6 +77,24 @@ crypto_short:            # Safe BTC/ETH/SOL/XRP 5m · 15m · 1h arbitrage (risk:
   poll_slugs_s: 20.0
   flip_enabled: true
 
+micro_arb:               # BTC 5m merge + 5m×15m corridor + last-12s TWAP lock. Stake is the whole round.
+  enabled: true
+  max_cost_usd: 10.0     # default stake per round, both legs included
+  min_profit_usd: 0.04
+  min_edge: 0.004
+  merge_enabled: true
+  merge_max_combined: 0.980
+  merge_window_s: 180.0
+  corridor_enabled: true
+  corridor_max_combined: 0.985
+  min_strike_gap: 60.0
+  tail_enabled: true
+  tail_min_reversal_usd: 280.0
+  tail_max_ask: 0.991
+  tail_last_s: 12.0
+  tail_min_left_s: 1.0
+  taker_top_fraction: 0.85
+
 twin:                    # Cross-event same-oracle Range <-> Above + Close/Hit implication locks (risk: low-medium)
   enabled: true
   min_profit_usd: 0.12

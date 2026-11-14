@@ -186,6 +186,9 @@ class Gateway(Protocol):
     async def redeem(self, condition_id: str) -> tuple[bool, str | None]:
         """Redeem a resolved market's winning position on-chain into pUSD."""
 
+    async def merge(self, condition_id: str, shares: float) -> tuple[bool, str | None]:
+        """Merge equal UP and DOWN of one condition back into pUSD."""
+
     def warm_markets(self, markets: Iterable[Market]) -> int:
         """Pre-populate order metadata caches so signing needs zero cold HTTP round-trips."""
 

@@ -140,7 +140,12 @@ class RiskManager:
             return f"geoblocked ({self.geo.get('country') or self.geo.get('error')})"
         if self.state.realized_today <= -cfg.max_daily_loss_usd:
             return "daily loss limit"
-        if opp.strategy == "maker_crypto_pair" or opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m"):
+        if opp.strategy in ("maker_crypto_pair", "maker_micro_merge", "maker_micro_corridor") or opp.meta.get("mode") in (
+            "anchor_1h",
+            "sync_5m_15m",
+            "micro_corridor",
+            "micro_merge",
+        ):
             ids = [opp.event_id, *(str(eid) for eid in (opp.meta.get("event_ids") or []))]
             if any(self.event_exposure(eid) > 0.5 for eid in ids):
                 return "pair already open"
@@ -248,7 +253,11 @@ class RiskManager:
 
     def _freeze_open_pair(self, opp: Opportunity, now: float) -> None:
         """One 1h/5m cross-pair per window. A partial fill must not be re-tried for the rest of the hour."""
-        if opp.strategy != "maker_crypto_pair" and opp.meta.get("mode") not in ("anchor_1h", "sync_5m_15m"):
+        if opp.strategy not in ("maker_crypto_pair", "maker_micro_corridor") and opp.meta.get("mode") not in (
+            "anchor_1h",
+            "sync_5m_15m",
+            "micro_corridor",
+        ):
             return
         if opp.resolves_at is not None:
             horizon = opp.resolves_at.timestamp()

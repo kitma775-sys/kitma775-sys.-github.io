@@ -118,6 +118,8 @@ class Executor:
             if report.complete or subset:
                 if opp.settlement is Settlement.CONVERT:
                     await self._convert(report)
+                elif report.complete and opp.meta.get("mode") == "micro_merge":
+                    await self._merge_binary(report)
                 elif report.complete and opp.meta.get("fast_flip") and len(opp.legs) == 1:
                     if not await self._try_instant_flip(report):
                         self._lock_hold(report)
@@ -135,7 +137,7 @@ class Executor:
         books = [self.store.raw(t) for t in target.tokens]
         # 5m/15m books reprice inside a second. A two-second-old "fresh" WS book is what made
         # paper fill and the live FOK come back unmatched.
-        if opp.strategy == "crypto_short":
+        if opp.strategy in ("crypto_short", "micro_arb"):
             if books and all(b is not None and b.age(now) <= 0.35 for b in books):
                 return False
             return True
@@ -168,7 +170,7 @@ class Executor:
 
     async def _recheck(self, opp: Opportunity, target: Target, max_cost: float | None = None) -> Opportunity | None:
         assert self.clob is not None
-        self.store.update_many(await self.clob.get_books(target.tokens, priority=opp.strategy == "crypto_short"))
+        self.store.update_many(await self.clob.get_books(target.tokens, priority=opp.strategy in ("crypto_short", "micro_arb")))
         strategy = self.strategies[opp.strategy]
         for candidate in strategy.evaluate(target, self.store, time.time(), max_cost=max_cost):
             if candidate.key == opp.key:
@@ -259,7 +261,7 @@ class Executor:
         value = sum(self._sell_value(h.leg, h.shares) for h in held.values())
         # A naked 1h/5m pair leg is a directional bet that can go to zero. Selling it back
         # loses the spread; keeping it can lose the whole premium. Always sell it back.
-        naked_pair = opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m")
+        naked_pair = opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m", "micro_corridor", "micro_merge")
         if not naked_pair and cost - value > self.cfg.max_unwind_loss_usd:
             # Dumping into a thin book would crystallise a large loss; keep the legs for manual review.
             report.orphaned = True
@@ -326,6 +328,25 @@ class Executor:
                             h.leg.fee_schedule, h.leg.tick_size,
                         )
                     )
+
+    async def _merge_binary(self, report: ExecutionReport) -> None:
+        """Turn a filled UP+DOWN pair into pUSD. A failed merge keeps both legs, which still pay $1."""
+        opp = report.opp
+        held = [r for r in report.legs + report.retries if r.ok and r.shares > 0]
+        q = floor_shares(min((r.shares for r in held), default=0.0))
+        cid = next((str(c) for c in (opp.meta.get("condition_ids") or []) if c), "")
+        merge = getattr(self.gateway, "merge", None)
+        ok, tx = (False, None)
+        if merge is not None and cid and q >= 1.0:
+            ok, tx = await merge(cid, q)
+        if ok:
+            report.convert_tx = tx
+            report.proceeds = float(q)
+            report.settled_shares = float(q)
+            report.action = "merged both legs to pUSD"
+            return
+        self._lock_hold(report)
+        report.action = "merge failed -> holding both legs"
 
     async def _try_instant_flip(self, report: ExecutionReport) -> bool:
         """Sell immediately into 0.99+ bonding bids when doing so already locks positive profit."""
