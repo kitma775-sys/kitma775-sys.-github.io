@@ -1,0 +1,240 @@
+{
+  "scanned_at": "2026-10-16T09:37:03Z",
+  "window_days": 3,
+  "closed_markets_seen": 17926,
+  "crypto_5m_priced": 754,
+  "slow_markets_priced": 15,
+  "note": "Entry is the Polymarket bucket price one minute (crypto) or one hour (other) before the end, not the ask. Spot is Coinbase, settlement is Chainlink TWAP.",
+  "crypto_favorite_by_price": {
+    "90-95c": {
+      "n": 125,
+      "win_rate": 0.936,
+      "avg_price": 0.9272,
+      "avg_cost_with_fee": 0.9319,
+      "pnl_per_share": 0.00413,
+      "pnl_total_1share": 0.52
+    },
+    "all": {
+      "n": 754,
+      "win_rate": 0.8342,
+      "avg_price": 0.8501,
+      "avg_cost_with_fee": 0.8576,
+      "pnl_per_share": -0.02343,
+      "pnl_total_1share": -17.67
+    },
+    "95-98c": {
+      "n": 145,
+      "win_rate": 0.9517,
+      "avg_price": 0.9664,
+      "avg_cost_with_fee": 0.9686,
+      "pnl_per_share": -0.01692,
+      "pnl_total_1share": -2.45
+    },
+    "50-60c": {
+      "n": 65,
+      "win_rate": 0.5692,
+      "avg_price": 0.5457,
+      "avg_cost_with_fee": 0.563,
+      "pnl_per_share": 0.00624,
+      "pnl_total_1share": 0.41
+    },
+    "80-90c": {
+      "n": 138,
+      "win_rate": 0.8261,
+      "avg_price": 0.8525,
+      "avg_cost_with_fee": 0.8612,
+      "pnl_per_share": -0.03513,
+      "pnl_total_1share": -4.85
+    },
+    "70-80c": {
+      "n": 100,
+      "win_rate": 0.68,
+      "avg_price": 0.7484,
+      "avg_cost_with_fee": 0.7616,
+      "pnl_per_share": -0.08157,
+      "pnl_total_1share": -8.16
+    },
+    "98-99.5c": {
+      "n": 118,
+      "win_rate": 0.9831,
+      "avg_price": 0.9856,
+      "avg_cost_with_fee": 0.9866,
+      "pnl_per_share": -0.00357,
+      "pnl_total_1share": -0.42
+    },
+    "60-70c": {
+      "n": 63,
+      "win_rate": 0.619,
+      "avg_price": 0.6461,
+      "avg_cost_with_fee": 0.662,
+      "pnl_per_share": -0.043,
+      "pnl_total_1share": -2.71
+    }
+  },
+  "crypto_favorite_by_asset": {
+    "eth": {
+      "n": 384,
+      "win_rate": 0.8385,
+      "avg_price": 0.8523,
+      "avg_cost_with_fee": 0.8597,
+      "pnl_per_share": -0.0212,
+      "pnl_total_1share": -8.14
+    },
+    "btc": {
+      "n": 370,
+      "win_rate": 0.8297,
+      "avg_price": 0.8478,
+      "avg_cost_with_fee": 0.8555,
+      "pnl_per_share": -0.02574,
+      "pnl_total_1share": -9.53
+    }
+  },
+  "crypto_twap_signal": {
+    "buffer_0bp": {
+      "all": {
+        "n": 754,
+        "win_rate": 0.7042,
+        "avg_price": 0.6699,
+        "avg_cost_with_fee": 0.6774,
+        "pnl_per_share": 0.02685,
+        "pnl_total_1share": 20.25
+      },
+      "price_below_90c": {
+        "n": 445,
+        "win_rate": 0.5236,
+        "avg_price": 0.4667,
+        "avg_cost_with_fee": 0.4777,
+        "pnl_per_share": 0.04588,
+        "pnl_total_1share": 20.42
+      },
+      "price_below_80c": {
+        "n": 356,
+        "win_rate": 0.441,
+        "avg_price": 0.3696,
+        "avg_cost_with_fee": 0.3813,
+        "pnl_per_share": 0.05972,
+        "pnl_total_1share": 21.26
+      }
+    },
+    "buffer_2bp": {
+      "all": {
+        "n": 457,
+        "win_rate": 0.7834,
+        "avg_price": 0.7604,
+        "avg_cost_with_fee": 0.767,
+        "pnl_per_share": 0.0164,
+        "pnl_total_1share": 7.49
+      },
+      "price_below_90c": {
+        "n": 214,
+        "win_rate": 0.5794,
+        "avg_price": 0.5288,
+        "avg_cost_with_fee": 0.5401,
+        "pnl_per_share": 0.03936,
+        "pnl_total_1share": 8.42
+      },
+      "price_below_80c": {
+        "n": 158,
+        "win_rate": 0.4747,
+        "avg_price": 0.4129,
+        "avg_cost_with_fee": 0.4252,
+        "pnl_per_share": 0.0495,
+        "pnl_total_1share": 7.82
+      }
+    },
+    "buffer_5bp": {
+      "all": {
+        "n": 170,
+        "win_rate": 0.8118,
+        "avg_price": 0.7676,
+        "avg_cost_with_fee": 0.7737,
+        "pnl_per_share": 0.03808,
+        "pnl_total_1share": 6.47
+      },
+      "price_below_90c": {
+        "n": 72,
+        "win_rate": 0.5972,
+        "avg_price": 0.4968,
+        "avg_cost_with_fee": 0.5081,
+        "pnl_per_share": 0.08915,
+        "pnl_total_1share": 6.42
+      },
+      "price_below_80c": {
+        "n": 56,
+        "win_rate": 0.5357,
+        "avg_price": 0.396,
+        "avg_cost_with_fee": 0.408,
+        "pnl_per_share": 0.12769,
+        "pnl_total_1share": 7.15
+      }
+    },
+    "buffer_10bp": {
+      "all": {
+        "n": 35,
+        "win_rate": 0.8,
+        "avg_price": 0.727,
+        "avg_cost_with_fee": 0.7335,
+        "pnl_per_share": 0.06646,
+        "pnl_total_1share": 2.33
+      },
+      "price_below_90c": {
+        "n": 15,
+        "win_rate": 0.5333,
+        "avg_price": 0.42,
+        "avg_cost_with_fee": 0.4316,
+        "pnl_per_share": 0.10173,
+        "pnl_total_1share": 1.53
+      },
+      "price_below_80c": {
+        "n": 13,
+        "win_rate": 0.5385,
+        "avg_price": 0.3585,
+        "avg_cost_with_fee": 0.3703,
+        "pnl_per_share": 0.1682,
+        "pnl_total_1share": 2.19
+      }
+    }
+  },
+  "crypto_twap_5bp_before_fees": {
+    "n": 170,
+    "win_rate": 0.8118,
+    "avg_price": 0.7676,
+    "avg_cost_with_fee": 0.7676,
+    "pnl_per_share": 0.04414,
+    "pnl_total_1share": 7.5
+  },
+  "other_markets_favorite_1h_before_end": {
+    "98-99.5c": {
+      "n": 6,
+      "win_rate": 1.0,
+      "avg_price": 0.9868,
+      "avg_cost_with_fee": 0.9876,
+      "pnl_per_share": 0.01238,
+      "pnl_total_1share": 0.07
+    },
+    "95-98c": {
+      "n": 1,
+      "win_rate": 1.0,
+      "avg_price": 0.9735,
+      "avg_cost_with_fee": 0.9745,
+      "pnl_per_share": 0.02547,
+      "pnl_total_1share": 0.03
+    },
+    "50-60c": {
+      "n": 6,
+      "win_rate": 0.5,
+      "avg_price": 0.5225,
+      "avg_cost_with_fee": 0.535,
+      "pnl_per_share": -0.03496,
+      "pnl_total_1share": -0.21
+    },
+    "70-80c": {
+      "n": 2,
+      "win_rate": 0.5,
+      "avg_price": 0.7523,
+      "avg_cost_with_fee": 0.7605,
+      "pnl_per_share": -0.26053,
+      "pnl_total_1share": -0.52
+    }
+  }
+}

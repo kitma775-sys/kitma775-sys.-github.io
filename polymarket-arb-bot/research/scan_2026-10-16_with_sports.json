@@ -1,0 +1,1360 @@
+{
+  "scanned_at": "2026-10-16T01:39:58Z",
+  "overrides": {
+    "universe.max_seconds_delay": 3
+  },
+  "gamma_s": 29.9,
+  "profile": {
+    "events_multi_market": 16746,
+    "negrisk_events": 10154,
+    "negrisk_v1": 10154,
+    "negrisk_augmented": 2543,
+    "markets": 276641,
+    "fee_rates": {
+      "0.05": 214496,
+      "0.03": 43137,
+      "0.04": 15865,
+      "0.07": 2209,
+      "0.0": 934
+    },
+    "delayed_events": 12114,
+    "books_fetched": 116969,
+    "books_with_bid_and_ask": 56837
+  },
+  "gated": {
+    "universe": {
+      "events": 16746,
+      "tokens": 116972,
+      "targets": {
+        "negrisk_convert": 10154,
+        "negrisk_yes_basket": 5749,
+        "ladder": 2292
+      }
+    },
+    "timings": {
+      "gamma_s": 0.0,
+      "universe_s": 1.65,
+      "books_s": 11.02,
+      "evaluate_s": 2.51
+    },
+    "edge_stats": {
+      "negrisk_convert": {
+        "targets_priced": 8769,
+        "edge>0": 0,
+        "edge>-0.5c": 14,
+        "edge>-1c": 48,
+        "edge>-2c": 217,
+        "median": -0.255,
+        "best": -0.001
+      },
+      "negrisk_yes_basket": {
+        "targets_priced": 5474,
+        "edge>0": 2,
+        "edge>-0.5c": 2,
+        "edge>-1c": 3,
+        "edge>-2c": 11,
+        "median": -0.4768,
+        "best": 0.045
+      },
+      "ladder": {
+        "targets_priced": 1078,
+        "edge>0": 19,
+        "edge>-0.5c": 57,
+        "edge>-1c": 85,
+        "edge>-2c": 131,
+        "median": -0.1076,
+        "best": 0.0153
+      }
+    },
+    "opportunities": [],
+    "near_misses": {
+      "negrisk_convert": [
+        {
+          "edge": -0.001,
+          "title": "Next Premier of Quebec",
+          "key": "convert:438568",
+          "legs": 7
+        },
+        {
+          "edge": -0.001,
+          "title": "California Governor Election Winner",
+          "key": "convert:57096",
+          "legs": 23
+        },
+        {
+          "edge": -0.00115,
+          "title": "Highest temperature in Los Angeles on October 15?",
+          "key": "convert:1182213",
+          "legs": 11
+        },
+        {
+          "edge": -0.00138,
+          "title": "Bulgaria Presidential Election First Round Winner",
+          "key": "convert:1070969",
+          "legs": 14
+        },
+        {
+          "edge": -0.00144,
+          "title": "KY-03 House Election Winner",
+          "key": "convert:191475",
+          "legs": 2
+        },
+        {
+          "edge": -0.0023,
+          "title": "Which Paper Rex player will have the most kills at VALORANT Champions 2026?",
+          "key": "convert:1029667",
+          "legs": 5
+        },
+        {
+          "edge": -0.00234,
+          "title": "#1 Free App in the US Apple App Store on October 16?",
+          "key": "convert:1174248",
+          "legs": 5
+        },
+        {
+          "edge": -0.00236,
+          "title": "F1 Constructors' Champion",
+          "key": "convert:100394",
+          "legs": 4
+        },
+        {
+          "edge": -0.00383,
+          "title": "Ligue 1: 2027 Champion",
+          "key": "convert:659573",
+          "legs": 18
+        },
+        {
+          "edge": -0.00389,
+          "title": "CA-21 House Election Winner",
+          "key": "convert:190910",
+          "legs": 2
+        },
+        {
+          "edge": -0.0044,
+          "title": "New Jersey Senate Election Winner",
+          "key": "convert:57662",
+          "legs": 2
+        },
+        {
+          "edge": -0.00448,
+          "title": "KY-02 House Election Winner",
+          "key": "convert:191474",
+          "legs": 2
+        },
+        {
+          "edge": -0.00479,
+          "title": "#2 Spotify song this week? (October 16)",
+          "key": "convert:1179610",
+          "legs": 7
+        },
+        {
+          "edge": -0.00487,
+          "title": "NC-02 House Election Winner",
+          "key": "convert:191530",
+          "legs": 2
+        },
+        {
+          "edge": -0.00545,
+          "title": "#2 Spotify song in the US this week? (October 16)",
+          "key": "convert:1179608",
+          "legs": 6
+        },
+        {
+          "edge": -0.00587,
+          "title": "TX-12 House Election Winner",
+          "key": "convert:191644",
+          "legs": 2
+        },
+        {
+          "edge": -0.00588,
+          "title": "Somaliland Parliamentary Election Winner",
+          "key": "convert:106758",
+          "legs": 4
+        },
+        {
+          "edge": -0.00618,
+          "title": "NY-20 House Election Winner",
+          "key": "convert:191571",
+          "legs": 2
+        },
+        {
+          "edge": -0.00632,
+          "title": "Brazil Presidential Election Second Round: 1st Place in Rondônia",
+          "key": "convert:1137784",
+          "legs": 2
+        },
+        {
+          "edge": -0.0065,
+          "title": "AK-AL House Election Winner",
+          "key": "convert:190688",
+          "legs": 4
+        },
+        {
+          "edge": -0.00655,
+          "title": "Mississippi Senate Election Winner",
+          "key": "convert:57678",
+          "legs": 2
+        },
+        {
+          "edge": -0.00661,
+          "title": "CA-18 House Election Winner",
+          "key": "convert:190907",
+          "legs": 2
+        },
+        {
+          "edge": -0.00672,
+          "title": "Which movie has 3rd biggest opening weekend in 2026?",
+          "key": "convert:738465",
+          "legs": 6
+        },
+        {
+          "edge": -0.00685,
+          "title": "UT-01 House Election Winner",
+          "key": "convert:106229",
+          "legs": 2
+        },
+        {
+          "edge": -0.00729,
+          "title": "Kentucky Senate Election Winner",
+          "key": "convert:57649",
+          "legs": 2
+        }
+      ],
+      "negrisk_yes_basket": [
+        {
+          "edge": 0.045,
+          "title": "Maduro Prison Time?",
+          "key": "yes:141230",
+          "legs": 5
+        },
+        {
+          "edge": 0.00272,
+          "title": "How many cities will Waymo operate in by December 31?",
+          "key": "yes:638395",
+          "legs": 7
+        },
+        {
+          "edge": -0.00884,
+          "title": "Reserve Bank of New Zealand decision in October?",
+          "key": "yes:770107",
+          "legs": 5
+        },
+        {
+          "edge": -0.0111,
+          "title": "Bank of Japan Decision in October?",
+          "key": "yes:779132",
+          "legs": 5
+        },
+        {
+          "edge": -0.01343,
+          "title": "Bank of Israel Decision in October?",
+          "key": "yes:950431",
+          "legs": 3
+        },
+        {
+          "edge": -0.01344,
+          "title": "Bank of Russia decision in October?",
+          "key": "yes:743553",
+          "legs": 3
+        },
+        {
+          "edge": -0.0141,
+          "title": "Highest temperature in London on October 16?",
+          "key": "yes:1186562",
+          "legs": 11
+        },
+        {
+          "edge": -0.01454,
+          "title": "Fed Decision in January?",
+          "key": "yes:770451",
+          "legs": 5
+        },
+        {
+          "edge": -0.0148,
+          "title": "Highest temperature in Los Angeles on October 15?",
+          "key": "yes:1182213",
+          "legs": 11
+        },
+        {
+          "edge": -0.01755,
+          "title": "Bank of Canada Decision in October?",
+          "key": "yes:708477",
+          "legs": 5
+        },
+        {
+          "edge": -0.01834,
+          "title": "ECB Interest Rates: October 2026",
+          "key": "yes:743554",
+          "legs": 5
+        },
+        {
+          "edge": -0.02041,
+          "title": "Who wins the Senate pending Hormuz Agreement by Oct 23 and oil below $80 before the midterms?",
+          "key": "yes:1178893",
+          "legs": 4
+        },
+        {
+          "edge": -0.02087,
+          "title": "Fed Decision in October?",
+          "key": "yes:606422",
+          "legs": 5
+        },
+        {
+          "edge": -0.02167,
+          "title": "Predicted Fed rate under each Fed Chair",
+          "key": "yes:176745",
+          "legs": 2
+        },
+        {
+          "edge": -0.02218,
+          "title": "Bank of England decision in November?",
+          "key": "yes:778706",
+          "legs": 5
+        },
+        {
+          "edge": -0.02334,
+          "title": "Manchester City FC vs. AEK",
+          "key": "yes:1149349",
+          "legs": 3
+        },
+        {
+          "edge": -0.02449,
+          "title": "Bank of Mexico Decision in November?",
+          "key": "yes:807644",
+          "legs": 5
+        },
+        {
+          "edge": -0.02457,
+          "title": "Highest temperature in Warsaw on October 16?",
+          "key": "yes:1186577",
+          "legs": 11
+        },
+        {
+          "edge": -0.02492,
+          "title": "Who wins the Senate pending Hormuz Agreement and oil below $80 before the midterms?",
+          "key": "yes:1177906",
+          "legs": 4
+        },
+        {
+          "edge": -0.02517,
+          "title": "AS Roma vs. Genoa CFC",
+          "key": "yes:1127411",
+          "legs": 3
+        },
+        {
+          "edge": -0.02597,
+          "title": "How many House seats will the Democrats win in North Carolina?",
+          "key": "yes:833436",
+          "legs": 5
+        },
+        {
+          "edge": -0.02716,
+          "title": "How many tropical cyclones will make landfall in China during 2026?",
+          "key": "yes:802314",
+          "legs": 6
+        },
+        {
+          "edge": -0.02734,
+          "title": "Manchester City FC vs. Ipswich Town FC",
+          "key": "yes:1128443",
+          "legs": 3
+        },
+        {
+          "edge": -0.02795,
+          "title": "Bank of Korea decision in October?",
+          "key": "yes:923208",
+          "legs": 5
+        },
+        {
+          "edge": -0.02907,
+          "title": "RCD Espanyol de Barcelona vs. Club Atlético de Madrid",
+          "key": "yes:1129046",
+          "legs": 3
+        }
+      ],
+      "ladder": [
+        {
+          "edge": 0.01532,
+          "title": "Will ByteDance's valuation hit __ by December 31?",
+          "key": "ladder:655740:up:10f70b5b",
+          "legs": 7
+        },
+        {
+          "edge": 0.01435,
+          "title": "What will the Ethereum Implied Volatility Index hit by October 31?",
+          "key": "ladder:1114557:down:decc6dd8",
+          "legs": 3
+        },
+        {
+          "edge": 0.01197,
+          "title": "How high will US unemployment go in 2026?",
+          "key": "ladder:138976:up:976f060c",
+          "legs": 5
+        },
+        {
+          "edge": 0.00833,
+          "title": "Abstract FDV above ___ one day after launch?",
+          "key": "ladder:192000:up:ad9c6b84",
+          "legs": 9
+        },
+        {
+          "edge": 0.00732,
+          "title": "Will OpenAI's valuation hit __ by December 31?",
+          "key": "ladder:500775:up:367d298e",
+          "legs": 8
+        },
+        {
+          "edge": 0.00699,
+          "title": "What will Fed Rate hit before 2027?",
+          "key": "ladder:84803:down:85f83b5a",
+          "legs": 14
+        },
+        {
+          "edge": 0.00641,
+          "title": "Will Neuralink’s valuation hit __ by October 31?",
+          "key": "ladder:1108601:up:f160feb5",
+          "legs": 5
+        },
+        {
+          "edge": 0.0057,
+          "title": "NCAA Football: Wisconsin 2026 Win Total",
+          "key": "ladder:838928:up:72121f79",
+          "legs": 5
+        },
+        {
+          "edge": 0.00568,
+          "title": "Will USD/JPY hit __ in 2026?",
+          "key": "ladder:199695:down:39cdd583",
+          "legs": 5
+        },
+        {
+          "edge": 0.00541,
+          "title": "Felix FDV above ___ one day after launch?",
+          "key": "ladder:91927:up:7ef7668d",
+          "legs": 10
+        },
+        {
+          "edge": 0.0048,
+          "title": "NCAA Football: Boise State 2026 Win Total",
+          "key": "ladder:838814:up:c59cd99d",
+          "legs": 5
+        },
+        {
+          "edge": 0.00473,
+          "title": "Hyperbeat FDV above ___ one day after launch?",
+          "key": "ladder:84914:up:b47e67f8",
+          "legs": 7
+        },
+        {
+          "edge": 0.0013,
+          "title": "StandX FDV above ___ one day after launch?",
+          "key": "ladder:78999:up:baa5deb1",
+          "legs": 11
+        },
+        {
+          "edge": 0.00098,
+          "title": "Linera FDV above ___ one day after launch?",
+          "key": "ladder:870966:up:deaeaf03",
+          "legs": 9
+        },
+        {
+          "edge": 0.00095,
+          "title": "How many Senators will vote for the Clarity Act?",
+          "key": "ladder:769594:up:ecbac3ee",
+          "legs": 8
+        },
+        {
+          "edge": 0.00086,
+          "title": "Apyx FDV above ___ one day after launch?",
+          "key": "ladder:432279:up:9916ab81",
+          "legs": 9
+        },
+        {
+          "edge": 0.00065,
+          "title": "Bitcoin above ___ on October 17?",
+          "key": "ladder:1165153:up:b5835109",
+          "legs": 11
+        },
+        {
+          "edge": 0.00051,
+          "title": "What price will XRP hit in October?",
+          "key": "ladder:1112224:up:f5ff693f",
+          "legs": 11
+        },
+        {
+          "edge": 0.00034,
+          "title": "What price will Ethereum hit in 2026?",
+          "key": "ladder:89519:up:0a54b65b",
+          "legs": 12
+        },
+        {
+          "edge": -0.00024,
+          "title": "What will Rocket Lab USA, Inc. (RKLB) hit in October 2026?",
+          "key": "ladder:1078042:up:a514efee",
+          "legs": 12
+        },
+        {
+          "edge": -0.00079,
+          "title": "What will Airbnb, Inc. (ABNB) hit in October 2026?",
+          "key": "ladder:1078043:down:d5d82f1d",
+          "legs": 13
+        },
+        {
+          "edge": -0.00079,
+          "title": "What will Amazon.com, Inc. (AMZN) hit Week of October 12 2026?",
+          "key": "ladder:1161499:up:20ff5305",
+          "legs": 9
+        },
+        {
+          "edge": -0.00086,
+          "title": "Opensea FDV above ___ one day after launch?",
+          "key": "ladder:52130:up:b1e2d0ce",
+          "legs": 6
+        },
+        {
+          "edge": -0.00112,
+          "title": "What will WTI Crude Oil (WTI) hit Week of October 12 2026?",
+          "key": "ladder:1161542:down:3a576329",
+          "legs": 8
+        },
+        {
+          "edge": -0.00121,
+          "title": "MLB: Number of no-hitters thrown in 2026",
+          "key": "ladder:336845:up:8c36518d",
+          "legs": 9
+        }
+      ]
+    }
+  },
+  "ungated": {
+    "universe": {
+      "events": 16746,
+      "tokens": 116972,
+      "targets": {
+        "negrisk_convert": 10154,
+        "negrisk_yes_basket": 5749,
+        "ladder": 2292
+      }
+    },
+    "timings": {
+      "gamma_s": 0.0,
+      "universe_s": 1.65,
+      "books_s": 11.02,
+      "evaluate_s": 2.51
+    },
+    "edge_stats": {
+      "negrisk_convert": {
+        "targets_priced": 8769,
+        "edge>0": 0,
+        "edge>-0.5c": 14,
+        "edge>-1c": 48,
+        "edge>-2c": 217,
+        "median": -0.255,
+        "best": -0.001
+      },
+      "negrisk_yes_basket": {
+        "targets_priced": 5474,
+        "edge>0": 2,
+        "edge>-0.5c": 2,
+        "edge>-1c": 3,
+        "edge>-2c": 11,
+        "median": -0.4768,
+        "best": 0.045
+      },
+      "ladder": {
+        "targets_priced": 1078,
+        "edge>0": 19,
+        "edge>-0.5c": 57,
+        "edge>-1c": 85,
+        "edge>-2c": 131,
+        "median": -0.1076,
+        "best": 0.0153
+      }
+    },
+    "opportunities": [
+      {
+        "strategy": "negrisk_yes_basket",
+        "key": "yes:141230",
+        "event_id": "141230",
+        "title": "Maduro Prison Time?",
+        "shares": 103.94,
+        "cost": 99.9922,
+        "payout_floor": 103.94,
+        "profit": 3.9478,
+        "edge_pct": 3.948,
+        "fees": 0.0,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 443.14,
+        "apr_pct": 3.3,
+        "legs": [
+          {
+            "label": "No prison time",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 103.94,
+            "avg": 0.65,
+            "limit": 0.65,
+            "fee": 0.0
+          },
+          {
+            "label": "<20",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 103.94,
+            "avg": 0.049,
+            "limit": 0.049,
+            "fee": 0.0
+          },
+          {
+            "label": "20–40",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 103.94,
+            "avg": 0.0589,
+            "limit": 0.059,
+            "fee": 0.0
+          },
+          {
+            "label": "40–60",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 103.94,
+            "avg": 0.0699,
+            "limit": 0.07,
+            "fee": 0.0
+          },
+          {
+            "label": "60+",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 103.94,
+            "avg": 0.1342,
+            "limit": 0.14,
+            "fee": 0.0
+          }
+        ],
+        "meta": {
+          "exhaustive": "open-ended-partition",
+          "legs": 5
+        }
+      },
+      {
+        "strategy": "ladder",
+        "key": "ladder:655740:up:10f70b5b:2759114>2759115",
+        "event_id": "655740",
+        "title": "Will ByteDance's valuation hit __ by December 31?",
+        "shares": 71.1,
+        "cost": 70.6097,
+        "payout_floor": 71.1,
+        "profit": 0.4903,
+        "edge_pct": 0.694,
+        "fees": 0.1049,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 82.14,
+        "apr_pct": 3.1,
+        "legs": [
+          {
+            "label": "YES ↑$900B",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 71.1,
+            "avg": 0.0147,
+            "limit": 0.016,
+            "fee": 0.04112
+          },
+          {
+            "label": "NO ↑$1.0T",
+            "outcome": "NO",
+            "side": "BUY",
+            "shares": 71.1,
+            "avg": 0.977,
+            "limit": 0.992,
+            "fee": 0.06374
+          }
+        ],
+        "meta": {
+          "direction": "up",
+          "strong": "Will ByteDance's valuation hit (HIGH) $1.0T by December 31?",
+          "weak": "Will ByteDance's valuation hit (HIGH) $900B by December 31?",
+          "early_release_at": "2027-01-05T04:59:00+00:00",
+          "bonus_state": "pays 2 if strong=NO and weak=YES"
+        }
+      },
+      {
+        "strategy": "ladder",
+        "key": "ladder:838928:up:72121f79:3540399>3540398",
+        "event_id": "838928",
+        "title": "NCAA Football: Wisconsin 2026 Win Total",
+        "shares": 80.0,
+        "cost": 79.6009,
+        "payout_floor": 80.0,
+        "profit": 0.3991,
+        "edge_pct": 0.501,
+        "fees": 0.3409,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 73.14,
+        "apr_pct": 2.5,
+        "legs": [
+          {
+            "label": "YES 4.5+ Wins",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 80.0,
+            "avg": 0.9507,
+            "limit": 0.953,
+            "fee": 0.18729
+          },
+          {
+            "label": "NO 5.5+ Wins",
+            "outcome": "NO",
+            "side": "BUY",
+            "shares": 80.0,
+            "avg": 0.04,
+            "limit": 0.04,
+            "fee": 0.1536
+          }
+        ],
+        "meta": {
+          "direction": "up",
+          "strong": "Will Wisconsin have more than 5.5 wins during the 2026 CFB season?",
+          "weak": "Will Wisconsin have more than 4.5 wins during the 2026 CFB season?",
+          "early_release_at": "2026-12-27T04:59:00+00:00",
+          "bonus_state": "pays 2 if strong=NO and weak=YES"
+        }
+      },
+      {
+        "strategy": "ladder",
+        "key": "ladder:84914:up:b47e67f8:690594>690592",
+        "event_id": "84914",
+        "title": "Hyperbeat FDV above ___ one day after launch?",
+        "shares": 100.38,
+        "cost": 99.9995,
+        "payout_floor": 100.38,
+        "profit": 0.3805,
+        "edge_pct": 0.38,
+        "fees": 0.2339,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 78.14,
+        "apr_pct": 1.8,
+        "legs": [
+          {
+            "label": "YES $200M",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 100.38,
+            "avg": 0.0139,
+            "limit": 0.014,
+            "fee": 0.09617
+          },
+          {
+            "label": "NO $400M",
+            "outcome": "NO",
+            "side": "BUY",
+            "shares": 100.38,
+            "avg": 0.98,
+            "limit": 0.98,
+            "fee": 0.13772
+          }
+        ],
+        "meta": {
+          "direction": "up",
+          "strong": "Hyperbeat FDV above $400M one day after launch?",
+          "weak": "Hyperbeat FDV above $200M one day after launch?",
+          "early_release_at": "2027-01-01T05:00:00+00:00",
+          "bonus_state": "pays 2 if strong=NO and weak=YES"
+        }
+      },
+      {
+        "strategy": "ladder",
+        "key": "ladder:192000:up:ad9c6b84:1287622>1287617",
+        "event_id": "192000",
+        "title": "Abstract FDV above ___ one day after launch?",
+        "shares": 80.0,
+        "cost": 79.6485,
+        "payout_floor": 80.0,
+        "profit": 0.3515,
+        "edge_pct": 0.441,
+        "fees": 0.1985,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 443.14,
+        "apr_pct": 0.4,
+        "legs": [
+          {
+            "label": "YES $800M",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 80.0,
+            "avg": 0.0146,
+            "limit": 0.015,
+            "fee": 0.0807
+          },
+          {
+            "label": "NO $3B",
+            "outcome": "NO",
+            "side": "BUY",
+            "shares": 80.0,
+            "avg": 0.9785,
+            "limit": 0.979,
+            "fee": 0.11781
+          }
+        ],
+        "meta": {
+          "direction": "up",
+          "strong": "Abstract FDV above $3B one day after launch?",
+          "weak": "Abstract FDV above $800M one day after launch?",
+          "early_release_at": "2028-01-01T05:00:00+00:00",
+          "bonus_state": "pays 2 if strong=NO and weak=YES"
+        }
+      },
+      {
+        "strategy": "ladder",
+        "key": "ladder:84803:down:85f83b5a:690209>690207",
+        "event_id": "84803",
+        "title": "What will Fed Rate hit before 2027?",
+        "shares": 62.5,
+        "cost": 62.3266,
+        "payout_floor": 62.5,
+        "profit": 0.1734,
+        "edge_pct": 0.278,
+        "fees": 0.1121,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 76.93,
+        "apr_pct": 1.3,
+        "legs": [
+          {
+            "label": "YES ↓ 1.75%",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 62.5,
+            "avg": 0.016,
+            "limit": 0.016,
+            "fee": 0.0492
+          },
+          {
+            "label": "NO ↓ 0.5%",
+            "outcome": "NO",
+            "side": "BUY",
+            "shares": 62.5,
+            "avg": 0.9794,
+            "limit": 0.985,
+            "fee": 0.06294
+          }
+        ],
+        "meta": {
+          "direction": "down",
+          "strong": "Will the Fed’s lower bound reach 0.5% or lower before 2027?",
+          "weak": "Will the Fed’s lower bound reach 1.75% or lower before 2027?",
+          "early_release_at": "2026-12-31T00:00:00+00:00",
+          "bonus_state": "pays 2 if strong=NO and weak=YES"
+        }
+      },
+      {
+        "strategy": "ladder",
+        "key": "ladder:838814:up:c59cd99d:3539957>3539956",
+        "event_id": "838814",
+        "title": "NCAA Football: Boise State 2026 Win Total",
+        "shares": 20.0,
+        "cost": 19.9248,
+        "payout_floor": 20.0,
+        "profit": 0.0752,
+        "edge_pct": 0.377,
+        "fees": 0.1048,
+        "settlement": "resolution",
+        "risk": "medium",
+        "days": 73.14,
+        "apr_pct": 1.9,
+        "legs": [
+          {
+            "label": "YES 6.5+ Wins",
+            "outcome": "YES",
+            "side": "BUY",
+            "shares": 20.0,
+            "avg": 0.94,
+            "limit": 0.94,
+            "fee": 0.0564
+          },
+          {
+            "label": "NO 7.5+ Wins",
+            "outcome": "NO",
+            "side": "BUY",
+            "shares": 20.0,
+            "avg": 0.051,
+            "limit": 0.06,
+            "fee": 0.04839
+          }
+        ],
+        "meta": {
+          "direction": "up",
+          "strong": "Will Boise State have more than 7.5 wins during the 2026 CFB season?",
+          "weak": "Will Boise State have more than 6.5 wins during the 2026 CFB season?",
+          "early_release_at": "2026-12-27T04:59:00+00:00",
+          "bonus_state": "pays 2 if strong=NO and weak=YES"
+        }
+      }
+    ],
+    "near_misses": {
+      "negrisk_convert": [
+        {
+          "edge": -0.001,
+          "title": "Next Premier of Quebec",
+          "key": "convert:438568",
+          "legs": 7
+        },
+        {
+          "edge": -0.001,
+          "title": "California Governor Election Winner",
+          "key": "convert:57096",
+          "legs": 23
+        },
+        {
+          "edge": -0.00115,
+          "title": "Highest temperature in Los Angeles on October 15?",
+          "key": "convert:1182213",
+          "legs": 11
+        },
+        {
+          "edge": -0.00138,
+          "title": "Bulgaria Presidential Election First Round Winner",
+          "key": "convert:1070969",
+          "legs": 14
+        },
+        {
+          "edge": -0.00144,
+          "title": "KY-03 House Election Winner",
+          "key": "convert:191475",
+          "legs": 2
+        },
+        {
+          "edge": -0.0023,
+          "title": "Which Paper Rex player will have the most kills at VALORANT Champions 2026?",
+          "key": "convert:1029667",
+          "legs": 5
+        },
+        {
+          "edge": -0.00234,
+          "title": "#1 Free App in the US Apple App Store on October 16?",
+          "key": "convert:1174248",
+          "legs": 5
+        },
+        {
+          "edge": -0.00236,
+          "title": "F1 Constructors' Champion",
+          "key": "convert:100394",
+          "legs": 4
+        },
+        {
+          "edge": -0.00383,
+          "title": "Ligue 1: 2027 Champion",
+          "key": "convert:659573",
+          "legs": 18
+        },
+        {
+          "edge": -0.00389,
+          "title": "CA-21 House Election Winner",
+          "key": "convert:190910",
+          "legs": 2
+        },
+        {
+          "edge": -0.0044,
+          "title": "New Jersey Senate Election Winner",
+          "key": "convert:57662",
+          "legs": 2
+        },
+        {
+          "edge": -0.00448,
+          "title": "KY-02 House Election Winner",
+          "key": "convert:191474",
+          "legs": 2
+        },
+        {
+          "edge": -0.00479,
+          "title": "#2 Spotify song this week? (October 16)",
+          "key": "convert:1179610",
+          "legs": 7
+        },
+        {
+          "edge": -0.00487,
+          "title": "NC-02 House Election Winner",
+          "key": "convert:191530",
+          "legs": 2
+        },
+        {
+          "edge": -0.00545,
+          "title": "#2 Spotify song in the US this week? (October 16)",
+          "key": "convert:1179608",
+          "legs": 6
+        },
+        {
+          "edge": -0.00587,
+          "title": "TX-12 House Election Winner",
+          "key": "convert:191644",
+          "legs": 2
+        },
+        {
+          "edge": -0.00588,
+          "title": "Somaliland Parliamentary Election Winner",
+          "key": "convert:106758",
+          "legs": 4
+        },
+        {
+          "edge": -0.00618,
+          "title": "NY-20 House Election Winner",
+          "key": "convert:191571",
+          "legs": 2
+        },
+        {
+          "edge": -0.00632,
+          "title": "Brazil Presidential Election Second Round: 1st Place in Rondônia",
+          "key": "convert:1137784",
+          "legs": 2
+        },
+        {
+          "edge": -0.0065,
+          "title": "AK-AL House Election Winner",
+          "key": "convert:190688",
+          "legs": 4
+        },
+        {
+          "edge": -0.00655,
+          "title": "Mississippi Senate Election Winner",
+          "key": "convert:57678",
+          "legs": 2
+        },
+        {
+          "edge": -0.00661,
+          "title": "CA-18 House Election Winner",
+          "key": "convert:190907",
+          "legs": 2
+        },
+        {
+          "edge": -0.00672,
+          "title": "Which movie has 3rd biggest opening weekend in 2026?",
+          "key": "convert:738465",
+          "legs": 6
+        },
+        {
+          "edge": -0.00685,
+          "title": "UT-01 House Election Winner",
+          "key": "convert:106229",
+          "legs": 2
+        },
+        {
+          "edge": -0.00729,
+          "title": "Kentucky Senate Election Winner",
+          "key": "convert:57649",
+          "legs": 2
+        }
+      ],
+      "negrisk_yes_basket": [
+        {
+          "edge": 0.045,
+          "title": "Maduro Prison Time?",
+          "key": "yes:141230",
+          "legs": 5
+        },
+        {
+          "edge": 0.00272,
+          "title": "How many cities will Waymo operate in by December 31?",
+          "key": "yes:638395",
+          "legs": 7
+        },
+        {
+          "edge": -0.00884,
+          "title": "Reserve Bank of New Zealand decision in October?",
+          "key": "yes:770107",
+          "legs": 5
+        },
+        {
+          "edge": -0.0111,
+          "title": "Bank of Japan Decision in October?",
+          "key": "yes:779132",
+          "legs": 5
+        },
+        {
+          "edge": -0.01343,
+          "title": "Bank of Israel Decision in October?",
+          "key": "yes:950431",
+          "legs": 3
+        },
+        {
+          "edge": -0.01344,
+          "title": "Bank of Russia decision in October?",
+          "key": "yes:743553",
+          "legs": 3
+        },
+        {
+          "edge": -0.0141,
+          "title": "Highest temperature in London on October 16?",
+          "key": "yes:1186562",
+          "legs": 11
+        },
+        {
+          "edge": -0.01454,
+          "title": "Fed Decision in January?",
+          "key": "yes:770451",
+          "legs": 5
+        },
+        {
+          "edge": -0.0148,
+          "title": "Highest temperature in Los Angeles on October 15?",
+          "key": "yes:1182213",
+          "legs": 11
+        },
+        {
+          "edge": -0.01755,
+          "title": "Bank of Canada Decision in October?",
+          "key": "yes:708477",
+          "legs": 5
+        },
+        {
+          "edge": -0.01834,
+          "title": "ECB Interest Rates: October 2026",
+          "key": "yes:743554",
+          "legs": 5
+        },
+        {
+          "edge": -0.02041,
+          "title": "Who wins the Senate pending Hormuz Agreement by Oct 23 and oil below $80 before the midterms?",
+          "key": "yes:1178893",
+          "legs": 4
+        },
+        {
+          "edge": -0.02087,
+          "title": "Fed Decision in October?",
+          "key": "yes:606422",
+          "legs": 5
+        },
+        {
+          "edge": -0.02167,
+          "title": "Predicted Fed rate under each Fed Chair",
+          "key": "yes:176745",
+          "legs": 2
+        },
+        {
+          "edge": -0.02218,
+          "title": "Bank of England decision in November?",
+          "key": "yes:778706",
+          "legs": 5
+        },
+        {
+          "edge": -0.02334,
+          "title": "Manchester City FC vs. AEK",
+          "key": "yes:1149349",
+          "legs": 3
+        },
+        {
+          "edge": -0.02449,
+          "title": "Bank of Mexico Decision in November?",
+          "key": "yes:807644",
+          "legs": 5
+        },
+        {
+          "edge": -0.02457,
+          "title": "Highest temperature in Warsaw on October 16?",
+          "key": "yes:1186577",
+          "legs": 11
+        },
+        {
+          "edge": -0.02492,
+          "title": "Who wins the Senate pending Hormuz Agreement and oil below $80 before the midterms?",
+          "key": "yes:1177906",
+          "legs": 4
+        },
+        {
+          "edge": -0.02517,
+          "title": "AS Roma vs. Genoa CFC",
+          "key": "yes:1127411",
+          "legs": 3
+        },
+        {
+          "edge": -0.02597,
+          "title": "How many House seats will the Democrats win in North Carolina?",
+          "key": "yes:833436",
+          "legs": 5
+        },
+        {
+          "edge": -0.02716,
+          "title": "How many tropical cyclones will make landfall in China during 2026?",
+          "key": "yes:802314",
+          "legs": 6
+        },
+        {
+          "edge": -0.02734,
+          "title": "Manchester City FC vs. Ipswich Town FC",
+          "key": "yes:1128443",
+          "legs": 3
+        },
+        {
+          "edge": -0.02795,
+          "title": "Bank of Korea decision in October?",
+          "key": "yes:923208",
+          "legs": 5
+        },
+        {
+          "edge": -0.02907,
+          "title": "RCD Espanyol de Barcelona vs. Club Atlético de Madrid",
+          "key": "yes:1129046",
+          "legs": 3
+        }
+      ],
+      "ladder": [
+        {
+          "edge": 0.01532,
+          "title": "Will ByteDance's valuation hit __ by December 31?",
+          "key": "ladder:655740:up:10f70b5b",
+          "legs": 7
+        },
+        {
+          "edge": 0.01435,
+          "title": "What will the Ethereum Implied Volatility Index hit by October 31?",
+          "key": "ladder:1114557:down:decc6dd8",
+          "legs": 3
+        },
+        {
+          "edge": 0.01197,
+          "title": "How high will US unemployment go in 2026?",
+          "key": "ladder:138976:up:976f060c",
+          "legs": 5
+        },
+        {
+          "edge": 0.00833,
+          "title": "Abstract FDV above ___ one day after launch?",
+          "key": "ladder:192000:up:ad9c6b84",
+          "legs": 9
+        },
+        {
+          "edge": 0.00732,
+          "title": "Will OpenAI's valuation hit __ by December 31?",
+          "key": "ladder:500775:up:367d298e",
+          "legs": 8
+        },
+        {
+          "edge": 0.00699,
+          "title": "What will Fed Rate hit before 2027?",
+          "key": "ladder:84803:down:85f83b5a",
+          "legs": 14
+        },
+        {
+          "edge": 0.00641,
+          "title": "Will Neuralink’s valuation hit __ by October 31?",
+          "key": "ladder:1108601:up:f160feb5",
+          "legs": 5
+        },
+        {
+          "edge": 0.0057,
+          "title": "NCAA Football: Wisconsin 2026 Win Total",
+          "key": "ladder:838928:up:72121f79",
+          "legs": 5
+        },
+        {
+          "edge": 0.00568,
+          "title": "Will USD/JPY hit __ in 2026?",
+          "key": "ladder:199695:down:39cdd583",
+          "legs": 5
+        },
+        {
+          "edge": 0.00541,
+          "title": "Felix FDV above ___ one day after launch?",
+          "key": "ladder:91927:up:7ef7668d",
+          "legs": 10
+        },
+        {
+          "edge": 0.0048,
+          "title": "NCAA Football: Boise State 2026 Win Total",
+          "key": "ladder:838814:up:c59cd99d",
+          "legs": 5
+        },
+        {
+          "edge": 0.00473,
+          "title": "Hyperbeat FDV above ___ one day after launch?",
+          "key": "ladder:84914:up:b47e67f8",
+          "legs": 7
+        },
+        {
+          "edge": 0.0013,
+          "title": "StandX FDV above ___ one day after launch?",
+          "key": "ladder:78999:up:baa5deb1",
+          "legs": 11
+        },
+        {
+          "edge": 0.00098,
+          "title": "Linera FDV above ___ one day after launch?",
+          "key": "ladder:870966:up:deaeaf03",
+          "legs": 9
+        },
+        {
+          "edge": 0.00095,
+          "title": "How many Senators will vote for the Clarity Act?",
+          "key": "ladder:769594:up:ecbac3ee",
+          "legs": 8
+        },
+        {
+          "edge": 0.00086,
+          "title": "Apyx FDV above ___ one day after launch?",
+          "key": "ladder:432279:up:9916ab81",
+          "legs": 9
+        },
+        {
+          "edge": 0.00065,
+          "title": "Bitcoin above ___ on October 17?",
+          "key": "ladder:1165153:up:b5835109",
+          "legs": 11
+        },
+        {
+          "edge": 0.00051,
+          "title": "What price will XRP hit in October?",
+          "key": "ladder:1112224:up:f5ff693f",
+          "legs": 11
+        },
+        {
+          "edge": 0.00034,
+          "title": "What price will Ethereum hit in 2026?",
+          "key": "ladder:89519:up:0a54b65b",
+          "legs": 12
+        },
+        {
+          "edge": -0.00024,
+          "title": "What will Rocket Lab USA, Inc. (RKLB) hit in October 2026?",
+          "key": "ladder:1078042:up:a514efee",
+          "legs": 12
+        },
+        {
+          "edge": -0.00079,
+          "title": "What will Airbnb, Inc. (ABNB) hit in October 2026?",
+          "key": "ladder:1078043:down:d5d82f1d",
+          "legs": 13
+        },
+        {
+          "edge": -0.00079,
+          "title": "What will Amazon.com, Inc. (AMZN) hit Week of October 12 2026?",
+          "key": "ladder:1161499:up:20ff5305",
+          "legs": 9
+        },
+        {
+          "edge": -0.00086,
+          "title": "Opensea FDV above ___ one day after launch?",
+          "key": "ladder:52130:up:b1e2d0ce",
+          "legs": 6
+        },
+        {
+          "edge": -0.00112,
+          "title": "What will WTI Crude Oil (WTI) hit Week of October 12 2026?",
+          "key": "ladder:1161542:down:3a576329",
+          "legs": 8
+        },
+        {
+          "edge": -0.00121,
+          "title": "MLB: Number of no-hitters thrown in 2026",
+          "key": "ladder:336845:up:8c36518d",
+          "legs": 9
+        }
+      ]
+    }
+  }
+}

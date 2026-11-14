@@ -1,0 +1,129 @@
+{
+  "from": "2026-05-29",
+  "to": "2026-10-16",
+  "btc_hours": 3354,
+  "nas_hours": 3510,
+  "fee_round_trip": 0.0008,
+  "results": [
+    {
+      "market": "BTC-USD",
+      "smt": false,
+      "four_hour": false,
+      "n": 1,
+      "win_rate": 0.0,
+      "total_R": -1.14,
+      "avg_R": -1.141,
+      "trades": [
+        {
+          "day": "2026-09-18",
+          "R": -1.141,
+          "outcome": "stop",
+          "risk_px": 457.0
+        }
+      ]
+    },
+    {
+      "market": "BTC-USD",
+      "smt": true,
+      "four_hour": false,
+      "n": 0,
+      "win_rate": null,
+      "total_R": 0,
+      "avg_R": null,
+      "trades": []
+    },
+    {
+      "market": "BTC-USD",
+      "smt": false,
+      "four_hour": true,
+      "n": 1,
+      "win_rate": 0.0,
+      "total_R": -1.14,
+      "avg_R": -1.141,
+      "trades": [
+        {
+          "day": "2026-09-18",
+          "R": -1.141,
+          "outcome": "stop",
+          "risk_px": 457.0
+        }
+      ]
+    },
+    {
+      "market": "BTC-USD",
+      "smt": true,
+      "four_hour": true,
+      "n": 0,
+      "win_rate": null,
+      "total_R": 0,
+      "avg_R": null,
+      "trades": []
+    },
+    {
+      "market": "ETH-USD",
+      "smt": false,
+      "four_hour": true,
+      "n": 2,
+      "win_rate": 0.5,
+      "total_R": 0.13,
+      "avg_R": 0.067,
+      "trades": [
+        {
+          "day": "2026-09-11",
+          "R": 1.274,
+          "outcome": "time",
+          "risk_px": 58.8
+        },
+        {
+          "day": "2026-09-18",
+          "R": -1.141,
+          "outcome": "stop",
+          "risk_px": 14.7
+        }
+      ]
+    },
+    {
+      "market": "ETH-USD",
+      "smt": true,
+      "four_hour": true,
+      "n": 0,
+      "win_rate": null,
+      "total_R": 0,
+      "avg_R": null,
+      "trades": []
+    },
+    {
+      "market": "NAS100-USD",
+      "smt": false,
+      "four_hour": true,
+      "n": 2,
+      "win_rate": 0.0,
+      "total_R": -1.24,
+      "avg_R": -0.619,
+      "trades": [
+        {
+          "day": "2026-06-30",
+          "R": -1.182,
+          "outcome": "stop",
+          "risk_px": 132.0
+        },
+        {
+          "day": "2026-08-12",
+          "R": -0.057,
+          "outcome": "time",
+          "risk_px": 85.0
+        }
+      ]
+    },
+    {
+      "market": "NAS100-USD",
+      "smt": true,
+      "four_hour": true,
+      "n": 0,
+      "win_rate": null,
+      "total_R": 0,
+      "avg_R": null,
+      "trades": []
+    }
+  ]
+}

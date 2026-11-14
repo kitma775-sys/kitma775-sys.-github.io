@@ -1,0 +1,156 @@
+{
+  "from": "2026-10-12",
+  "to": "2026-10-16",
+  "single": {
+    "BTC-USD": {
+      "hours": 100,
+      "mean_funding": 5.36e-06,
+      "pct_positive_funding": 0.76,
+      "fade_funding_after_fee": {
+        "n": 99,
+        "mean": -0.000559,
+        "total": -0.0553,
+        "positive_hours": 0.374
+      },
+      "first_half": {
+        "n": 49,
+        "mean": -0.000717,
+        "total": -0.0352,
+        "positive_hours": 0.347
+      },
+      "second_half": {
+        "n": 50,
+        "mean": -0.000403,
+        "total": -0.0202,
+        "positive_hours": 0.4
+      }
+    },
+    "ETH-USD": {
+      "hours": 100,
+      "mean_funding": 1.25e-05,
+      "pct_positive_funding": 1.0,
+      "fade_funding_after_fee": {
+        "n": 99,
+        "mean": -0.000534,
+        "total": -0.0529,
+        "positive_hours": 0.475
+      },
+      "first_half": {
+        "n": 49,
+        "mean": -0.000365,
+        "total": -0.0179,
+        "positive_hours": 0.469
+      },
+      "second_half": {
+        "n": 50,
+        "mean": -0.000699,
+        "total": -0.035,
+        "positive_hours": 0.48
+      }
+    },
+    "SOL-USD": {
+      "hours": 100,
+      "mean_funding": 4.41e-06,
+      "pct_positive_funding": 0.67,
+      "fade_funding_after_fee": {
+        "n": 99,
+        "mean": -0.000288,
+        "total": -0.0285,
+        "positive_hours": 0.424
+      },
+      "first_half": {
+        "n": 49,
+        "mean": 0.000539,
+        "total": 0.0264,
+        "positive_hours": 0.531
+      },
+      "second_half": {
+        "n": 50,
+        "mean": -0.001098,
+        "total": -0.0549,
+        "positive_hours": 0.32
+      }
+    },
+    "NAS100-USD": {
+      "hours": 100,
+      "mean_funding": 6.31e-06,
+      "pct_positive_funding": 1.0,
+      "fade_funding_after_fee": {
+        "n": 99,
+        "mean": -0.000477,
+        "total": -0.0472,
+        "positive_hours": 0.424
+      },
+      "first_half": {
+        "n": 49,
+        "mean": -0.000595,
+        "total": -0.0291,
+        "positive_hours": 0.388
+      },
+      "second_half": {
+        "n": 50,
+        "mean": -0.000362,
+        "total": -0.0181,
+        "positive_hours": 0.46
+      }
+    },
+    "SP500-USD": {
+      "hours": 100,
+      "mean_funding": 6.1e-06,
+      "pct_positive_funding": 0.99,
+      "fade_funding_after_fee": {
+        "n": 99,
+        "mean": -0.000704,
+        "total": -0.0697,
+        "positive_hours": 0.212
+      },
+      "first_half": {
+        "n": 49,
+        "mean": -0.000788,
+        "total": -0.0386,
+        "positive_hours": 0.143
+      },
+      "second_half": {
+        "n": 50,
+        "mean": -0.000621,
+        "total": -0.0311,
+        "positive_hours": 0.28
+      }
+    }
+  },
+  "pairs": [
+    {
+      "pair": "BTC-USD/ETH-USD",
+      "hours": 99,
+      "flips": 18,
+      "funding_leg": 0.0007,
+      "price_leg": -0.0443,
+      "total_after_fee": -0.0724,
+      "mean_after_fee": -0.000731,
+      "first_half_after_fee": -0.0243,
+      "second_half_after_fee": -0.0481
+    },
+    {
+      "pair": "ETH-USD/SOL-USD",
+      "hours": 99,
+      "flips": 0,
+      "funding_leg": 0.0008,
+      "price_leg": -0.0164,
+      "total_after_fee": -0.0156,
+      "mean_after_fee": -0.000157,
+      "first_half_after_fee": -0.0237,
+      "second_half_after_fee": 0.0082
+    },
+    {
+      "pair": "NAS100-USD/SP500-USD",
+      "hours": 99,
+      "flips": 0,
+      "funding_leg": 0.0,
+      "price_leg": 0.0233,
+      "total_after_fee": 0.0234,
+      "mean_after_fee": 0.000236,
+      "first_half_after_fee": 0.0104,
+      "second_half_after_fee": 0.013
+    }
+  ]
+}

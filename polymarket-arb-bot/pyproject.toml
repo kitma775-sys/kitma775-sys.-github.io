@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polyarb"
+version = "0.2.0"
+description = "Low-to-medium risk structural arbitrage engine for Polymarket (CLOB V2 / pUSD era)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "websockets>=12",
+    "PyYAML>=6",
+    "orjson>=3.9",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+live = ["polymarket-client>=0.13,<0.14"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+polyarb = "polyarb.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["polyarb*"]
+
+[tool.setuptools.package-data]
+"polyarb.web" = ["static/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
