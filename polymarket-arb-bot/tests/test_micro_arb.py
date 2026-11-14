@@ -80,12 +80,42 @@ def test_default_stake_is_ten_dollars_for_the_whole_round():
 
 
 def test_merge_does_not_fire_both_legs_as_one_taker_order(store):
-    """14:42 bought Down with one FOK and left Up unmatched. Merge no longer does that."""
+    """A 50/50 book plus fees is already over 98.5¢, so it is not lifted."""
     start = 1_794_561_900
     ev = _event("5m", start, 70_000.0)
     mkt = ev.markets[0]
     store.put(book(mkt.yes_token, bids=[(0.48, 400)], asks=[(0.50, 400)]))
     store.put(book(mkt.no_token, bids=[(0.48, 400)], asks=[(0.50, 400)]))
+    strat = _strat()
+    (target,) = [t for t in strat.targets([ev]) if t.key.startswith("micro:")]
+    assert strat.evaluate(target, store, float(start + 30)) == []
+
+
+def test_balanced_book_under_the_cap_is_taken_thin_leg_first(store):
+    start = 1_794_561_900
+    ev = _event("5m", start, 70_000.0)
+    mkt = ev.markets[0]
+    store.put(book(mkt.yes_token, bids=[(0.45, 500)], asks=[(0.46, 80)]))
+    store.put(book(mkt.no_token, bids=[(0.45, 500)], asks=[(0.47, 400)]))
+    strat = _strat()
+    (target,) = [t for t in strat.targets([ev]) if t.key.startswith("micro:")]
+    (opp,) = strat.evaluate(target, store, float(start + 30))
+    assert opp.meta["mode"] == "micro_merge"
+    assert opp.meta["sequential"] is True
+    assert opp.meta["chase_max_combined"] == 1.005
+    assert opp.legs[0].outcome is Outcome.YES
+    assert opp.legs[1].outcome is Outcome.NO
+    assert opp.cost <= 10.0 + 1e-6
+    assert opp.profit >= 0.04
+
+
+def test_skewed_cheap_book_stays_out(store):
+    """14:41 was a 26¢ Down. A cheap but unbalanced pair is not a merge."""
+    start = 1_794_561_900
+    ev = _event("5m", start, 70_000.0)
+    mkt = ev.markets[0]
+    store.put(book(mkt.yes_token, bids=[(0.30, 400)], asks=[(0.32, 400)]))
+    store.put(book(mkt.no_token, bids=[(0.50, 400)], asks=[(0.52, 400)]))
     strat = _strat()
     (target,) = [t for t in strat.targets([ev]) if t.key.startswith("micro:")]
     assert strat.evaluate(target, store, float(start + 30)) == []
@@ -114,7 +144,10 @@ def test_corridor_requires_sixty_dollar_gap_and_ten_dollar_cap(store):
     legs = strat.corridor_legs(sync.payload, float(t5 + 30))
     assert legs is not None
     assert [(outcome) for _, outcome in legs[0]] == [Outcome.NO, Outcome.YES]
-    assert strat.evaluate(sync, store, float(t5 + 30)) == []
+    (opp,) = strat.evaluate(sync, store, float(t5 + 30))
+    assert opp.meta["mode"] == "micro_corridor"
+    assert opp.meta["sequential"] is True
+    assert opp.cost <= 10.0 + 1e-6
 
     near15 = _event("15m", t15, 75_000.0)
     near5 = _event("5m", t5, 75_040.0)
@@ -207,7 +240,7 @@ async def test_filled_merge_returns_pusd_instead_of_a_hold(store):
         strategy="micro_arb", key="micro:merge", event_id=ev.id, title="merge",
         legs=legs, shares=q, cost=9.6, payout_floor=q, settlement=Settlement.RESOLUTION,
         risk="low", resolves_at=None, detected_at=0.0,
-        meta={"mode": "micro_merge", "condition_ids": [mkt.condition_id]},
+        meta={"mode": "micro_merge", "sequential": True, "condition_ids": [mkt.condition_id]},
     )
     strat = _strat()
     gw = _FillAll()
@@ -265,4 +298,7 @@ def test_corridor_accepts_a_fifty_dollar_gap(store):
     sync = next(t for t in strat.targets([ev15, ev5]) if t.key.startswith("micro-sync:"))
     assert strat.corridor_legs(sync.payload, float(t5 + 30)) is not None
     assert strat.corridor_legs(sync.payload, float(t5 + 250)) is None
-    assert strat.evaluate(sync, store, float(t5 + 30)) == []
+    (opp,) = strat.evaluate(sync, store, float(t5 + 30))
+    assert opp.meta["sequential"] is True
+    assert opp.cost <= 10.0 + 1e-6
+    assert strat.evaluate(sync, store, float(t5 + 250)) == []

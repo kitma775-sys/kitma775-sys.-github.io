@@ -10,7 +10,7 @@ from polyarb.book import take
 from polyarb.config import ExecutionConfig
 from polyarb.data.clob import ClobClient
 from polyarb.data.store import BookStore
-from polyarb.execution.base import ExecutionReport, Gateway, SellResult, retain_unsold_shares
+from polyarb.execution.base import ExecutionReport, Gateway, LegResult, SellResult, retain_unsold_shares
 from polyarb.execution.settlement import index_set
 from polyarb.models import FeeSchedule, Leg, Opportunity, Outcome, Settlement
 from polyarb.sizing import floor_shares
@@ -110,8 +110,8 @@ class Executor:
                 report.action = f"abort: {reason}"
                 return self._done(report)
             report.sent = True
-            report.legs = await self.gateway.buy(opp.legs, self.cfg.slippage_ticks)
-            report.complete = all(r.ok for r in report.legs)
+            report.legs = await self._submit_buys(opp)
+            report.complete = all(r.ok for r in report.legs) and len(report.legs) == len(opp.legs)
             subset = False
             if not report.complete:
                 subset = await self._repair(report)
@@ -129,6 +129,23 @@ class Executor:
             log.exception("execution failed for %s", opp.key)
             report.error = str(exc)
         return self._done(report)
+
+    async def _submit_buys(self, opp: Opportunity) -> list[LegResult]:
+        """Micro merge and corridor buy the thin leg first.
+
+        The other leg is sent only after the first fill. One ``buy`` call with
+        both legs posts them together, which is how a single FOK miss left a
+        naked Down position.
+        """
+        if not (opp.meta.get("sequential") and len(opp.legs) > 1):
+            return await self.gateway.buy(opp.legs, self.cfg.slippage_ticks)
+        results: list[LegResult] = []
+        for leg in opp.legs:
+            batch = await self.gateway.buy([leg], self.cfg.slippage_ticks)
+            results.extend(batch)
+            if not batch or not batch[0].ok or batch[0].shares <= 0:
+                break
+        return results
 
     def _should_recheck(self, opp: Opportunity, target: Target | None) -> bool:
         if not (self.cfg.recheck_books and target is not None and self.clob is not None):
@@ -228,7 +245,11 @@ class Executor:
         complete_value = per_unit * q - filled_cost - retry_cost if retry_legs is not None else -math.inf
         # Never buy the missing leg once the pair costs more than its guaranteed payout.
         # The BTC 1h retry did this: YES filled at 21¢, DOWN was then lifted at 82¢, and the hold pays $1 against $1.03.
-        if complete_value < 0.0:
+        # A sequential micro hedge may pay up to chase_max_combined (100.5¢) to lock $1
+        # instead of selling the filled leg back into the spread.
+        chase_cap = float(opp.meta.get("chase_max_combined") or 0.0) if opp.meta.get("sequential") else 0.0
+        cost_cap = (chase_cap if chase_cap > 0.0 else per_unit) * q
+        if retry_legs is not None and filled_cost + retry_cost > cost_cap + 1e-6:
             retry_legs = None
             complete_value = -math.inf
 
@@ -239,7 +260,8 @@ class Executor:
             leftovers = sum(self._sell_value(h.leg, h.shares - q) for h in held.values())
             subset_value = (len(held) - 1) * q + leftovers - filled_cost
 
-        best = max(complete_value, unwind_value, subset_value)
+        prefer_chase = bool(opp.meta.get("sequential") and chase_cap > 0.0 and retry_legs)
+        best = complete_value if prefer_chase else max(complete_value, unwind_value, subset_value)
         log.warning(
             "partial fill on %s: complete=%.3f subset=%.3f unwind=%.3f", opp.key, complete_value, subset_value, unwind_value
         )

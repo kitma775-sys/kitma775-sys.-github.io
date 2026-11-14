@@ -2,10 +2,11 @@
 
 Three engines, each round capped by ``max_cost_usd`` (default $10, both legs):
 
-* **merge** — buy UP and DOWN of the same 5m market only when the two real
-  token asks, fees included, sum to at most ``merge_max_combined``, then
-  ``mergePositions`` back to pUSD. The YES-book mirror cannot show this, so
-  both token books are read.
+* **merge** — buy UP and DOWN of the same 5m market only when both asks sit
+  inside the balanced band and, fees included, sum to at most
+  ``merge_max_combined``. The thinner ask is bought first; the other leg is
+  sent only after that fill, then ``mergePositions`` returns pUSD. A book
+  that is already inside the cap is not left for a maker quote.
 * **corridor** — on the last 5m of a 15m window, when the two strikes differ
   by at least ``min_strike_gap``, buy the low strike's UP and the high
   strike's DOWN. Floor payout is $1. A one-leg fill is always sold back.
@@ -172,7 +173,7 @@ class MicroArb:
             return []
         return yes.asks if outcome is Outcome.YES else yes.no_asks()
 
-    def _sized(self, legs: list[LegBook], min_unit_edge: float, cap: float):
+    def _sized(self, legs: list[LegBook], min_unit_edge: float, cap: float, hedge_depth_ratio: float = 1.0):
         if cap <= 0 or not legs:
             return None
         tops: list[float] = []
@@ -183,6 +184,10 @@ class MicroArb:
             if top + 1e-9 < leg.min_size:
                 top = leg.levels[0].size
             tops.append(top)
+        if len(tops) >= 2 and hedge_depth_ratio > 1.0:
+            tops[-1] = min(tops[-1], legs[-1].levels[0].size / hedge_depth_ratio)
+        if min(tops) + 1e-9 < max(leg.min_size for leg in legs):
+            return None
         return size_basket(
             legs,
             1.0,
@@ -246,13 +251,16 @@ class MicroArb:
             return []
         payload = target.payload
         if isinstance(payload, ShortSingleSpec):
-            # Merge is a sequential maker quote plus one hedge. A two-leg taker
-            # FOK is what left the naked Down leg on 14:41 and 14:42.
+            # A book already inside the cap is taken one leg at a time. The
+            # 14:41 and 14:42 naked Downs came from posting both FOKs together.
+            merge = self._eval_merge(target, payload, books, now, cap)
+            if merge is not None:
+                return [merge]
             tail = self._eval_tail(target, payload, books, now, cap)
             return [tail] if tail is not None else []
         if isinstance(payload, Sync5m15mSpec):
-            # Corridor uses the same sequential maker path.
-            return []
+            corridor = self._eval_corridor(target, payload, books, now, cap)
+            return [corridor] if corridor is not None else []
         return []
 
     def _accept(self, opp: Opportunity) -> Opportunity | None:
@@ -276,19 +284,20 @@ class MicroArb:
         no_book = books.get(market.no_token)
         if yes_book is None or no_book is None or not yes_book.asks or not no_book.asks:
             return None
-        legs = [
-            LegBook(yes_book.asks, market.fee, market.min_size),
-            LegBook(no_book.asks, market.fee, market.min_size),
-        ]
+        sides = ((Outcome.YES, yes_book), (Outcome.NO, no_book))
+        if any(not (cfg.merge_min_price - 1e-12 <= book.asks[0].price <= cfg.merge_max_price + 1e-12) for _, book in sides):
+            return None
+        # The thinner ask goes first. If it misses, the second order is never sent.
+        ordered = sorted(sides, key=lambda side: side[1].asks[0].size)
+        legs = [LegBook(book.asks, market.fee, market.min_size) for _, book in ordered]
         if sum(unit_cost(leg.levels, leg.fee) or 1.0 for leg in legs) > cfg.merge_max_combined + 1e-9:
             return None
-        fill = self._sized(legs, max(cfg.min_edge, 1.0 - cfg.merge_max_combined), cap)
+        fill = self._sized(legs, max(cfg.min_edge, 1.0 - cfg.merge_max_combined), cap, cfg.hedge_depth_ratio)
         if fill is None:
             return None
-        outcomes = (Outcome.YES, Outcome.NO)
         built = [
             buy_leg(market, out, one, f"{_side_label(market, out)} {target.event.title[:42]}")
-            for out, one in zip(outcomes, fill.fills)
+            for (out, _), one in zip(ordered, fill.fills)
         ]
         opp = Opportunity(
             strategy=self.name,
@@ -305,6 +314,8 @@ class MicroArb:
             detected_at=now,
             meta={
                 "mode": "micro_merge",
+                "sequential": True,
+                "chase_max_combined": cfg.chase_max_combined,
                 "asset": spec.asset,
                 "duration": "5m",
                 "fast_turnover": True,
@@ -376,15 +387,18 @@ class MicroArb:
         if pair is None:
             return None
         leg_specs, resolves_at, title, ev_ids = pair
-        leg_books: list[LegBook] = []
+        paired: list[tuple[tuple[Market, Outcome], LegBook]] = []
         for market, outcome in leg_specs:
             levels = self._asks(market, outcome, books)
             if not levels:
                 return None
-            leg_books.append(LegBook(levels, market.fee, market.min_size))
+            paired.append(((market, outcome), LegBook(levels, market.fee, market.min_size)))
+        paired.sort(key=lambda item: item[1].levels[0].size)
+        leg_specs = [spec_leg for spec_leg, _ in paired]
+        leg_books = [leg for _, leg in paired]
         if sum(unit_cost(lb.levels, lb.fee) or 1.0 for lb in leg_books) > cfg.corridor_max_combined + 1e-9:
             return None
-        fill = self._sized(leg_books, max(cfg.min_edge, 1.0 - cfg.corridor_max_combined), cap)
+        fill = self._sized(leg_books, max(cfg.min_edge, 1.0 - cfg.corridor_max_combined), cap, cfg.hedge_depth_ratio)
         if fill is None:
             return None
         legs = [
@@ -406,6 +420,8 @@ class MicroArb:
             detected_at=now,
             meta={
                 "mode": "micro_corridor",
+                "sequential": True,
+                "chase_max_combined": cfg.chase_max_combined,
                 "asset": spec.asset,
                 "fast_turnover": True,
                 "event_ids": ev_ids,
