@@ -617,6 +617,14 @@ class TelegramBot:
                     toast_msg = "🟢 熔斷已重置"
                     t_out, kb = self.render_home()
                     await self.edit_or_send(cid, mid, t_out, reply_markup=kb)
+                elif op == "open_ask":
+                    t_out, kb = self.render_open_confirm()
+                    await self.edit_or_send(cid, mid, t_out, reply_markup=kb)
+                elif op == "open_ok":
+                    await self.controls.open_trading_async(source="telegram")
+                    toast_msg = "🟢 已開盤，熔斷同今日虧損計數已清"
+                    t_out, kb = self.render_home()
+                    await self.edit_or_send(cid, mid, t_out, reply_markup=kb)
 
             elif head == "sc":
                 cat = parts[1] if len(parts) > 1 else "risk"
@@ -733,6 +741,7 @@ class TelegramBot:
                 {"text": "🔄 即時刷新", "callback_data": "nav:home"},
                 toggle_btn,
             ],
+            [{"text": "🟢 即刻開盤（解除熔斷）", "callback_data": "act:open_ask"}],
             [
                 {"text": "🎯 零費掛單", "callback_data": "nav:quotes"},
                 {"text": "📦 持倉贖回", "callback_data": "nav:holds"},
@@ -1107,6 +1116,24 @@ class TelegramBot:
                 rows.append([{"text": "🔴 申請切換至「實盤模式 LIVE」…", "callback_data": "md:ask_live"}])
         rows.append([{"text": "🏠 返回主面板", "callback_data": "nav:home"}])
         return "\n".join(lines), {"inline_keyboard": rows}
+
+    def render_open_confirm(self) -> tuple[str, dict]:
+        rk = self.monitor.engine.risk.state
+        txt = (
+            "🟢 <b>即刻開盤？</b>\n\n"
+            f"熔斷：{'已觸發' if rk.killed else '未觸發'}"
+            + (f"（<code>{_esc(rk.kill_reason)}</code>）" if rk.kill_reason else "")
+            + "\n"
+            f"今日已實現：<b>{_usd(rk.realized_today, True)}</b>\n\n"
+            "確認後會解除熔斷、取消暫停，並將今日虧損計數歸零。單日 $5 上限仍然有效，由這一刻重新計算。實盤會繼續自動落單。"
+        )
+        kb = {
+            "inline_keyboard": [
+                [{"text": "✅ 即刻開盤", "callback_data": "act:open_ok"}],
+                [{"text": "⬅️ 取消並返回", "callback_data": "nav:home"}],
+            ]
+        }
+        return txt, kb
 
     def render_kill_confirm(self) -> tuple[str, dict]:
         rk = self.monitor.engine.risk.state

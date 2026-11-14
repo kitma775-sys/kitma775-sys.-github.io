@@ -375,6 +375,14 @@ class RiskManager:
         self.state.consecutive_failures = 0
         self.save()
 
+    def open_trading(self) -> None:
+        """Clear the kill switch and today's realized-loss counter so new orders can be sent."""
+        self.state.killed = False
+        self.state.kill_reason = ""
+        self.state.consecutive_failures = 0
+        self.state.realized_today = 0.0
+        self.save()
+
     async def check_geo(self, http: httpx.AsyncClient | None = None) -> dict:
         own = http is None
         client = http or httpx.AsyncClient(timeout=10)
