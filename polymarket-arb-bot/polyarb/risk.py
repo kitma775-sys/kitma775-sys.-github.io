@@ -53,6 +53,36 @@ class HoldPosition:
     exit_price: float = 0.0
 
 
+def mark_hold_value(
+    hold: HoldPosition, bid_at: Callable[[str, str], float | None] | None = None
+) -> tuple[float, bool]:
+    """Value a hold for the headline number.
+
+    A payout above one cent is the guaranteed settlement. A kept leg stored with
+    payout 0 has no guarantee, so it is priced at the live bid. With no bid the
+    cost is used, and the headline does not treat the whole premium as already lost.
+    The second value is True when a live bid was used.
+    """
+    if hold.payout > 0.01:
+        return hold.payout, False
+    marked = 0.0
+    seen = False
+    if bid_at is not None:
+        for leg in hold.legs:
+            shares = float(leg.get("shares") or 0.0)
+            token = str(leg.get("yes_token") or leg.get("token") or "")
+            if shares <= 0 or not token:
+                continue
+            price = bid_at(token, str(leg.get("outcome") or "YES"))
+            if price is None or price <= 0:
+                continue
+            marked += shares * float(price)
+            seen = True
+    if not seen:
+        return hold.cost, False
+    return marked, True
+
+
 @dataclass
 class RiskState:
     day: str = ""
@@ -140,7 +170,13 @@ class RiskManager:
             return f"geoblocked ({self.geo.get('country') or self.geo.get('error')})"
         if self.state.realized_today <= -cfg.max_daily_loss_usd:
             return "daily loss limit"
-        if opp.strategy == "maker_crypto_pair" or opp.meta.get("mode") in ("anchor_1h", "sync_5m_15m"):
+        if opp.strategy in ("maker_crypto_pair", "maker_micro_merge", "maker_micro_corridor") or opp.meta.get("mode") in (
+            "anchor_1h",
+            "sync_5m_15m",
+            "micro_corridor",
+            "micro_merge",
+            "micro_tail",
+        ):
             ids = [opp.event_id, *(str(eid) for eid in (opp.meta.get("event_ids") or []))]
             if any(self.event_exposure(eid) > 0.5 for eid in ids):
                 return "pair already open"
@@ -156,6 +192,17 @@ class RiskManager:
         if opp.event_id in self.inflight_events:
             return "event in flight"
         return self.check_size(opp)
+
+    def occupied_rounds(self, strategies: tuple[str, ...]) -> set[str]:
+        """Event ids that already hold inventory for one of ``strategies``."""
+        names = set(strategies)
+        ids: set[str] = set()
+        for hold in self.state.holds:
+            if hold.strategy not in names:
+                continue
+            ids.add(hold.event_id)
+            ids.update(str(eid) for eid in hold.extra_event_ids)
+        return ids
 
     def check_size(self, opp: Opportunity) -> str | None:
         """Capital and exposure limits; re-run on the exact (re-sized) order right before sending."""
@@ -248,7 +295,11 @@ class RiskManager:
 
     def _freeze_open_pair(self, opp: Opportunity, now: float) -> None:
         """One 1h/5m cross-pair per window. A partial fill must not be re-tried for the rest of the hour."""
-        if opp.strategy != "maker_crypto_pair" and opp.meta.get("mode") not in ("anchor_1h", "sync_5m_15m"):
+        if opp.strategy not in ("maker_crypto_pair", "maker_micro_corridor") and opp.meta.get("mode") not in (
+            "anchor_1h",
+            "sync_5m_15m",
+            "micro_corridor",
+        ):
             return
         if opp.resolves_at is not None:
             horizon = opp.resolves_at.timestamp()
@@ -282,6 +333,7 @@ class RiskManager:
         position_fn: Callable[[str], Awaitable[float]],
         now: float | None = None,
         min_age_s: float = 120.0,
+        sale_proceeds: Callable[[HoldPosition], float | None] | None = None,
     ) -> list[HoldPosition]:
         """Drop phantom holds whose conditional tokens were already redeemed or sold outside the bot."""
         now = now or time.time()
@@ -311,6 +363,20 @@ class RiskManager:
                 removed.append(h)
         if removed:
             self.state.holds = keep
+            # A naked remainder was kept with no assumed payout. Once the tokens
+            # are gone and nothing redeemed them, the premium is a real loss.
+            for h in removed:
+                if h.payout <= 0.01 and h.cost > 0.01:
+                    self._roll_day(now)
+                    proceeds = sale_proceeds(h) if sale_proceeds is not None else None
+                    # A manual sale removes the tokens while the book is still alive.
+                    # Book that bid, not the whole premium. No bid still means the
+                    # tokens left without a market, so the premium is the loss.
+                    pnl = -h.cost if proceeds is None else proceeds - h.cost
+                    self.state.realized_today += pnl
+                    self.state.realized_total += pnl
+            if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
+                self.kill("daily loss limit reached")
             self.save()
         return removed
 
@@ -342,6 +408,14 @@ class RiskManager:
         self.state.killed = False
         self.state.kill_reason = ""
         self.state.consecutive_failures = 0
+        self.save()
+
+    def open_trading(self) -> None:
+        """Clear the kill switch and today's realized-loss counter so new orders can be sent."""
+        self.state.killed = False
+        self.state.kill_reason = ""
+        self.state.consecutive_failures = 0
+        self.state.realized_today = 0.0
         self.save()
 
     async def check_geo(self, http: httpx.AsyncClient | None = None) -> dict:

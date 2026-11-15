@@ -17,7 +17,7 @@ from polyarb import __version__
 from polyarb.engine import Engine
 from polyarb.execution.base import record_materially_filled
 from polyarb.fastjson import dumps
-from polyarb.risk import api_allowed
+from polyarb.risk import api_allowed, mark_hold_value
 
 if TYPE_CHECKING:
     from polyarb.settings import SettingsManager
@@ -332,8 +332,18 @@ class Monitor:
 
     # ------------------------------------------------------------------ views
 
+    def _bid_at(self, yes_token: str, outcome: str) -> float | None:
+        book = self.engine.store.raw(yes_token)
+        if book is None:
+            return None
+        levels = book.bids if outcome.upper() == "YES" else book.no_bids()
+        return levels[0].price if levels else None
+
+    def _hold_value(self, hold) -> tuple[float, bool]:
+        return mark_hold_value(hold, self._bid_at)
+
     def _locked_profit(self) -> float:
-        return sum(h.payout - h.cost for h in self.engine.risk.state.holds)
+        return sum(self._hold_value(h)[0] - h.cost for h in self.engine.risk.state.holds)
 
     def series_view(self, recent_s: float = 3600.0, max_older: int = 360) -> dict[str, list]:
         """The last ``recent_s`` at full resolution, everything older thinned to ``max_older`` points."""
@@ -425,13 +435,15 @@ class Monitor:
                     "slug": self.slug_for(h.key, h.event_id),
                     "strategy": h.strategy,
                     "cost": round(h.cost, 2),
-                    "payout": round(h.payout, 2),
-                    "profit": round(h.payout - h.cost, 2),
+                    "payout": round(value, 2),
+                    "profit": round(value - h.cost, 2),
+                    "marked": marked,
                     "resolves_at": h.resolves_at,
                     "opened_at": h.opened_at,
                     "exit_price": h.exit_price if h.exit_order_id else None,
                 }
                 for h in sorted(state.holds, key=lambda h: h.resolves_at or "")
+                for value, marked in (self._hold_value(h),)
             ],
             "readiness": self.info.readiness,
             "wallet": self.info.wallet,

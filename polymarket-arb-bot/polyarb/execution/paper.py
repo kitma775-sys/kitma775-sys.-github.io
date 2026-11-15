@@ -67,6 +67,7 @@ class PaperGateway:
         self.rng = random.Random(seed)
         self.converted: list[tuple[str, int, float]] = []
         self.redeemed: list[str] = []
+        self.merged: list[tuple[str, float]] = []
         self._orders: dict[str, _PaperOrder] = {}
         self._seq = 0
 
@@ -230,6 +231,10 @@ class PaperGateway:
     async def redeem(self, condition_id: str) -> tuple[bool, str | None]:
         self.redeemed.append(condition_id)
         return True, "paper-redeem"
+
+    async def merge(self, condition_id: str, shares: float) -> tuple[bool, str | None]:
+        self.merged.append((condition_id, shares))
+        return True, "paper-merge"
 
     def warm_markets(self, markets: Iterable[Market]) -> int:
         return 0

@@ -14,6 +14,7 @@ from polyarb.strategies.base import Strategy, Target
 from polyarb.strategies.binance_clock import BinanceClockLock
 from polyarb.strategies.crypto_short import CryptoShortArb
 from polyarb.strategies.ladder import LadderArb
+from polyarb.strategies.micro_arb import MicroArb
 from polyarb.strategies.metar import MetarLock
 from polyarb.strategies.negrisk import NegRiskConvert, NegRiskYesBasket
 from polyarb.strategies.twin import TwinPartitionArb
@@ -45,6 +46,14 @@ def build_all_strategies(
             flip_ask_price=cfg.metar.flip_ask_price,
             flip_min_instant_bid=cfg.metar.flip_min_instant_bid,
             flip_min_profit_usd=min(0.05, cfg.metar.flip_min_profit_usd),
+        ),
+        MicroArb(
+            cfg.micro_arb,
+            rtds_feed=rtds_feed,
+            max_trade_usd=cap,
+            flip_ask_price=cfg.metar.flip_ask_price,
+            flip_min_instant_bid=cfg.metar.flip_min_instant_bid,
+            flip_min_profit_usd=min(0.04, cfg.metar.flip_min_profit_usd),
         ),
         TwinPartitionArb(cfg.twin, cap),
         NegRiskYesBasket(cfg.yes_basket, cap),
