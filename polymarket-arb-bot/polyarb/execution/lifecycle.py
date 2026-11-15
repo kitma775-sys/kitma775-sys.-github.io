@@ -33,7 +33,7 @@ from polyarb.data.store import BookStore
 from polyarb.execution.base import Gateway
 from polyarb.journal import Journal
 from polyarb.models import FeeSchedule, Outcome, Side
-from polyarb.risk import HoldPosition, RiskManager
+from polyarb.risk import HoldPosition, RiskManager, mark_hold_value
 
 DATA_API_URL = "https://data-api.polymarket.com"
 log = logging.getLogger(__name__)
@@ -460,6 +460,21 @@ class LifecycleManager:
                 pnl,
             )
 
+    def _sale_proceeds(self, hold: HoldPosition) -> float | None:
+        """Bid value of a kept leg, used when the tokens disappear after a manual sale."""
+        if self.store is None:
+            return None
+
+        def bid_at(token: str, outcome: str) -> float | None:
+            book = self.store.raw(token) if self.store is not None else None
+            if book is None:
+                return None
+            levels = book.bids if outcome.upper() == "YES" else book.no_bids()
+            return levels[0].price if levels else None
+
+        value, used_bid = mark_hold_value(hold, bid_at)
+        return value if used_bid else None
+
     async def _reconcile_external(self) -> None:
         if not self.risk.state.holds:
             return
@@ -471,7 +486,7 @@ class LifecycleManager:
             _check_tok = self.gateway.position
         else:
             return
-        removed: list[HoldPosition] = await self.risk.reconcile_holds(_check_tok)
+        removed: list[HoldPosition] = await self.risk.reconcile_holds(_check_tok, sale_proceeds=self._sale_proceeds)
         for hold in removed:
             self.reconciled += 1
             self.journal.write(

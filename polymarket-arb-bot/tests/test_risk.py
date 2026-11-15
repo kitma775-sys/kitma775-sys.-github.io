@@ -7,7 +7,7 @@ import pytest
 from polyarb.config import RiskConfig
 from polyarb.execution.base import ExecutionReport, LegResult
 from polyarb.models import Leg, Opportunity, Outcome, Settlement, Side
-from polyarb.risk import REGION_REJECTED, RiskManager, api_allowed
+from polyarb.risk import REGION_REJECTED, HoldPosition, RiskManager, api_allowed, mark_hold_value
 
 from conftest import NOW
 
@@ -196,6 +196,43 @@ def test_state_persists_and_holds_release(risk, tmp_path):
     assert [h.key for h in released] == ["k1"]
     assert reloaded.state.realized_total == pytest.approx(2.0)
     assert reloaded.hold_exposure == 0
+
+
+def _kept_btc() -> HoldPosition:
+    return HoldPosition(
+        key="btc",
+        event_id="e",
+        strategy="maker_twin",
+        title="Bitcoin dip",
+        cost=15.72,
+        payout=0.0,
+        shares=20.15,
+        resolves_at=None,
+        opened_at=0.0,
+        legs=[{"token": "T", "yes_token": "Y", "outcome": "NO", "shares": 20.15}],
+    )
+
+
+def test_zero_payout_hold_is_marked_at_the_bid_not_as_a_total_loss():
+    hold = _kept_btc()
+    value, used = mark_hold_value(hold, lambda token, outcome: 0.895 if outcome == "NO" else None)
+    assert used is True
+    assert value == pytest.approx(20.15 * 0.895)
+    flat, used_flat = mark_hold_value(hold, lambda token, outcome: None)
+    assert used_flat is False
+    assert flat == pytest.approx(15.72)
+
+
+async def test_manual_sale_of_a_kept_leg_books_the_bid(risk):
+    risk.state.holds = [_kept_btc()]
+
+    async def gone(token: str) -> float:
+        return 0.0
+
+    removed = await risk.reconcile_holds(gone, now=10_000, sale_proceeds=lambda h: 18.03)
+    assert [h.key for h in removed] == ["btc"]
+    assert risk.state.holds == []
+    assert risk.state.realized_total == pytest.approx(18.03 - 15.72)
 
 
 async def test_check_geo_parses_and_fails_closed(risk):

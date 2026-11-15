@@ -1524,7 +1524,7 @@
     }
     setHTML(body, holds.map(h => html`<tr>
       <td class="title" title="${h.title}">${link(h.title, h.slug)}</td><td class="hide-sm">${chip(h.strategy)}</td>
-      <td class="num">${usd(h.cost)}</td><td class="num hide-sm">${usd(h.payout)}</td><td class="num pos">${usd(h.profit, true)}</td>
+      <td class="num">${usd(h.cost)}</td><td class="num hide-sm">${usd(h.payout)}</td><td class="num ${h.profit < 0 ? 'neg' : 'pos'}">${usd(h.profit, true)}</td>
       <td class="num" title="${h.resolves_at || ''}">${h.exit_price ? `掛賣 @${h.exit_price.toFixed(3)}` : until(h.resolves_at)}</td></tr>`));
   }
 

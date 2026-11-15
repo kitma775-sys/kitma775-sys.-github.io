@@ -862,9 +862,10 @@ class TelegramBot:
             for i, h in enumerate(holds[:15], 1):
                 st_zh = STRAT_NAMES.get(h.get("strategy"), h.get("strategy"))
                 exit_tag = f"｜掛賣 @{h['exit_price']:.3f}" if h.get("exit_price") else f"｜結算 {_hkt(h.get('resolves_at'))}"
+                value_name = "市價" if h.get("marked") else "保證派彩"
                 lines.append(
                     f"<b>{i}. [{_esc(st_zh)}] {_esc(h.get('title'))}</b>\n"
-                    f"   成本 {_usd(h.get('cost'))} → 保證派彩 {_usd(h.get('payout'))}（<b>{_usd(h.get('profit'), True)}</b>）{_esc(exit_tag)}"
+                    f"   成本 {_usd(h.get('cost'))} → {value_name} {_usd(h.get('payout'))}（<b>{_usd(h.get('profit'), True)}</b>）{_esc(exit_tag)}"
                 )
         kb = {
             "inline_keyboard": [

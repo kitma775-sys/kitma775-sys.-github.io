@@ -53,6 +53,36 @@ class HoldPosition:
     exit_price: float = 0.0
 
 
+def mark_hold_value(
+    hold: HoldPosition, bid_at: Callable[[str, str], float | None] | None = None
+) -> tuple[float, bool]:
+    """Value a hold for the headline number.
+
+    A payout above one cent is the guaranteed settlement. A kept leg stored with
+    payout 0 has no guarantee, so it is priced at the live bid. With no bid the
+    cost is used, and the headline does not treat the whole premium as already lost.
+    The second value is True when a live bid was used.
+    """
+    if hold.payout > 0.01:
+        return hold.payout, False
+    marked = 0.0
+    seen = False
+    if bid_at is not None:
+        for leg in hold.legs:
+            shares = float(leg.get("shares") or 0.0)
+            token = str(leg.get("yes_token") or leg.get("token") or "")
+            if shares <= 0 or not token:
+                continue
+            price = bid_at(token, str(leg.get("outcome") or "YES"))
+            if price is None or price <= 0:
+                continue
+            marked += shares * float(price)
+            seen = True
+    if not seen:
+        return hold.cost, False
+    return marked, True
+
+
 @dataclass
 class RiskState:
     day: str = ""
@@ -303,6 +333,7 @@ class RiskManager:
         position_fn: Callable[[str], Awaitable[float]],
         now: float | None = None,
         min_age_s: float = 120.0,
+        sale_proceeds: Callable[[HoldPosition], float | None] | None = None,
     ) -> list[HoldPosition]:
         """Drop phantom holds whose conditional tokens were already redeemed or sold outside the bot."""
         now = now or time.time()
@@ -337,7 +368,11 @@ class RiskManager:
             for h in removed:
                 if h.payout <= 0.01 and h.cost > 0.01:
                     self._roll_day(now)
-                    pnl = -h.cost
+                    proceeds = sale_proceeds(h) if sale_proceeds is not None else None
+                    # A manual sale removes the tokens while the book is still alive.
+                    # Book that bid, not the whole premium. No bid still means the
+                    # tokens left without a market, so the premium is the loss.
+                    pnl = -h.cost if proceeds is None else proceeds - h.cost
                     self.state.realized_today += pnl
                     self.state.realized_total += pnl
             if self.state.realized_today <= -self.cfg.max_daily_loss_usd:
